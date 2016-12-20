@@ -1,3 +1,15 @@
+    The contents of this file are subject to the GPLv2
+    ("License"); You may not use this file except in compliance GPLv2
+    The Initial Developer of the Original Code is Adam Ben Hur.
+    All portions are Copyright (C) Adam Ben Hur.
+    All Rights Reserved.
+
+
+
+
+
+
+
 This module is based on the Xero Integration build by danicampora
 https://github.com/danicampora/woocommerce-xero
 
