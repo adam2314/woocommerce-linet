@@ -1,5 +1,5 @@
 === Linet ERP-Woocommerce Integration Plugin ===
-Contributors: ari@speedcomp.co.il 
+Contributors: adam2314@gmail.com
 Tags: sync, business, ERP, accounting, woocommerce, Linet
 Requires at least: 4.6
 Tested up to: 4.7
