@@ -35,6 +35,7 @@ class WC_LI_Settings {
     const OPTION_PREFIX = 'wc_linet_';
     const SERVER = "https://dev.linet.org.il";
 
+    //const SERVER = "https://app.linet.org.il";
     // Settings defaults
     private $settings = array();
     private $override = array();
@@ -53,7 +54,7 @@ class WC_LI_Settings {
         add_action('linetItemSync', 'WC_LI_Settings::catSync');
 
         add_action('wp_ajax_LinetItemSync', 'WC_LI_Settings::catSyncAjax');
-
+        add_action('wp_ajax_LinetTest', 'WC_LI_Settings::TestAjax');
 
         if ($override !== null) {
             $this->override = $override;
@@ -65,14 +66,13 @@ class WC_LI_Settings {
                 'title' => __('ID', 'wc-linet'),
                 'default' => '',
                 'type' => 'text',
-                'description' => __('OAuth Credential retrieved from <a href="http://api.linet.org.il" target="_blank">Linet Developer Centre</a>.', 'wc-linet'),
+                'description' => __('Login ID  retrieved from <a href="http://app.linet.org.il" target="_blank">Linet</a>.', 'wc-linet'),
             ),
-           
             'consumer_key' => array(
                 'title' => __('Key', 'wc-linet'),
                 'default' => '',
                 'type' => 'text',
-                'description' => __('OAuth Credential retrieved from <a href="http://api.linet.org.il" target="_blank">Linet Developer Centre</a>.', 'wc-linet'),
+                'description' => __('Key retrieved from <a href="http://app.linet.org.il" target="_blank">Linet</a>.', 'wc-linet'),
             ),
             'company' => array(
                 'title' => __('Company', 'wc-linet'),
@@ -80,19 +80,17 @@ class WC_LI_Settings {
                 'type' => 'text',
                 'description' => __('Company id', 'wc-linet'),
             ),
-            
-           
             'genral_acc' => array(
-                'title' => __('Genral Custemer Account', 'wc-linet'),
+                'title' => __('General Custemer Account', 'wc-linet'),
                 'default' => '0',
                 'type' => 'text',
                 'description' => __('Enter 0 for auto create account', 'wc-linet'),
             ),
             'genral_item' => array(
-                'title' => __('Genral Item', 'wc-linet'),
+                'title' => __('General Item', 'wc-linet'),
                 'default' => '1',
                 'type' => 'text',
-                'description' => __('Code for Linet genral Item ', 'wc-linet'),
+                'description' => __('Code for Linet general Item ', 'wc-linet'),
             ),
             'warehouse_id' => array(
                 'title' => __('Warehouse', 'wc-linet'),
@@ -125,20 +123,29 @@ class WC_LI_Settings {
               'on'  => __( 'On Order Completion', 'wc-linet' ),
               ),
               ),
-             
-            'export_zero_amount' => array(
-                'title' => __('Orders with zero total', 'wc-linet'),
-                'default' => 'off',
-                'type' => 'checkbox',
-                'description' => __('Export orders with zero total.', 'wc-linet'),
-            ),
+
+              'export_zero_amount' => array(
+              'title' => __('Orders with zero total', 'wc-linet'),
+              'default' => 'off',
+              'type' => 'checkbox',
+              'description' => __('Export orders with zero total.', 'wc-linet'),
+              ),
              * 
              */
             'sync_items' => array(
                 'title' => __('Sync Items', 'wc-linet'),
                 'default' => 'on',
                 'type' => 'checkbox',
-                'description' => __('Use Linet to sync items', 'wc-linet'),
+                'description' => __('Use Linet to sync items', 'wc-linet') .
+                ' <a href="#target" onclick="trySend()">Manual Items Sync</a>' .
+                "<div id='mItems' class='hidden'>" .
+                '
+                <div id="target"></div>
+                <progress id="targetBar" max="100" value="0"></progress>
+                <div id="subTarget"></div>
+                <progress id="subTargetBar" max="100" value="0"></progress>' .
+                "</div>"
+            ,
             ),
             'sync_orders' => array(
                 'title' => __('Sync Orders', 'wc-linet'),
@@ -253,25 +260,77 @@ class WC_LI_Settings {
                 <div class="icon32 icon32-woocommerce-settings" id="icon-woocommerce"><br/></div>
                 <h2><?php _e('Linet for WooCommerce', 'wc-linet'); ?></h2>
 
-                <?php
-                if (isset($_GET['settings-updated']) && ( $_GET['settings-updated'] == 'true' )) {
-                    echo '<div id="message" class="updated fade"><p><strong>' . __('Your settings have been saved.', 'wc-linet') . '</strong></p></div>';
-                } else if (isset($_GET['settings-updated']) && ( $_GET['settings-updated'] == 'false' )) {
-                    echo '<div id="message" class="error fade"><p><strong>' . __('There was an error saving your settings.', 'wc-linet') . '</strong></p></div>';
-                }
-                ?>
+        <?php
+        if (isset($_GET['settings-updated']) && ( $_GET['settings-updated'] == 'true' )) {
+            echo '<div id="message" class="updated fade"><p><strong>' . __('Your settings have been saved.', 'wc-linet') . '</strong></p></div>';
+        } else if (isset($_GET['settings-updated']) && ( $_GET['settings-updated'] == 'false' )) {
+            echo '<div id="message" class="error fade"><p><strong>' . __('There was an error saving your settings.', 'wc-linet') . '</strong></p></div>';
+        }
+        ?>
 
+                
+                <a href="#target1" onclick="doTest()">Test Connection</a> (You can Check The Connection Only After Saving)
                 <?php settings_fields('woocommerce_linet'); ?>
                 <?php do_settings_sections('woocommerce_linet'); ?>
+                
 
 
+                <p class="submit"><input type="submit" class="button-primary" value="Save"/></p>
                 <script>
+                    function doTest() {
+                        var data = {
+                            'action': 'LinetTest',
+                            //'mode': 1
+                        };
+
+
+                        jQuery.post(ajaxurl, data, function (response) {
+                            //console.log(response);
+                            console.log(response);
+                            alert(response.text);
+                            //count
+
+                        },'json');
+
+
+                    }
+
+                    function doCall(num) {
+                        var data = {
+                            'action': 'LinetItemSync',
+                            'mode': 1
+                        };
+                        max = jQuery('#targetBar').attr("max");
+                        if (num)
+                            jQuery.post(ajaxurl, data, function (response) {
+                                //console.log(response);
+
+                                bar = max - num;
+
+                                jQuery('#target').html("Categories Processed:  " + bar + "/" + max + "");
+                                jQuery('#targetBar').val(bar);
+
+
+
+                                jQuery('#subTarget').html("Item Processed: 0/" + response + "");
+                                jQuery('#subTargetBar').attr("max", 1 * response);
+
+                                subCall(num - 1, 0);
+                                //count
+
+                            });
+
+
+                    }
+
 
                     function trySend() {
                         var data = {
                             'action': 'LinetItemSync',
                             'mode': 0
                         };
+                        jQuery('#mItems').removeClass('hidden');
+
                         jQuery.post(ajaxurl, data, function (response) {
                             jQuery('#target').html("Categories Processed:  0/" + response + "");
                             jQuery('#targetBar').attr("max", response);
@@ -340,12 +399,7 @@ class WC_LI_Settings {
 
 
                 </script>
-                <a href="#target" onclick="trySend()">Try</a>
-                <div id="target"></div>
-                <progress id="targetBar" max="100" value="0"></progress>
-                <div id="subTarget"></div>
-                <progress id="subTargetBar" max="100" value="0"></progress>
-                <p class="submit"><input type="submit" class="button-primary" value="Save"/></p>
+
             </form>
         </div>
         <?php
@@ -406,11 +460,16 @@ class WC_LI_Settings {
         return json_decode($response);
     }
 
-    
+    public static function TestAjax() {
+        $genral_item = get_option('wc_linet_genral_item');
+        $res = Self::sendAPI('view/item?id=' . $genral_item);
+        echo json_encode($res);
+        wp_die();
+    }
 
     public static function catSyncAjax() {
 
-         // this is how you get access to the database
+        // this is how you get access to the database
 
         $mode = intval($_POST['mode']);
         //$logger = new WC_LI_Logger($this->settings);
@@ -431,8 +490,8 @@ class WC_LI_Settings {
             $cat = array_pop($cats);
             $_SESSION['body'] = $cats;
 
-            $wp_cat_id=Self::singleCatSync($cat);
-            
+            $wp_cat_id = Self::singleCatSync($cat);
+
             $warehouse = get_option('wc_linet_warehouse_id');
 
 
@@ -479,46 +538,46 @@ class WC_LI_Settings {
         //}
         //end loop
     }
+
     public static function singleCatSync($cat) {
         global $wpdb;
-        
+
         $prefix = mysql_real_escape_string($wpdb->prefix);
         $catName = mysql_real_escape_string($cat->name);
 
 
-            $query = "SELECT * FROM `" . $prefix . "terms` LEFT JOIN `" . $prefix . "term_taxonomy` ON `" . $prefix .
-                    "term_taxonomy`.term_id=`" . $prefix . "terms`.term_id where `" . $prefix .
-                    "term_taxonomy`.taxonomy='product_cat' and `" . $prefix . "terms`.name='" . $catName . "';";
-            $product_id = $wpdb->get_results($query);
+        $query = "SELECT * FROM `" . $prefix . "terms` LEFT JOIN `" . $prefix . "term_taxonomy` ON `" . $prefix .
+                "term_taxonomy`.term_id=`" . $prefix . "terms`.term_id where `" . $prefix .
+                "term_taxonomy`.taxonomy='product_cat' and `" . $prefix . "terms`.name='" . $catName . "';";
+        $product_id = $wpdb->get_results($query);
 
-            if (count($product_id) != 0) {
-                $term_id = $product_id[0]->term_id;
-            } else {
-                $term_id = wp_insert_term($cat->name, 'product_cat', array(
-                    'slug' => $cat->name,
-                    'name' => $cat->name,
-                ));
-            }
-
-
-
-            wp_update_term($term_id, 'product_cat', [
-
+        if (count($product_id) != 0) {
+            $term_id = $product_id[0]->term_id;
+        } else {
+            $term_id = wp_insert_term($cat->name, 'product_cat', array(
+                'slug' => $cat->name,
                 'name' => $cat->name,
-                'slug' => $cat->name
-            ]);
+            ));
+        }
 
 
-            update_term_meta($term_id, '_linet_cat', $cat->id);
-            update_term_meta($term_id, 'order', '');
-            update_term_meta($term_id, 'display_type', '');
-            update_term_meta($term_id, 'thumbnail_id', '');
-            update_term_meta($term_id, 'product_count_product_cat', '');
-            
-            return $term_id;
-        
+
+        wp_update_term($term_id, 'product_cat', [
+
+            'name' => $cat->name,
+            'slug' => $cat->name
+        ]);
+
+
+        update_term_meta($term_id, '_linet_cat', $cat->id);
+        update_term_meta($term_id, 'order', '');
+        update_term_meta($term_id, 'display_type', '');
+        update_term_meta($term_id, 'thumbnail_id', '');
+        update_term_meta($term_id, 'product_count_product_cat', '');
+
+        return $term_id;
     }
-    
+
     public static function singleProdSync($wp_cat_id, $item) {
         $user_id = 1;
         $stockManage = get_option('wc_linet_stock_manage');
@@ -603,7 +662,7 @@ class WC_LI_Settings {
             $logger->write("Linet Item Id: " . $item->id . " was synced");
         }//end each
     }
-    
+
     public static function catSync() {
         $cats = Self::sendAPI('search/itemcategory');
         $cats = $cats->body;
@@ -671,8 +730,6 @@ class WC_LI_Settings {
 
         $logger->write("End Linet Cat Sync");
     }
-    
-    
 
 //end func
 }
