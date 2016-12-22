@@ -45,7 +45,7 @@ if (!function_exists('woothemes_queue_update')) {
  */
 class WC_Linet {
 
-    const VERSION = '0.7';
+    const VERSION = '0.8';
 
     /**
      * The constructor
