@@ -87,13 +87,13 @@ class WC_LI_Invoice {
         $items = $order->get_items();
         //var_dump($items);
         $total = 0;
-        
-        $shipping_methods = array();
-        foreach ( $this->order->get_shipping_methods() as $method ) {
+        //*
+        $shipping_methods = [];
+        foreach ( $order->get_shipping_methods() as $method ) {
                 $shipping_methods[] = $method['method_id'];
-                var_dump( $method);
-        }
-        
+                //var_dump( $method);
+        }//*/
+        //exit;
 
         foreach ($items as $item) {
 
@@ -121,7 +121,7 @@ class WC_LI_Invoice {
             ]
         ];
 
-
+        $this->total = $total;
         $this->order = $order;
         return true;
     }

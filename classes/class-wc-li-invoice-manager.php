@@ -69,7 +69,7 @@ class WC_LI_Invoice_Manager {
      * @return bool
      */
     public function send_invoice($order_id) {
-
+        
         // Get the order
         $order = wc_get_order($order_id);
 
@@ -79,7 +79,7 @@ class WC_LI_Invoice_Manager {
         // Write exception message to log
         $logger = new WC_LI_Logger($this->settings);
 
-
+        
 
         //var_dump($order);
         //var_dump($invoice->to_array());
@@ -139,12 +139,12 @@ class WC_LI_Invoice_Manager {
             $order->add_order_note($e->getMessage());
 
             $logger->write($e->getMessage());
-
+            
             return false;
         }
 
         $logger->write('END LINET NEW INVOICE');
-
+       
         return true;
     }
 
@@ -176,9 +176,9 @@ class WC_LI_Invoice_Manager {
                 //'',//round( ( floatval( $order->order_tax ) + floatval( $order->order_shipping_tax ) ), 2 ),
                 //$order->order_total
                 );
-        //var_dump($contact_manager);exit;
+        
         $invoice->set_order($order);
-
+        
         // Return invoice
         return $invoice;
     }

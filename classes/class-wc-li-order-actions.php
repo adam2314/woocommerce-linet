@@ -53,10 +53,10 @@ class WC_LI_Order_Actions {
 
         // Add order actions
         
-        $sync = get_option('sync_orders');
-        if($sync){
+        //$sync = get_option('sync_orders');
+        //if($sync){
             add_action('woocommerce_order_actions', array($this, 'add_order_actions'));
-        }
+        //}
         
         
         //if $order->hasLinetDocId()
@@ -82,8 +82,8 @@ class WC_LI_Order_Actions {
         
         
         $data=get_post_meta($post->ID, '_linet_invoice_id');
-        if(count($data)==0)
-        $actions['linet_manual_invoice'] = __('Send Invoice to Linet', 'wc-linet');
+        //if(count($data)==0)
+            $actions['linet_manual_invoice'] = __('Send Invoice to Linet', 'wc-linet');
         //$actions['linet_manual_payment'] = __('Send Payment to Linet', 'wc-linet');
 
         return $actions;
@@ -103,10 +103,10 @@ class WC_LI_Order_Actions {
 
         // Invoice Manager
         $invoice_manager = new WC_LI_Invoice_Manager($this->settings);
-
+        
         // Send Invoice
         $invoice_manager->send_invoice($order->id);
-        //var_dump($order);exit;
+
         return true;
     }
 
