@@ -61,7 +61,7 @@ class WC_LI_Order_Actions {
         
         //if $order->hasLinetDocId()
         // Catch order actions
-        add_action('woocommerce_order_action_linet_manual_invoice', array($this, 'manual_invoice'));
+        add_action('woocommerce_order_action_linet_manual_invoice',  [$this,'manual_invoice']);
         //add_action('woocommerce_order_action_linet_manual_payment', array($this, 'manual_payment'));
     }
 
@@ -100,7 +100,7 @@ class WC_LI_Order_Actions {
 
 
 
-
+        
         // Invoice Manager
         $invoice_manager = new WC_LI_Invoice_Manager($this->settings);
         

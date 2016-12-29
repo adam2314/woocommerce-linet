@@ -147,6 +147,13 @@ class WC_LI_Settings {
                 "</div>"
             ,
             ),
+            /*
+            'cat_select' => array(
+                'title' => __('Categroy Select', 'wc-linet'),
+                'default' => 'off',
+                'type' => 'checkbox',
+                'description' => __('Find Linet items by SKU and not there Item ID', 'wc-linet'),
+            ),*/
             'sku_find' => array(
                 'title' => __('Sync Orders', 'wc-linet'),
                 'default' => 'off',
@@ -619,7 +626,7 @@ class WC_LI_Settings {
         update_post_meta($post_id, '_stock_status', 'instock');
         update_post_meta($post_id, 'total_sales', '0');
         update_post_meta($post_id, '_downloadable', 'no');
-        update_post_meta($post_id, '_virtual', 'yes');
+        update_post_meta($post_id, '_virtual', 'no');
         update_post_meta($post_id, '_regular_price', '');
         update_post_meta($post_id, '_sale_price', '');
         update_post_meta($post_id, '_purchase_note', '');

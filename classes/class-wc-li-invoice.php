@@ -87,12 +87,9 @@ class WC_LI_Invoice {
         $items = $order->get_items();
         //var_dump($items);
         $total = 0;
-        //*
-        $shipping_methods = [];
-        foreach ( $order->get_shipping_methods() as $method ) {
-                $shipping_methods[] = $method['method_id'];
-                //var_dump( $method);
-        }//*/
+
+        $genItm = get_option('wc_linet_genral_item');
+
         //exit;
 
         foreach ($items as $item) {
@@ -108,6 +105,28 @@ class WC_LI_Invoice {
             ];
             $total+=$item['line_total'];
         }
+
+        $shipping_methods = [];
+        foreach ($order->get_shipping_methods() as $method) {
+            $shipping_methods[] = $method['method_id'];
+
+            //var_dump(  $method['item_meta']['cost'][0]);
+
+
+            $this->doc['docDet'][] = [
+                "item_id" => $genItm, //getLinetId $item['product_id']
+                "name" => $method['item_meta']['method_id'][0],
+                "description" => "",
+                "qty" => 1,
+                "currency_id" => "ILS",
+                "unit_id" => 0,
+                "iTotalVat" => $method['item_meta']['cost'][0],
+            ];
+
+            $total+= $method['item_meta']['cost'][0];
+        }
+
+
         //_payment_method_title
         //_payment_method
 
@@ -140,22 +159,37 @@ class WC_LI_Invoice {
         $linetSkuFind = get_option('wc_linet_sku_find');
 
         if ($linetSkuFind == 'on') {
-            $res = WC_LI_Settings::sendAPI('search/item', ['sku' => $id]);
-            if ($res->body != "No items where found for model") {
-                return $res->body[0]->id;
-            }
-        } else {
+            //
 
-            $query = "SELECT * FROM `" . $prefix . "posts` LEFT JOIN `" . $prefix . "postmeta` ON `" . $prefix . "postmeta`.post_id=`" . $prefix .
+            $query = "SELECT `" . $prefix . "postmeta`.meta_value FROM `" . $prefix . "posts` LEFT JOIN `" . $prefix . "postmeta` ON `" . $prefix . "postmeta`.post_id=`" . $prefix .
                     "posts`.ID where `" . $prefix . "posts`.post_type='product' and `" . $prefix . "posts`.post_status = 'publish' and `" . $prefix .
-                    "postmeta`.meta_key='_linet_id' and `" . $prefix . "postmeta`.meta_value='" . $itemId . "';";
+                    "postmeta`.meta_key='_sku' and `" . $prefix . "posts`.id='" . $itemId . "';";
 
             $product_id = $wpdb->get_results($query);
 
+            //echo "sku:" . $product_id[0]->meta_value;exit;
             if (count($product_id) != 0) {
-                return $product_id[0]->ID;
+                $res = WC_LI_Settings::sendAPI('search/item', ['sku' => $product_id[0]->meta_value]);
+                if ($res->body != "No items where found for model") {
+                    //echo "id(by sku):" . $res->body[0]->id;exit;
+                    return $res->body[0]->id;
+                }
+            }
+        } else {
+
+            $query = "SELECT `" . $prefix . "postmeta`.meta_value FROM `" . $prefix . "posts` LEFT JOIN `" . $prefix . "postmeta` ON `" . $prefix . "postmeta`.post_id=`" . $prefix .
+                    "posts`.ID where `" . $prefix . "posts`.post_type='product' and `" . $prefix . "posts`.post_status = 'publish' and `" . $prefix .
+                    "postmeta`.meta_key='_linet_id' and `" . $prefix . "posts`.id='" . $itemId . "';";
+
+            $product_id = $wpdb->get_results($query);
+
+            //echo "id:". $product_id[0]->meta_value;exit;
+
+            if (count($product_id) != 0) {
+                return $product_id[0]->meta_value;
             }
         }
+        //echo "id not found:". $itemId;  exit;
         $genItm = get_option('wc_linet_genral_item');
         return $genItm; //genrel item
     }

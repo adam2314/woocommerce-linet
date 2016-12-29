@@ -86,8 +86,7 @@ class WC_Linet {
         $payment_manager->setup_hooks();
         
         
-        $order_manager = new WC_LI_Order_Actions($settings);//impor...
-        $order_manager->setup_hooks();
+        
         
 
         // Plugins Links
