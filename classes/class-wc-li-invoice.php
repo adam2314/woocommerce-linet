@@ -1,4 +1,5 @@
 <?php
+
 /*
   Plugin Name: WooCommerce Linet Integration
   Plugin URI: https://github.com/adam2314/woocommerce-linet
@@ -78,7 +79,6 @@ class WC_LI_Invoice {
 
     public function do_request() {
         //update linetDocId
-        
         //var_dump('aa');exit;
         return WC_LI_Settings::sendAPI('create/doc', $this->to_array());
     }
@@ -87,6 +87,13 @@ class WC_LI_Invoice {
         $items = $order->get_items();
         //var_dump($items);
         $total = 0;
+        
+        $shipping_methods = array();
+        foreach ( $this->order->get_shipping_methods() as $method ) {
+                $shipping_methods[] = $method['method_id'];
+                var_dump( $method);
+        }
+        
 
         foreach ($items as $item) {
 
@@ -106,7 +113,7 @@ class WC_LI_Invoice {
 
         $this->doc["docCheq"] = [
             [
-                "type" => 1,
+                "type" => 3,
                 "currency_id" => "ILS",
                 "sum" => $total,
                 "doc_sum" => $total,
@@ -130,19 +137,27 @@ class WC_LI_Invoice {
         $prefix = $wpdb->_real_escape($wpdb->prefix);
 
         $itemId = $wpdb->_real_escape($id);
+        $linetSkuFind = get_option('wc_linet_sku_find');
 
+        if ($linetSkuFind == 'on') {
+            $res = WC_LI_Settings::sendAPI('search/item', ['sku' => $id]);
+            if ($res->body != "No items where found for model") {
+                return $res->body[0]->id;
+            }
+        } else {
 
-        $query = "SELECT * FROM `" . $prefix . "posts` LEFT JOIN `" . $prefix . "postmeta` ON `" . $prefix . "postmeta`.post_id=`" . $prefix .
-                "posts`.ID where `" . $prefix . "posts`.post_type='product' and `" . $prefix . "posts`.post_status = 'publish' and `" . $prefix .
-                "postmeta`.meta_key='_linet_id' and `" . $prefix . "postmeta`.meta_value='" . $itemId . "';";
-        //}
-        $product_id = $wpdb->get_results($query);
+            $query = "SELECT * FROM `" . $prefix . "posts` LEFT JOIN `" . $prefix . "postmeta` ON `" . $prefix . "postmeta`.post_id=`" . $prefix .
+                    "posts`.ID where `" . $prefix . "posts`.post_type='product' and `" . $prefix . "posts`.post_status = 'publish' and `" . $prefix .
+                    "postmeta`.meta_key='_linet_id' and `" . $prefix . "postmeta`.meta_value='" . $itemId . "';";
 
-        if (count($product_id) != 0) {
-            return $product_id[0]->ID;
+            $product_id = $wpdb->get_results($query);
+
+            if (count($product_id) != 0) {
+                return $product_id[0]->ID;
+            }
         }
-
-        return 1; //genrel item
+        $genItm = get_option('wc_linet_genral_item');
+        return $genItm; //genrel item
     }
 
     public function getAcc($email) {

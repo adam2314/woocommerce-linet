@@ -147,6 +147,12 @@ class WC_LI_Settings {
                 "</div>"
             ,
             ),
+            'sku_find' => array(
+                'title' => __('Sync Orders', 'wc-linet'),
+                'default' => 'off',
+                'type' => 'checkbox',
+                'description' => __('Find Linet items by SKU and not there Item ID', 'wc-linet'),
+            ),
             'sync_orders' => array(
                 'title' => __('Sync Orders', 'wc-linet'),
                 'default' => 'on',
