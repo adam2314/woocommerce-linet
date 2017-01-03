@@ -33,7 +33,7 @@ if (!defined('ABSPATH')) {
 class WC_LI_Settings {
 
     const OPTION_PREFIX = 'wc_linet_';
-    const SERVER = "https://dev.linet.org.il";
+    const SERVER = "https://app.linet.org.il";
 
     //const SERVER = "https://app.linet.org.il";
     // Settings defaults
