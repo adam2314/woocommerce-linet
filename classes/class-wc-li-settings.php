@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 0.7
+  Version: 0.91
   Text Domain: wc-linet
   Domain Path: /languages/
   Requires WooCommerce: 2.2
@@ -34,8 +34,8 @@ class WC_LI_Settings {
 
     const OPTION_PREFIX = 'wc_linet_';
     const SERVER = "https://app.linet.org.il";
+    const DEV_SERVER = "https://dev.linet.org.il";
 
-    //const SERVER = "https://app.linet.org.il";
     // Settings defaults
     private $settings = array();
     private $override = array();
@@ -55,11 +55,17 @@ class WC_LI_Settings {
 
         add_action('wp_ajax_LinetItemSync', 'WC_LI_Settings::catSyncAjax');
         add_action('wp_ajax_LinetTest', 'WC_LI_Settings::TestAjax');
+        add_action('wp_ajax_CatList', 'WC_LI_Settings::CatListAjax');
+        add_action('wp_ajax_CatDet', 'WC_LI_Settings::CatDetAjax');
 
         if ($override !== null) {
             $this->override = $override;
         }
-
+        $supported_gateways = array();
+        
+        
+        
+       
         // Set the settings
         $this->settings = array(
             'consumer_id' => array(
@@ -137,7 +143,7 @@ class WC_LI_Settings {
                 'default' => 'on',
                 'type' => 'checkbox',
                 'description' => __('Use Linet to sync items', 'wc-linet') .
-                ' <a href="#target" onclick="trySend()">Manual Items Sync</a>' .
+                ' <a href="#target" onclick="linet.trySend();">Manual Items Sync</a>' .
                 "<div id='mItems' class='hidden'>" .
                 '
                 <div id="target"></div>
@@ -148,23 +154,78 @@ class WC_LI_Settings {
             ,
             ),
             /*
-            'cat_select' => array(
-                'title' => __('Categroy Select', 'wc-linet'),
-                'default' => 'off',
-                'type' => 'checkbox',
-                'description' => __('Find Linet items by SKU and not there Item ID', 'wc-linet'),
+            'update_cat' => array(
+                'title' => __('Update Catagories', 'wc-linet'),
+                'default' => '',
+                'type' => 'text',
+                'description' => __('Use Linet to sync items', 'wc-linet') .
+                ' <a href="#getList" onclick="linet.getList();">Get List</a>' .
+                "<ul id='catList' class=''>" .
+                ' ' .
+                "</ul>"
             ),*/
+            'last_update' => array(
+                'title' => __('Last Update Time', 'wc-linet'),
+                'default' => '',
+                'type' => 'text',
+                'description' => __('Last Update Time ', 'wc-linet'),
+                'options' => array(
+                    'readonly' => true,
+                )
+            ),
+            /*
+              'cat_select' => array(
+              'title' => __('Categroy Select', 'wc-linet'),
+              'default' => 'off',
+              'type' => 'checkbox',
+              'description' => __('Find Linet items by SKU and not there Item ID', 'wc-linet'),
+              ), */
             'sku_find' => array(
-                'title' => __('Sync Orders', 'wc-linet'),
+                'title' => __('SKU Find', 'wc-linet'),
                 'default' => 'off',
                 'type' => 'checkbox',
                 'description' => __('Find Linet items by SKU and not there Item ID', 'wc-linet'),
             ),
             'sync_orders' => array(
                 'title' => __('Sync Orders', 'wc-linet'),
-                'default' => 'on',
-                'type' => 'checkbox',
+                'default' => 'none',
+                //type' => 'checkbox',
+                'type' => 'select',
+                'options' => array(
+                    'none' => __('Manually', 'wc-linet'),
+                    'processing' => __('On Creation', 'wc-linet'),
+                    'completed' => __('On Completion', 'wc-linet'),
+                ),
                 'description' => __('Auto Genrate Invoice Recipet in Linet', 'wc-linet'),
+            ),
+            'linet_doc' => array(
+                'title' => __('Linet Document Type', 'wc-linet'),
+                'default' => '9',
+                //type' => 'checkbox',
+                'type' => 'select',
+                'options' => array(
+                    '1' => __('Performa', 'wc-linet'),
+                     '2' => __('Delivery Doc.', 'wc-linet'),
+                    '3' => __('Invoice', 'wc-linet'),
+                    
+                    '7' => __('Sales Order', 'wc-linet'),
+                    '8' => __('Receipt', 'wc-linet'),
+                    '9' => __('Invoice Receipt', 'wc-linet'),
+                    '17' => __('Stock Exist Doc.', 'wc-linet'),
+                    
+                ),
+                
+                //'options' => $supported_gateways,
+                'description' => __('Select linet document type', 'wc-linet'),
+            ),
+            
+            'supported_gateways' => array(
+                'title' => __('Supported Gateways', 'wc-linet'),
+                'default' => '',
+                //type' => 'checkbox',
+                'type' => 'pay_list',
+                //'options' => $supported_gateways,
+                'description' => __('Select Gateways to invoice', 'wc-linet'),
             ),
             'stock_manage' => array(
                 'title' => __('Stock Manage', 'wc-linet'),
@@ -177,6 +238,12 @@ class WC_LI_Settings {
                 'default' => 'off',
                 'type' => 'checkbox',
                 'description' => __('Enable logging.  Log file is located at: /wc-logs/', 'wc-linet'),
+            ),
+            'dev' => array(
+                'title' => __('Dev Mode', 'wc-linet'),
+                'default' => 'off',
+                'type' => 'checkbox',
+                'description' => __('Will work aginst the dev server', 'wc-linet'),
             ),
         );
     }
@@ -273,142 +340,190 @@ class WC_LI_Settings {
                 <div class="icon32 icon32-woocommerce-settings" id="icon-woocommerce"><br/></div>
                 <h2><?php _e('Linet for WooCommerce', 'wc-linet'); ?></h2>
 
-        <?php
-        if (isset($_GET['settings-updated']) && ( $_GET['settings-updated'] == 'true' )) {
-            echo '<div id="message" class="updated fade"><p><strong>' . __('Your settings have been saved.', 'wc-linet') . '</strong></p></div>';
-        } else if (isset($_GET['settings-updated']) && ( $_GET['settings-updated'] == 'false' )) {
-            echo '<div id="message" class="error fade"><p><strong>' . __('There was an error saving your settings.', 'wc-linet') . '</strong></p></div>';
-        }
-        ?>
+                <?php
+                if (isset($_GET['settings-updated']) && ( $_GET['settings-updated'] == 'true' )) {
+                    echo '<div id="message" class="updated fade"><p><strong>' . __('Your settings have been saved.', 'wc-linet') . '</strong></p></div>';
+                } else if (isset($_GET['settings-updated']) && ( $_GET['settings-updated'] == 'false' )) {
+                    echo '<div id="message" class="error fade"><p><strong>' . __('There was an error saving your settings.', 'wc-linet') . '</strong></p></div>';
+                }
+                ?>
 
-                
-                <a href="#target1" onclick="doTest()">Test Connection</a> (You can Check The Connection Only After Saving)
+
+                <a href="#target1" onclick="linet.doTest();">Test Connection</a> (You can Check The Connection Only After Saving)
                 <?php settings_fields('woocommerce_linet'); ?>
-                <?php do_settings_sections('woocommerce_linet'); ?>
-                
+        <?php do_settings_sections('woocommerce_linet'); ?>
+
 
 
                 <p class="submit"><input type="submit" class="button-primary" value="Save"/></p>
                 <script>
-                    function doTest() {
-                        var data = {
-                            'action': 'LinetTest',
-                            //'mode': 1
-                        };
+                    linet = {
+                        catDet: function (response) {
+                            jQuery('#catValue' + response.id).html(response.wc_count + "/" + response.linet_count);
 
 
-                        jQuery.post(ajaxurl, data, function (response) {
-                            //console.log(response);
-                            console.log(response);
-                            alert(response.text);
-                            //count
+                        },
+                        getList: function () {
+                            var data = {
+                                'action': 'CatList',
+                                //'mode': 1
+                            };
 
-                        },'json');
 
-
-                    }
-
-                    function doCall(num) {
-                        var data = {
-                            'action': 'LinetItemSync',
-                            'mode': 1
-                        };
-                        max = jQuery('#targetBar').attr("max");
-                        if (num)
                             jQuery.post(ajaxurl, data, function (response) {
                                 //console.log(response);
+                                jQuery('#catList').html("");
+                                //console.log(response.body.length);
+                                for (i = 0; i < response.body.length; i++) {
+                                    //console.log(response.body[i].name);
+                                    jQuery('#catList').append("<li>" + response.body[i].name + " <span id='catValue" + response.body[i].id + "'></span></li>");
 
-                                bar = max - num;
+                                    jQuery.post(ajaxurl, {
+                                        'action': 'CatDet',
+                                        'id': response.body[i].id,
+                                        'catName': response.body[i].name
+                                    }, function (response) {
+                                        linet.catDet(response);
 
-                                jQuery('#target').html("Categories Processed:  " + bar + "/" + max + "");
-                                jQuery('#targetBar').val(bar);
+                                    }, 'json');
+
+                                }
 
 
-
-                                jQuery('#subTarget').html("Item Processed: 0/" + response + "");
-                                jQuery('#subTargetBar').attr("max", 1 * response);
-
-                                subCall(num - 1, 0);
+                                //console.log(response);
+                                //alert(response.text);
                                 //count
 
-                            });
+                            }, 'json');
 
 
-                    }
+                        },
+                        doTest: function () {
+                            var data = {
+                                'action': 'LinetTest',
+                                //'mode': 1
+                            };
 
 
-                    function trySend() {
-                        var data = {
-                            'action': 'LinetItemSync',
-                            'mode': 0
-                        };
-                        jQuery('#mItems').removeClass('hidden');
-
-                        jQuery.post(ajaxurl, data, function (response) {
-                            jQuery('#target').html("Categories Processed:  0/" + response + "");
-                            jQuery('#targetBar').attr("max", response);
-
-                            doCall(response);
-                        });
-                        return false
-                    }
-
-                    function doCall(num) {
-                        var data = {
-                            'action': 'LinetItemSync',
-                            'mode': 1
-                        };
-                        max = jQuery('#targetBar').attr("max");
-                        if (num)
                             jQuery.post(ajaxurl, data, function (response) {
                                 //console.log(response);
-
-                                bar = max - num;
-
-                                jQuery('#target').html("Categories Processed:  " + bar + "/" + max + "");
-                                jQuery('#targetBar').val(bar);
-
-
-
-                                jQuery('#subTarget').html("Item Processed: 0/" + response + "");
-                                jQuery('#subTargetBar').attr("max", 1 * response);
-
-                                subCall(num - 1, 0);
+                                console.log(response);
+                                alert(response.text);
                                 //count
 
-                            });
+                            }, 'json');
 
 
-                    }
-                    function subCall(catnum, barnum) {
-                        var data = {
-                            'action': 'LinetItemSync',
-                            'mode': 2
-                        };
+                        },
+                        doCall: function (num) {
+                            var data = {
+                                'action': 'LinetItemSync',
+                                'mode': 1
+                            };
+                            max = jQuery('#targetBar').attr("max");
+                            if (num)
+                                jQuery.post(ajaxurl, data, function (response) {
+                                    //console.log(response);
 
-                        submax = 1 * jQuery('#subTargetBar').attr("max");
+                                    bar = max - num;
 
-                        //console.log("Catagory:" + catnum + " Items:" + barnum + " Max:" + submax);
-                        if (barnum >= submax) {
+                                    jQuery('#target').html("Categories Processed:  " + bar + "/" + max + "");
+                                    jQuery('#targetBar').val(bar);
 
-                            doCall(catnum);
-                        } else {
+
+
+                                    jQuery('#subTarget').html("Item Processed: 0/" + response + "");
+                                    jQuery('#subTargetBar').attr("max", 1 * response);
+
+                                    linet.subCall(num - 1, 0);
+                                    //count
+
+                                });
+
+
+                        },
+                        trySend: function () {
+                            var data = {
+                                'action': 'LinetItemSync',
+                                'mode': 0
+                            };
+                            jQuery('#mItems').removeClass('hidden');
+
                             jQuery.post(ajaxurl, data, function (response) {
-                                //console.log("Items Ammount:"+response);
+                                jQuery('#target').html("Categories Processed:  0/" + response + "");
+                                jQuery('#targetBar').attr("max", response);
 
-                                barnum += (1) * (response);
-
-                                jQuery('#subTarget').html("Item Processed: " + barnum + "/" + submax + "");
-                                jQuery('#subTargetBar').val(barnum);
-                                //console.log("Item Processed:" + barnum + "/" + submax);
-                                subCall(catnum, barnum);
+                                linet.doCall(response);
                             });
+                            return false
+                        },
+                        doCall: function (num) {
+                            var data = {
+                                'action': 'LinetItemSync',
+                                'mode': 1
+                            };
+                            max = jQuery('#targetBar').attr("max");
+                            if (num)
+                                jQuery.post(ajaxurl, data, function (response) {
+                                    //console.log(response);
+
+                                    bar = max - num;
+
+                                    jQuery('#target').html("Categories Processed:  " + bar + "/" + max + "");
+                                    jQuery('#targetBar').val(bar);
 
 
-                        }
-                        //next cat 
 
-                    }
+                                    jQuery('#subTarget').html("Item Processed: 0/" + response + "");
+                                    jQuery('#subTargetBar').attr("max", 1 * response);
+
+                                    linet.subCall(num - 1, 0);
+                                    //count
+
+                                });
+
+
+                        },
+                                subCall: function (catnum, barnum) {
+                                    var data = {
+                                        'action': 'LinetItemSync',
+                                        'mode': 2
+                                    };
+
+                                    submax = 1 * jQuery('#subTargetBar').attr("max");
+
+                                    //console.log("Catagory:" + catnum + " Items:" + barnum + " Max:" + submax);
+                                    if (barnum >= submax) {
+
+                                        linet.doCall(catnum);
+                                    } else {
+                                        jQuery.post(ajaxurl, data, function (response) {
+                                            //console.log("Items Ammount:"+response);
+
+                                            barnum += (1) * (response);
+
+                                            jQuery('#subTarget').html("Item Processed: " + barnum + "/" + submax + "");
+                                            jQuery('#subTargetBar').val(barnum);
+                                            //console.log("Item Processed:" + barnum + "/" + submax);
+                                            linet.subCall(catnum, barnum);
+                                        });
+
+
+                                    }
+                                    //next cat 
+
+                                }
+
+
+                    };
+
+
+
+
+
+
+
+
 
 
                 </script>
@@ -445,9 +560,69 @@ class WC_LI_Settings {
         echo '<p class="description">' . $args['option']['description'] . '</p>';
     }
 
+    public function input_select($args) {
+        $option = $this->get_option($args['key']);
+
+        $name = esc_attr(self::OPTION_PREFIX . $args['key']);
+        $id = esc_attr(self::OPTION_PREFIX . $args['key']);
+        echo "<select name='$name' id='$id'>";
+
+        foreach ($args['option']['options'] as $key => $value) {
+            $selected = selected($option, $key, false);
+            $text = esc_html($value);
+            $val = esc_attr($key);
+            echo "<option value='$val' $selected>$text</option>";
+        }
+
+        echo '</select>';
+        echo '<p class="description">' . esc_html($args['option']['description']) . '</p>';
+    }
+
+    public function input_pay_list($args) {
+        $option = $this->get_option($args['key']);
+
+        $name = esc_attr(self::OPTION_PREFIX . $args['key']);
+        $id = esc_attr(self::OPTION_PREFIX . $args['key']);
+        //echo $option;
+        echo "<select name='{$name}[]' id='$id' multiple='true'>";
+        
+        $pay = new \WC_Payment_Gateways;
+        
+        foreach ($pay->get_available_payment_gateways() as $id => $small) {
+            $args['option']['options'][$id] = $small->title;
+        }
+        
+        
+        
+
+        foreach ($args['option']['options'] as $key => $value) {
+             $selected='';
+            if(in_array($key, $option)){
+                $selected='selected="selected"';
+            }
+            //$selected = selected($option, $key, false);
+            $text = esc_html($value);
+            $val = esc_attr($key);
+            echo "<option value='$val' $selected>$text</option>";
+        }
+
+        echo '</select>';
+        echo '<p class="description">' . esc_html($args['option']['description']) . '</p>';
+    }
+
     public static function sendAPI($req, $body = []) {
 
+
         $server = Self::SERVER;
+        $dev = get_option('wc_linet_dev');
+        if ($dev == 'on') {
+            $server = Self::DEV_SERVER;
+        }
+
+        //$dev = get_option('wc_linet_dev');
+        //echo json_encode($server);
+        //wp_die();
+
         $login_id = get_option('wc_linet_consumer_id');
         $hash = get_option('wc_linet_consumer_key');
         $company = get_option('wc_linet_company');
@@ -474,9 +649,79 @@ class WC_LI_Settings {
     }
 
     public static function TestAjax() {
+
         $genral_item = get_option('wc_linet_genral_item');
         $res = Self::sendAPI('view/item?id=' . $genral_item);
         echo json_encode($res);
+        wp_die();
+    }
+
+    public static function CatListAjax() {
+        //$genral_item = get_option('wc_linet_genral_item');
+        $res = Self::sendAPI('search/itemcategory');
+        echo json_encode($res);
+        wp_die();
+    }
+
+    public static function CatDetAjax() {
+        //$genral_item = get_option('wc_linet_genral_item');
+        //$res = Self::sendAPI('search/itemcategory');
+        $id = intval($_POST['id']);
+
+        $products = Self::sendAPI('search/item', ['category_id' => $id]);
+
+
+
+
+        global $wpdb;
+        $prefix = mysql_real_escape_string($wpdb->prefix);
+        $catName = mysql_real_escape_string($_POST['catName']);
+        $catName = $_POST['catName'];
+
+
+        $query = "SELECT * FROM `" . $prefix . "term_taxonomy` " .
+                " LEFT JOIN `" . $prefix . "postmeta` ON `" . $prefix . "postmeta`.post_id=`" . $prefix .
+                "posts`.ID where `" . $prefix . "posts`.post_type='product' and `" . $prefix . "posts`.post_status = 'publish' and `" . $prefix .
+                "postmeta`.meta_key='_linet_id' and `" . $prefix . "postmeta`.meta_value='" . $itemId . "';" .
+                "LEFT JOIN `" . $prefix . "term_taxonomy` ON `" . $prefix . "term_taxonomy`.term_id=`" . $prefix . "terms`.term_id " .
+                "where `" .
+                //"postmeta`.meta_key='_linet_id' and `" . $prefix . "postmeta`.meta_value='" . $itemId . "';";
+                $prefix . "term_taxonomy`.taxonomy='product_cat' and `" . $prefix . "terms`.name='" . $catName . "';";
+        $product_id = $wpdb->get_results($query);
+
+        //echo $query;
+
+        $arr = array(
+            'id' => $id,
+            'linet_count' => count($products->body),
+            'wc_count' => 'na'
+        );
+
+
+        if (count($product_id) != 0) {
+            $term_id = $product_id[0]->term_id;
+
+
+            $arr['wc_count'] = get_term_meta($term_id, 'product_count_product_cat');
+        }//else{
+        //    $arr['wc_count']='NA';
+        //}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        echo json_encode($arr);
         wp_die();
     }
 
@@ -488,6 +733,7 @@ class WC_LI_Settings {
         //$logger = new WC_LI_Logger($this->settings);
 
         if ($mode == 0) {
+            update_option('wc_linet_last_update', date('d/m/Y H:m:i'));
             $cats = Self::sendAPI('search/itemcategory');
             //$_SESSION['body'] = $cats->body;
             $_SESSION['body'] = $cats->body;
@@ -571,6 +817,11 @@ class WC_LI_Settings {
                 'slug' => $cat->name,
                 'name' => $cat->name,
             ));
+
+            update_term_meta($term_id, 'order', '');
+            update_term_meta($term_id, 'display_type', '');
+            update_term_meta($term_id, 'thumbnail_id', '');
+            update_term_meta($term_id, 'product_count_product_cat', '');
         }
 
 
@@ -583,10 +834,7 @@ class WC_LI_Settings {
 
 
         update_term_meta($term_id, '_linet_cat', $cat->id);
-        update_term_meta($term_id, 'order', '');
-        update_term_meta($term_id, 'display_type', '');
-        update_term_meta($term_id, 'thumbnail_id', '');
-        update_term_meta($term_id, 'product_count_product_cat', '');
+
 
         return $term_id;
     }
@@ -615,6 +863,27 @@ class WC_LI_Settings {
                 'post_status' => 'publish',
                 'post_type' => "product",
             ));
+
+            update_post_meta($post_id, 'total_sales', '0');
+            update_post_meta($post_id, '_visibility', 'visible');
+            update_post_meta($post_id, '_stock_status', 'instock');
+
+            update_post_meta($post_id, '_downloadable', 'no');
+            update_post_meta($post_id, '_virtual', 'no');
+
+            update_post_meta($post_id, '_purchase_note', '');
+            update_post_meta($post_id, '_featured', 'no');
+            update_post_meta($post_id, '_weight', '');
+            update_post_meta($post_id, '_length', '');
+            update_post_meta($post_id, '_width', '');
+            update_post_meta($post_id, '_height', '');
+
+            update_post_meta($post_id, '_product_attributes', array());
+            update_post_meta($post_id, '_sale_price_dates_from', '');
+            update_post_meta($post_id, '_sale_price_dates_to', '');
+
+            update_post_meta($post_id, '_sold_individually', '');
+            update_post_meta($post_id, '_backorders', 'no');
         } else {
             $post_id = $product_id[0]->ID;
             wp_update_post(['ID' => $post_id, 'post_title' => $item->item->name, 'post_content' => $item->item->description]);
@@ -622,27 +891,14 @@ class WC_LI_Settings {
 
 
         wp_set_object_terms($post_id, 'simple', 'product_type');
-        update_post_meta($post_id, '_visibility', 'visible');
-        update_post_meta($post_id, '_stock_status', 'instock');
-        update_post_meta($post_id, 'total_sales', '0');
-        update_post_meta($post_id, '_downloadable', 'no');
-        update_post_meta($post_id, '_virtual', 'no');
-        update_post_meta($post_id, '_regular_price', '');
-        update_post_meta($post_id, '_sale_price', '');
-        update_post_meta($post_id, '_purchase_note', '');
-        update_post_meta($post_id, '_featured', 'no');
-        update_post_meta($post_id, '_weight', '');
-        update_post_meta($post_id, '_length', '');
-        update_post_meta($post_id, '_width', '');
-        update_post_meta($post_id, '_height', '');
+
         update_post_meta($post_id, '_sku', $item->item->sku);
         update_post_meta($post_id, '_linet_id', $item->item->id);
-        update_post_meta($post_id, '_product_attributes', array());
-        update_post_meta($post_id, '_sale_price_dates_from', '');
-        update_post_meta($post_id, '_sale_price_dates_to', '');
+
         update_post_meta($post_id, '_price', $item->item->saleprice);
-        update_post_meta($post_id, '_sold_individually', '');
-        update_post_meta($post_id, '_backorders', 'no');
+        update_post_meta($post_id, '_regular_price', $item->item->saleprice);
+        update_post_meta($post_id, '_sale_price', $item->item->saleprice);
+
 
         if ($stockManage == 'on') {
             update_post_meta($post_id, '_manage_stock', 'yes');
@@ -677,6 +933,7 @@ class WC_LI_Settings {
     }
 
     public static function catSync() {
+        update_option('wc_linet_last_update', date('d/m/Y H:m:i'));
         $cats = Self::sendAPI('search/itemcategory');
         $cats = $cats->body;
 

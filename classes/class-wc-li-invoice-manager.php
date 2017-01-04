@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 0.7
+  Version: 0.91
   Text Domain: wc-linet
   Domain Path: /languages/
   Requires WooCommerce: 2.2
@@ -54,10 +54,15 @@ class WC_LI_Invoice_Manager {
         // Check if we need to send invoices when they're completed automatically
         $sendInv = get_option('wc_linet_sync_orders');
         //$option = $this->settings->get_option('send_invoices');
-        if ('on' === $sendInv) {
+        if ('completed' === $sendInv) {
             //add_action('woocommerce_order_status_processing', array($this, 'send_invoice'));
         //} elseif ('completion' === $sendPayments || 'on' === $sendPayments) {
             add_action('woocommerce_order_status_completed', array($this, 'send_invoice'));
+        }elseif('processing' === $sendInv) {
+            add_action('woocommerce_order_status_processing', array($this, 'send_invoice'));
+        }else{//none...
+            
+            
         }
     }
 
@@ -72,7 +77,18 @@ class WC_LI_Invoice_Manager {
         
         // Get the order
         $order = wc_get_order($order_id);
-
+        $supported_gateways=$this->settings->get_option('supported_gateways');
+        if(!in_array($order->payment_method, $supported_gateways)){
+            $order->add_order_note(__("LINET: Will not create doc. unsupported gateway", 'wc-linet'));
+            return false;
+            //echo $order->payment_method;exit;
+        }
+        //print_r();
+        
+        //$order->payment_method//if type==
+        
+        
+        
         // Get the invoice
         $invoice = $this->get_invoice_by_order($order);
 
@@ -89,7 +105,7 @@ class WC_LI_Invoice_Manager {
             //if ( 0 == $invoice->get_total() && 'on' !== $this->settings->get_option( 'export_zero_amount' ) ) {
             $logger->write('INVOICE HAS TOTAL OF 0, NOT SENDING ORDER WITH ID ' . $order->id);
 
-            $order->add_order_note(__("LINET: Didn't create invoice because total is 0 and send order with zero total is set to off.", 'wc-linet'));
+            $order->add_order_note(__("LINET: Didn't create doc. because total is 0 and send order with zero total is set to off.", 'wc-linet'));
 
             return false;
         }
@@ -97,7 +113,7 @@ class WC_LI_Invoice_Manager {
         // Invoice Request
         //$invoice_request = new WC_LI_Request_Invoice( $this->settings, $invoice );
         // Logging
-        $logger->write('START LINET NEW INVOICE. order_id=' . $order->id);
+        $logger->write('START LINET NEW doc. order_id=' . $order->id);
 
         // Try to do the request
         try {
@@ -118,7 +134,7 @@ class WC_LI_Invoice_Manager {
                 $logger->write('LINET RESPONSE:' . "\n" .print_r($json_response,true));
 
                 // Add Order Note
-                $order->add_order_note(__('Linet Invoice created.  ', 'wc-linet') . ' Invoice Docnum: ' . (string) $json_response->body->docnum);
+                $order->add_order_note(__('Linet Doc. created.  ', 'wc-linet') . ' Doc. num: ' . (string) $json_response->body->docnum);
             } else { // XML reponse is not OK
                 // Log reponse
                 $logger->write('LINET ERROR RESPONSE:' . "\n" . print_r($json_response,true));
@@ -127,7 +143,7 @@ class WC_LI_Invoice_Manager {
                 //$error_message = $xml_response->Elements->DataContractBase->ValidationErrors->ValidationError->Message ? $xml_response->Elements->DataContractBase->ValidationErrors->ValidationError->Message : __('None', 'wc-linet');
 
                 // Add order note
-                $order->add_order_note(__('ERROR creating Linet invoice: ', 'wc-linet') .
+                $order->add_order_note(__('ERROR creating Linet doc: ', 'wc-linet') .
                         __(' ErrorNumber: ', 'wc-linet') . $json_response->status .
                         __(' ErrorType: ', 'wc-linet') . $json_response->errorCode .
                         __(' Message: ', 'wc-linet') . $json_response->text .
@@ -143,7 +159,7 @@ class WC_LI_Invoice_Manager {
             return false;
         }
 
-        $logger->write('END LINET NEW INVOICE');
+        $logger->write('END LINET NEW doc.');
        
         return true;
     }

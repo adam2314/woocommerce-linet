@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 0.7
+  Version: 0.91
   Text Domain: wc-linet
   Domain Path: /languages/
   Requires WooCommerce: 2.2
@@ -83,7 +83,7 @@ class WC_LI_Order_Actions {
         
         $data=get_post_meta($post->ID, '_linet_invoice_id');
         //if(count($data)==0)
-            $actions['linet_manual_invoice'] = __('Send Invoice to Linet', 'wc-linet');
+            $actions['linet_manual_invoice'] = __('Send Doc. to Linet', 'wc-linet');
         //$actions['linet_manual_payment'] = __('Send Payment to Linet', 'wc-linet');
 
         return $actions;

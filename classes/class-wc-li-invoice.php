@@ -6,7 +6,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 0.7
+  Version: 0.91
   Text Domain: wc-linet
   Domain Path: /languages/
   Requires WooCommerce: 2.2
@@ -89,7 +89,7 @@ class WC_LI_Invoice {
         $total = 0;
 
         $genItm = get_option('wc_linet_genral_item');
-
+        $warehouse = get_option('wc_linet_warehouse_id');
         //exit;
 
         foreach ($items as $item) {
@@ -102,6 +102,7 @@ class WC_LI_Invoice {
                 "currency_id" => "ILS",
                 "unit_id" => 0,
                 "iTotalVat" => $item['line_total'],
+                "warehouse_id"=>$warehouse,
             ];
             $total+=$item['line_total'];
         }
@@ -115,15 +116,17 @@ class WC_LI_Invoice {
 
             $this->doc['docDet'][] = [
                 "item_id" => $genItm, //getLinetId $item['product_id']
-                "name" => $method['item_meta']['method_id'][0],
+                "name" => $order->get_shipping_method(),
                 "description" => "",
                 "qty" => 1,
                 "currency_id" => "ILS",
                 "unit_id" => 0,
-                "iTotalVat" => $method['item_meta']['cost'][0],
+                "iTotalVat" => $order->order_shipping,
+                
+                
             ];
 
-            $total+= $method['item_meta']['cost'][0];
+            $total+=  $order->order_shipping;
         }
 
 
@@ -238,14 +241,7 @@ class WC_LI_Invoice {
         } else {
             $invoice_name = $this->order->billing_first_name . ' ' . $this->order->billing_last_name;
         }
-
-        $body = [
-            "doctype" => 3,
-            "status" => 2,
-            "account_id" => 113,
-            "company" => "Just a Test",
-            "currency_id" => "ILS",
-        ];
+        
 
 
 //search by mail
@@ -275,9 +271,12 @@ class WC_LI_Invoice {
         }//*/
 
 
+        $doctype = get_option('wc_linet_linet_doc');
 
-
-        $this->doc["doctype"] = 9;
+        if((9!=$doctype)&&(8!=$doctype)){
+            unset($this->doc["docCheq"]);
+        }
+        $this->doc["doctype"] = $doctype;
         $this->doc["status"] = 2;
         $this->doc["account_id"] = $accId;
         //billing_country

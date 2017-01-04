@@ -1,4 +1,10 @@
 *** Linet Integration ***
 
+
+2016.12.19 - version 0.91
+ * Add Ability to chose doc type
+ * Add Ability to chose bill
+ * Add Ability to chose hook
+
 2016.12.19 - version 0.7
  * Beta Release
