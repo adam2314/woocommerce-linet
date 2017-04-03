@@ -96,7 +96,7 @@ class WC_LI_Invoice {
 
             $this->doc['docDet'][] = [
                 "item_id" => $this->getLinetItemId($item['product_id']), //getLinetId $item['product_id']
-                "name" => $item['name'],
+                "name" => html_entity_decode($item['name']),
                 "description" => "",
                 "qty" => $item['qty'],
                 "currency_id" => "ILS",
@@ -116,14 +116,14 @@ class WC_LI_Invoice {
 
             $this->doc['docDet'][] = [
                 "item_id" => $genItm, //getLinetId $item['product_id']
-                "name" => $order->get_shipping_method(),
+                "name" => html_entity_decode($order->get_shipping_method()),
                 "description" => "",
                 "qty" => 1,
                 "currency_id" => "ILS",
                 "unit_id" => 0,
                 "iTotalVat" => $order->order_shipping,
-                
-                
+
+
             ];
 
             $total+=  $order->order_shipping;
@@ -241,7 +241,7 @@ class WC_LI_Invoice {
         } else {
             $invoice_name = $this->order->billing_first_name . ' ' . $this->order->billing_last_name;
         }
-        
+
 
 
 //search by mail
@@ -251,19 +251,19 @@ class WC_LI_Invoice {
             $accId = $this->getAcc($this->order->billing_email);
             if ($accId === false) {//create new acc
                 $body = [
-                    'name' => $invoice_name,
+                    'name' => html_entity_decode($invoice_name),
                     "phone" => $this->order->billing_phone,
-                    "address" => $this->order->billing_address_1,
-                    "city" => $this->order->billing_city,
+                    "address" => html_entity_decode($this->order->billing_address_1),
+                    "city" => html_entity_decode($this->order->billing_city),
                     "email" => $this->order->billing_email,
                 ];
                 $accId = $this->createAcc($body);
             } else {//update acc
                 $body = [
-                    'name' => $invoice_name,
+                    'name' => html_entity_decode($invoice_name),
                     "phone" => $this->order->billing_phone,
-                    "address" => $this->order->billing_address_1,
-                    "city" => $this->order->billing_city,
+                    "address" => html_entity_decode($this->order->billing_address_1),
+                    "city" => html_entity_decode($this->order->billing_city),
                     "email" => $this->order->billing_email,
                 ];
                 $this->updateAcc($accId, $body);
@@ -282,10 +282,10 @@ class WC_LI_Invoice {
         //billing_country
         $this->doc["refnum_ext"] = 'Woocomerce Order #' . $this->order->id;
         $this->doc["phone"] = $this->order->billing_phone;
-        $this->doc["address"] = $this->order->billing_address_1;
-        $this->doc["city"] = $this->order->billing_city;
+        $this->doc["address"] = html_entity_decode($this->order->billing_address_1);
+        $this->doc["city"] = html_entity_decode($this->order->billing_city);
         $this->doc["email"] = $this->order->billing_email;
-        $this->doc["company"] = $invoice_name;
+        $this->doc["company"] = html_entity_decode($invoice_name);
         $this->doc["currency_id"] = "ILS";
 
 

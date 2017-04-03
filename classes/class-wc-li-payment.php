@@ -123,33 +123,5 @@ class WC_LI_Payment {
         $this->order = $order;
     }
 
-    /**
-     * Return XML of Payment
-     *
-     * @return string
-     */
-    public function to_xml() {
-
-        $xml = '<Payment>';
-
-        // Invoice ID
-        $xml .= '<Invoice><InvoiceID>' . $this->get_invoice_id() . '</InvoiceID></Invoice>';
-
-        // Account Code
-        $xml .= '<Account><Code>' . $this->get_code() . '</Code></Account>';
-
-        // Date
-        $xml .= '<Date>' . $this->get_date() . '</Date>';
-
-        // Currency Rate
-        $xml .= '<CurrencyRate>' . $this->get_currency_rate() . '</CurrencyRate>';
-
-        // Amount
-        $xml .= '<Amount>' . $this->get_amount() . '</Amount>';
-
-        $xml .= '</Payment>';
-
-        return $xml;
-    }
 
 }
