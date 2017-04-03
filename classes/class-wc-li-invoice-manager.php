@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 0.91
+  Version: 0.92
   Text Domain: wc-linet
   Domain Path: /languages/
   Requires WooCommerce: 2.2
@@ -61,8 +61,8 @@ class WC_LI_Invoice_Manager {
         }elseif('processing' === $sendInv) {
             add_action('woocommerce_order_status_processing', array($this, 'send_invoice'));
         }else{//none...
-            
-            
+
+
         }
     }
 
@@ -74,7 +74,7 @@ class WC_LI_Invoice_Manager {
      * @return bool
      */
     public function send_invoice($order_id) {
-        
+
         // Get the order
         $order = wc_get_order($order_id);
         $supported_gateways=$this->settings->get_option('supported_gateways');
@@ -84,18 +84,18 @@ class WC_LI_Invoice_Manager {
             //echo $order->payment_method;exit;
         }
         //print_r();
-        
+
         //$order->payment_method//if type==
-        
-        
-        
+
+
+
         // Get the invoice
         $invoice = $this->get_invoice_by_order($order);
 
         // Write exception message to log
         $logger = new WC_LI_Logger($this->settings);
 
-        
+
 
         //var_dump($order);
         //var_dump($invoice->to_array());
@@ -147,7 +147,7 @@ class WC_LI_Invoice_Manager {
                         __(' ErrorNumber: ', 'wc-linet') . $json_response->status .
                         __(' ErrorType: ', 'wc-linet') . $json_response->errorCode .
                         __(' Message: ', 'wc-linet') . $json_response->text .
-                        
+
                         __(' Detail: ', 'wc-linet') . $json_response->body);
             }
         } catch (Exception $e) {
@@ -155,12 +155,12 @@ class WC_LI_Invoice_Manager {
             $order->add_order_note($e->getMessage());
 
             $logger->write($e->getMessage());
-            
+
             return false;
         }
 
         $logger->write('END LINET NEW doc.');
-       
+
         return true;
     }
 
@@ -192,9 +192,9 @@ class WC_LI_Invoice_Manager {
                 //'',//round( ( floatval( $order->order_tax ) + floatval( $order->order_shipping_tax ) ), 2 ),
                 //$order->order_total
                 );
-        
+
         $invoice->set_order($order);
-        
+
         // Return invoice
         return $invoice;
     }

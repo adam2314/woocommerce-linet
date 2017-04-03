@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 0.91
+  Version: 0.92
   Text Domain: wc-linet
   Domain Path: /languages/
   Requires WooCommerce: 2.2
@@ -62,10 +62,10 @@ class WC_LI_Settings {
             $this->override = $override;
         }
         $supported_gateways = array();
-        
-        
-        
-       
+
+
+
+
         // Set the settings
         $this->settings = array(
             'consumer_id' => array(
@@ -136,7 +136,7 @@ class WC_LI_Settings {
               'type' => 'checkbox',
               'description' => __('Export orders with zero total.', 'wc-linet'),
               ),
-             * 
+             *
              */
             'sync_items' => array(
                 'title' => __('Sync Items', 'wc-linet'),
@@ -207,18 +207,18 @@ class WC_LI_Settings {
                     '1' => __('Performa', 'wc-linet'),
                      '2' => __('Delivery Doc.', 'wc-linet'),
                     '3' => __('Invoice', 'wc-linet'),
-                    
+
                     '7' => __('Sales Order', 'wc-linet'),
                     '8' => __('Receipt', 'wc-linet'),
                     '9' => __('Invoice Receipt', 'wc-linet'),
                     '17' => __('Stock Exist Doc.', 'wc-linet'),
-                    
+
                 ),
-                
+
                 //'options' => $supported_gateways,
                 'description' => __('Select linet document type', 'wc-linet'),
             ),
-            
+
             'supported_gateways' => array(
                 'title' => __('Supported Gateways', 'wc-linet'),
                 'default' => '',
@@ -510,7 +510,7 @@ class WC_LI_Settings {
 
 
                                     }
-                                    //next cat 
+                                    //next cat
 
                                 }
 
@@ -585,15 +585,15 @@ class WC_LI_Settings {
         $id = esc_attr(self::OPTION_PREFIX . $args['key']);
         //echo $option;
         echo "<select name='{$name}[]' id='$id' multiple='true'>";
-        
+
         $pay = new \WC_Payment_Gateways;
-        
+
         foreach ($pay->get_available_payment_gateways() as $id => $small) {
             $args['option']['options'][$id] = $small->title;
         }
-        
-        
-        
+
+
+
 
         foreach ($args['option']['options'] as $key => $value) {
              $selected='';
@@ -1005,5 +1005,3 @@ class WC_LI_Settings {
 }
 
 //end class
-
-        

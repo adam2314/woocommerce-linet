@@ -1,5 +1,6 @@
 *** Linet Integration ***
-
+2017.4.3 - version 0.92
+ * fixed html entitis
 
 2016.12.19 - version 0.91
  * Add Ability to chose doc type
