@@ -1,4 +1,8 @@
 *** Linet Integration ***
+2017.5.17 - version 0.93
+ * fixed Self:: for old PHP<5.5
+ * added docCheq & docDet auto remove by doc type
+
 2017.4.3 - version 0.92
  * fixed html entitis
 
