@@ -143,6 +143,16 @@ class WC_LI_Invoice {
             ]
         ];
 
+        $doctype = get_option('wc_linet_linet_doc');
+
+        if($doctype<>8 && $doctype<>9){
+            unset($this->doc['docCheq']);
+        }
+        if($doctype==8 ){
+
+          unset($this->doc['docDet']);
+        }
+
         $this->total = $total;
         $this->order = $order;
         return true;
@@ -273,9 +283,11 @@ class WC_LI_Invoice {
 
         $doctype = get_option('wc_linet_linet_doc');
 
-        if((9!=$doctype)&&(8!=$doctype)){
-            unset($this->doc["docCheq"]);
-        }
+        //if((9!=$doctype)&&(8!=$doctype)){
+        //    unset($this->doc["docCheq"]);
+        //}
+
+
         $this->doc["doctype"] = $doctype;
         $this->doc["status"] = 2;
         $this->doc["account_id"] = $accId;

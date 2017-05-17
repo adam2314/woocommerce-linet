@@ -290,7 +290,7 @@ class WC_LI_Settings {
      */
     public function register_settings() {
 
-        //Self::catSync();
+        //self::catSync();
         // Add section
         add_settings_section('wc_linet_settings', __('Linet Settings', 'wc-linet'), array(
             $this,
@@ -613,10 +613,10 @@ class WC_LI_Settings {
     public static function sendAPI($req, $body = []) {
 
 
-        $server = Self::SERVER;
+        $server = self::SERVER;
         $dev = get_option('wc_linet_dev');
         if ($dev == 'on') {
-            $server = Self::DEV_SERVER;
+            $server = self::DEV_SERVER;
         }
 
         //$dev = get_option('wc_linet_dev');
@@ -651,24 +651,24 @@ class WC_LI_Settings {
     public static function TestAjax() {
 
         $genral_item = get_option('wc_linet_genral_item');
-        $res = Self::sendAPI('view/item?id=' . $genral_item);
+        $res = self::sendAPI('view/item?id=' . $genral_item);
         echo json_encode($res);
         wp_die();
     }
 
     public static function CatListAjax() {
         //$genral_item = get_option('wc_linet_genral_item');
-        $res = Self::sendAPI('search/itemcategory');
+        $res = self::sendAPI('search/itemcategory');
         echo json_encode($res);
         wp_die();
     }
 
     public static function CatDetAjax() {
         //$genral_item = get_option('wc_linet_genral_item');
-        //$res = Self::sendAPI('search/itemcategory');
+        //$res = self::sendAPI('search/itemcategory');
         $id = intval($_POST['id']);
 
-        $products = Self::sendAPI('search/item', ['category_id' => $id]);
+        $products = self::sendAPI('search/item', ['category_id' => $id]);
 
 
 
@@ -734,7 +734,7 @@ class WC_LI_Settings {
 
         if ($mode == 0) {
             update_option('wc_linet_last_update', date('d/m/Y H:m:i'));
-            $cats = Self::sendAPI('search/itemcategory');
+            $cats = self::sendAPI('search/itemcategory');
             //$_SESSION['body'] = $cats->body;
             $_SESSION['body'] = $cats->body;
 
@@ -749,12 +749,12 @@ class WC_LI_Settings {
             $cat = array_pop($cats);
             $_SESSION['body'] = $cats;
 
-            $wp_cat_id = Self::singleCatSync($cat);
+            $wp_cat_id = self::singleCatSync($cat);
 
             $warehouse = get_option('wc_linet_warehouse_id');
 
 
-            $products = Self::sendAPI('stockall/item?warehouse_id=' . $warehouse, ['category_id' => $cat->id]);
+            $products = self::sendAPI('stockall/item?warehouse_id=' . $warehouse, ['category_id' => $cat->id]);
             $_SESSION['wp_cat_id'] = $wp_cat_id;
             $_SESSION['products'] = $products->body;
 
@@ -776,7 +776,7 @@ class WC_LI_Settings {
 
 
                 $prod = array_pop($products);
-                Self::singleProdSync($wp_cat_id, $prod);
+                self::singleProdSync($wp_cat_id, $prod);
             }
 
 
@@ -920,12 +920,12 @@ class WC_LI_Settings {
         $warehouse = get_option('wc_linet_warehouse_id');
 
 
-        $products = Self::sendAPI('stockall/item?warehouse_id=' . $warehouse, ['category_id' => $linet_cat_id]);
+        $products = self::sendAPI('stockall/item?warehouse_id=' . $warehouse, ['category_id' => $linet_cat_id]);
         $products = $products->body;
 
 
         foreach ($products as $item) {
-            Self::singleProdSync($wp_cat_id, $item);
+            self::singleProdSync($wp_cat_id, $item);
 
 
             $logger->write("Linet Item Id: " . $item->id . " was synced");
@@ -934,7 +934,7 @@ class WC_LI_Settings {
 
     public static function catSync() {
         update_option('wc_linet_last_update', date('d/m/Y H:m:i'));
-        $cats = Self::sendAPI('search/itemcategory');
+        $cats = self::sendAPI('search/itemcategory');
         $cats = $cats->body;
 
 
@@ -988,7 +988,7 @@ class WC_LI_Settings {
             update_term_meta($term_id, 'thumbnail_id', '');
             update_term_meta($term_id, 'product_count_product_cat', '');
             $logger->write("Linet Cat ID:" . $cat->id);
-            Self::prodSync($cat->id, $term_id, $logger);
+            self::prodSync($cat->id, $term_id, $logger);
             /*
               order
               display_type
