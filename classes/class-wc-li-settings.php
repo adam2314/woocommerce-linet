@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 0.93
+  Version: 0.94
   Text Domain: wc-linet
   Domain Path: /languages/
   Requires WooCommerce: 2.2
@@ -938,7 +938,7 @@ class WC_LI_Settings {
         $cats = $cats->body;
 
 
-        $logger = new WC_LI_Logger($this->settings);
+        $logger = new WC_LI_Logger(get_option('debug'));
         $logger->write("Start Linet Cat Sync");
         foreach ($cats as $cat) {
 

@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 0.93
+  Version: 0.94
   Text Domain: wc-linet
   Domain Path: /languages/
   Requires WooCommerce: 2.2
@@ -35,15 +35,15 @@ class WC_LI_Logger {
     /**
      * @var WC_LI_Settings
      */
-    private $settings;
+    private $enabled;
 
     /**
      * WC_LI_Logger constructor.
      *
      * @param WC_LI_Settings $settings
      */
-    public function __construct(WC_LI_Settings $settings) {
-        $this->settings = $settings;
+    public function __construct($enabled) {
+        $this->enabled = $enabled;
     }
 
     /**
@@ -54,7 +54,7 @@ class WC_LI_Logger {
     public function is_enabled() {
 
         // Check if debug is on
-        if ('on' === $this->settings->get_option('debug')) {
+        if ('on' === $this->enabled) {
             return true;
         }
 

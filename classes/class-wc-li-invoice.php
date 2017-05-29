@@ -6,7 +6,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 0.93
+  Version: 0.94
   Text Domain: wc-linet
   Domain Path: /languages/
   Requires WooCommerce: 2.2
@@ -62,7 +62,16 @@ class WC_LI_Invoice {
      * @param float $total_tax
      * @param float $total
      */
-    public function __construct($settings, $contact, $date, $due_date, $invoice_number, $line_items, $currency_code, $total_tax, $total) {
+    public function __construct(
+        $settings=null,
+        $contact=null,
+        $date=null,
+        $due_date=null,
+        $invoice_number=null,
+        $line_items=null,
+        $currency_code=null,
+        $total_tax=null,
+        $total=null) {
         //var_dump($settings);exit;
         $this->settings = $settings;
         $this->contact = $contact;
