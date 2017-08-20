@@ -160,7 +160,7 @@ class WC_LI_Invoice {
         if($doctype<>8 && $doctype<>9){
             unset($this->doc['docCheq']);
         }
-        if($doctype==8  || $doctype==18){
+        if($doctype==8  && $doctype==18 && $doctype==9){
 
           unset($this->doc['docDet']);
         }
