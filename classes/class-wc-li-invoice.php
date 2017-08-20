@@ -6,7 +6,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 0.94
+  Version: 0.95
   Text Domain: wc-linet
   Domain Path: /languages/
   Requires WooCommerce: 2.2
@@ -109,6 +109,7 @@ class WC_LI_Invoice {
                 "description" => "",
                 "qty" => $item['qty'],
                 "currency_id" => "ILS",
+                "currency_rate" => "1",
                 "unit_id" => 0,
                 "iTotalVat" => $item['line_total'],
                 "warehouse_id"=>$warehouse,
@@ -129,6 +130,7 @@ class WC_LI_Invoice {
                 "description" => "",
                 "qty" => 1,
                 "currency_id" => "ILS",
+                "currency_rate" => "1",
                 "unit_id" => 0,
                 "iTotalVat" => $order->order_shipping,
 
@@ -146,6 +148,7 @@ class WC_LI_Invoice {
             [
                 "type" => 3,
                 "currency_id" => "ILS",
+                "currency_rate" => "1",
                 "sum" => $total,
                 "doc_sum" => $total,
                 "line" => 1
@@ -157,7 +160,7 @@ class WC_LI_Invoice {
         if($doctype<>8 && $doctype<>9){
             unset($this->doc['docCheq']);
         }
-        if($doctype==8 ){
+        if($doctype==8  || $doctype==18){
 
           unset($this->doc['docDet']);
         }
@@ -308,7 +311,7 @@ class WC_LI_Invoice {
         $this->doc["email"] = $this->order->billing_email;
         $this->doc["company"] = html_entity_decode($invoice_name);
         $this->doc["currency_id"] = "ILS";
-
+        $this->doc["currency_rate"] = "1";
 
         $this->doc["sendmail"] = 1;
 

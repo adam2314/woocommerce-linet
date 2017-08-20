@@ -1,4 +1,9 @@
 *** Linet Integration ***
+
+2017.8.20 - version 0.94
+ * add Donation Receipt
+ * fixed receipt issues
+
 2017.5.17 - version 0.93
  * fixed Self:: for old PHP<5.5
  * added docCheq & docDet auto remove by doc type
