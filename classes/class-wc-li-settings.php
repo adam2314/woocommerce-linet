@@ -205,7 +205,7 @@ class WC_LI_Settings {
                 'type' => 'select',
                 'options' => array(
                     '1' => __('Performa', 'wc-linet'),
-                     '2' => __('Delivery Doc.', 'wc-linet'),
+                    '2' => __('Delivery Doc.', 'wc-linet'),
                     '3' => __('Invoice', 'wc-linet'),
 
                     '7' => __('Sales Order', 'wc-linet'),
@@ -620,6 +620,8 @@ class WC_LI_Settings {
             $server = self::DEV_SERVER;
         }
 
+        $debug = get_option('wc_linet_debug');
+
         //$dev = get_option('wc_linet_dev');
         //echo json_encode($server);
         //wp_die();
@@ -632,9 +634,9 @@ class WC_LI_Settings {
         $body['login_hash'] = $hash;
         $body['login_company'] = $company;
 
-
+        $logger = new WC_LI_Logger(['enabled'=>$debug]);
         $ch = curl_init();
-
+        $logger->write('OWER REQUEST:' . "\n" .json_encode($body));
         curl_setopt_array($ch, array(
             CURLOPT_URL => $server . "/api/" . $req,
             CURLOPT_POST => TRUE,
@@ -646,6 +648,7 @@ class WC_LI_Settings {
         ));
 
         $response = curl_exec($ch);
+        $logger->write('LINET RESPONSE:' . "\n" .json_encode($response));
         return json_decode($response);
     }
 

@@ -97,9 +97,6 @@ class WC_LI_Invoice_Manager {
 
 
 
-        //var_dump($order);
-        //var_dump($invoice->to_array());
-        //exit;
         // Check if the order total is 0 and if we need to send 0 total invoices to Linet
         if (0 == $invoice->get_total() && 'on' !== $this->settings->get_option('export_zero_amount')) {
             //if ( 0 == $invoice->get_total() && 'on' !== $this->settings->get_option( 'export_zero_amount' ) ) {
@@ -118,6 +115,8 @@ class WC_LI_Invoice_Manager {
         // Try to do the request
         try {
             // Do the request
+
+            //$logger->write('OWER REQUEST:' . "\n" .print_r($invoice->to_array(),true));
             $json_response = $invoice->do_request();
 
             //var_dump($json_response);
@@ -131,7 +130,7 @@ class WC_LI_Invoice_Manager {
                 update_post_meta($order->id, '_linet_currency_rate', (string) $json_response->body->currency_rate);
 
                 // Log response
-                $logger->write('LINET RESPONSE:' . "\n" .print_r($json_response,true));
+                //$logger->write('LINET RESPONSE:' . "\n" .print_r($json_response,true));
 
                 // Add Order Note
                 $order->add_order_note(__('Linet Doc. created.  ', 'wc-linet') . ' Doc. num: ' . (string) $json_response->body->docnum);
