@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 0.95
+  Version: 0.96
   Text Domain: wc-linet
   Domain Path: /languages/
   Requires WooCommerce: 2.2
@@ -41,12 +41,6 @@ class WC_LI_Settings {
     private $override = array();
 
     public function __construct($override = null) {
-
-
-
-        if (!wp_next_scheduled('linetItemSync')) {
-            wp_schedule_event(time(), 'hourly', 'linetItemSync');
-        }
 
         add_action('init', 'WC_LI_Settings::StartSession', 1);
         add_action('wp_logout', 'WC_LI_Settings::EndSession');
@@ -142,8 +136,8 @@ class WC_LI_Settings {
                 'title' => __('Sync Items', 'wc-linet'),
                 'default' => 'on',
                 'type' => 'checkbox',
-                'description' => __('Use Linet to sync items', 'wc-linet') .
-                ' <a href="#target" onclick="linet.trySend();">Manual Items Sync</a>' .
+                'description' => __('Use Linet to auto sync items', 'wc-linet') .
+                ' <a class="button-primary" href="#target" onclick="linet.trySend();">Manual Items Sync</a>' .
                 "<div id='mItems' class='hidden'>" .
                 '
                 <div id="target"></div>
@@ -335,6 +329,18 @@ class WC_LI_Settings {
      * The options page
      */
     public function options_page() {
+      $autoSync= get_option('wc_linet_sync_items');
+      if($autoSync=='on'){
+        if (!wp_next_scheduled('linetItemSync')) {
+            wp_schedule_event(time(), 'hourly', 'linetItemSync');
+        }
+      }else{
+        wp_clear_scheduled_hook( 'linetItemSync' );
+      }
+
+
+
+
         ?>
         <div class="wrap woocommerce">
             <form method="post" id="mainform" action="options.php">
@@ -350,7 +356,7 @@ class WC_LI_Settings {
                 ?>
 
 
-                <a href="#target1" onclick="linet.doTest();">Test Connection</a> (You can Check The Connection Only After Saving)
+                <a href="#target1" class="button-primary" onclick="linet.doTest();">Test Connection</a> (You can Check The Connection Only After Saving)
                 <?php settings_fields('woocommerce_linet'); ?>
         <?php do_settings_sections('woocommerce_linet'); ?>
 
@@ -632,7 +638,7 @@ class WC_LI_Settings {
         $body['login_hash'] = $hash;
         $body['login_company'] = $company;
 
-        $logger = new WC_LI_Logger(get_option('debug'));
+        $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
         $ch = curl_init();
         $logger->write('OWER REQUEST:' . "\n" .json_encode($body));
         curl_setopt_array($ch, array(
@@ -732,7 +738,7 @@ class WC_LI_Settings {
         // this is how you get access to the database
 
         $mode = intval($_POST['mode']);
-        //$logger = new WC_LI_Logger(get_option('debug'));
+        //$logger = new WC_LI_Logger(get_option('wc_linet_debug'));
 
         if ($mode == 0) {
             update_option('wc_linet_last_update', date('d/m/Y H:m:i'));
@@ -787,14 +793,6 @@ class WC_LI_Settings {
 
             wp_die();
         }
-
-
-
-
-
-
-
-
 
         //}
         //end loop
@@ -940,7 +938,7 @@ class WC_LI_Settings {
         $cats = $cats->body;
 
 
-        $logger = new WC_LI_Logger(get_option('debug'));
+        $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
         $logger->write("Start Linet Cat Sync");
         foreach ($cats as $cat) {
 

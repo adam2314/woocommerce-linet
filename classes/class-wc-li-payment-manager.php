@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 0.95
+  Version: 0.96
   Text Domain: wc-linet
   Domain Path: /languages/
   Requires WooCommerce: 2.2
@@ -81,7 +81,7 @@ class WC_LI_Payment_Manager {
         $payment_request = new WC_LI_Request_Payment($this->settings, $this->get_payment_by_order($order));
 
         // Write exception message to log
-        $logger = new WC_LI_Logger(get_option('debug'));
+        $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
 
         // Logging start
         $logger->write('START LINET NEW PAYMENT. order_id=' . $order->id);

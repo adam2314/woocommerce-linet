@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 0.95
+  Version: 0.96
   Text Domain: wc-linet
   Domain Path: /languages/
   Requires WooCommerce: 2.2
@@ -321,7 +321,7 @@ class WC_LI_Line_Item_Manager {
               } else {
 
               // There's a rounding difference but no rounding account
-              $logger = new WC_LI_Logger( get_option('debug'));
+              $logger = new WC_LI_Logger( get_option('wc_linet_debug'));
               $logger->write( "There's a rounding difference but no rounding account set in LINET settings." );
               }
              */

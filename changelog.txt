@@ -1,5 +1,9 @@
 *** Linet Integration ***
 
+2017.8.21 - version 0.96
+ * auto sync bug
+
+
 2017.8.20 - version 0.94
  * add Donation Receipt
  * fixed receipt issues
