@@ -321,7 +321,7 @@ class WC_LI_Line_Item_Manager {
               } else {
 
               // There's a rounding difference but no rounding account
-              $logger = new WC_LI_Logger( $this->settings );
+              $logger = new WC_LI_Logger( get_option('debug'));
               $logger->write( "There's a rounding difference but no rounding account set in LINET settings." );
               }
              */

@@ -93,7 +93,7 @@ class WC_LI_Invoice_Manager {
         $invoice = $this->get_invoice_by_order($order);
 
         // Write exception message to log
-        $logger = new WC_LI_Logger($this->settings);
+        $logger = new WC_LI_Logger(get_option('debug'));
 
 
 

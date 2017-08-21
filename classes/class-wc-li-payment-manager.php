@@ -81,7 +81,7 @@ class WC_LI_Payment_Manager {
         $payment_request = new WC_LI_Request_Payment($this->settings, $this->get_payment_by_order($order));
 
         // Write exception message to log
-        $logger = new WC_LI_Logger($this->settings);
+        $logger = new WC_LI_Logger(get_option('debug'));
 
         // Logging start
         $logger->write('START LINET NEW PAYMENT. order_id=' . $order->id);

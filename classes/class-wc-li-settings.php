@@ -620,8 +620,6 @@ class WC_LI_Settings {
             $server = self::DEV_SERVER;
         }
 
-        $debug = get_option('wc_linet_debug');
-
         //$dev = get_option('wc_linet_dev');
         //echo json_encode($server);
         //wp_die();
@@ -634,7 +632,7 @@ class WC_LI_Settings {
         $body['login_hash'] = $hash;
         $body['login_company'] = $company;
 
-        $logger = new WC_LI_Logger(['enabled'=>$debug]);
+        $logger = new WC_LI_Logger(get_option('debug'));
         $ch = curl_init();
         $logger->write('OWER REQUEST:' . "\n" .json_encode($body));
         curl_setopt_array($ch, array(
@@ -734,7 +732,7 @@ class WC_LI_Settings {
         // this is how you get access to the database
 
         $mode = intval($_POST['mode']);
-        //$logger = new WC_LI_Logger($this->settings);
+        //$logger = new WC_LI_Logger(get_option('debug'));
 
         if ($mode == 0) {
             update_option('wc_linet_last_update', date('d/m/Y H:m:i'));
