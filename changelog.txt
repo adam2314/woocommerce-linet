@@ -1,5 +1,224 @@
 *** Linet Integration ***
 
+2020.12.3 - version 1.7.6
+* in direct access
+
+2020.12.3 - version 1.7.5
+* enable access for error log
+
+2020.11.30 - version 1.7.4
+* back sync id with small sync
+
+2020.11.23 - version 1.7.3
+* small cat fix
+
+2020.11.23 - version 1.7.2
+* linet id print in product
+* linet id print in category
+
+2020.11.18 - version 1.7.1
+* small sync fix for empty pics
+* btn to sync single prod
+
+2020.11.11 - version 1.7.0
+* full multi cat support in/out
+
+2020.11.09 - version 1.6.4
+* image back sync
+* image thumb download
+* multi cat preprtion
+* better z credit token
+
+2020.10.13 - version 1.6.3
+* multi shiping total bug
+
+2020.09.24 - version 1.6.2
+* category sync bug
+
+2020.09.24 - version 1.6.1
+* faster
+
+2020.09.23 - version 1.6.0
+* new sync items methods
+* add pricelist custemer option
+
+2020.09.21 - version 1.5.6
+* removed lagcy session hook
+
+2020.09.14 - version 1.5.5
+* parent item stock update
+
+2020.08.03 - version 1.5.4
+* discount improvements
+
+2020.07.07 - version 1.5.1
+* better stock handling
+
+2020.06.30 - version 1.5.0
+* better tax handling
+* lagecy code removed
+
+2020.06.28 - version 1.4.8
+* large stock imprvmnts>1000
+* variant set improve
+* improvements
+
+2020.06.01 - version 1.4.7
+* only stock sync option added
+* zcredit token improvements
+
+2020.05.12 - version 1.4.5
+* vat_cat_id issue
+
+2020.05.12 - version 1.4.4
+* empty sale_price
+
+2020.05.12 - version 1.4.3
+* better sale_price support
+* refnum_ext new text
+
+2020.04.19 - version 1.4.2
+* vat_cat_id sync support
+* get_tax_status order support
+
+2020.04.16 - version 1.4.1
+* zcredit_checkout_payment support
+
+2020.03.29 - version 1.4.0
+* plugin to report back version & site -prepare for call back api
+* j5 token eav support
+
+2020.02.09 - version 1.3.3
+* item map issue
+
+2020.01.29 - version 1.3.2
+* advenanced status support
+
+2020.01.23 - version 1.3.1
+* the forggtan echo!
+
+2020.01.21 - version 1.3.0
+* zcredit token support
+
+
+2020.01.19 - version 1.2.0
+* big update added some filter support
+* - woocommerce_linet_item
+* - woocommerce_linet_set_order_line
+* - woocommerce_linet_set_order
+
+2019.12.31 - version 1.1.9
+* autoRound support for docs
+
+2019.12.26 - version 1.1.8
+* update_term_meta update_post_meta swap
+
+2019.11.18 - version 1.1.7
+* doc total round error
+
+2019.11.07 - version 1.1.6
+* doctype doccheq error
+
+2019.10.27 - version 1.1.5
+* better line addon support
+* added item addon support
+* added order addon support
+* tab view
+* print view
+
+2019.07.10 - version 1.1.2
+* add product addon support
+
+2019.04.28 - version 1.0.19
+* clear transit cache by parent
+
+2019.02.25 - version 1.0.18
+* clear transit cache on item update(faster price update!)
+
+2018.12.27 - version 1.0.17
+* better multi payment gateway support
+
+2018.10.20 - version 1.0.16
+* the tails of the forgetn print_r!
+
+2018.10.17 - version 1.0.15
+* sku find with product_variation support
+
+2018.9.25 - version 1.0.14
+* since date time fix
+
+2018.9.16 - version 1.0.13
+* better reverse sync without SKU
+
+2018.9.16 - version 1.0.11
+* add since
+* reverse sync without SKU
+
+2018.7.31 - version 1.0.1
+* mutex inv
+
+2018.6.25 - version 1.0.0
+* updated tested version
+* we can update the photo gallery!
+
+2018.6.25 - version 0.9866
+* updated tested version
+/**todo:*/
+* multi pic Sync
+
+2018.6.21 - version 0.9865
+* cat tree Sync
+* picsync switch
+
+
+2018.6.15 - version 0.9863
+ * verios fixes
+ * discount pricelist
+
+2018.5.29 - version 0.9862
+ * eav search over parent items!
+ * mutex parent count!
+ * fixed: category binding
+ * vatIn for reverse Sync
+
+
+2018.5.7 - version 0.9861
+ * eav search over items
+
+
+2018.5.7 - version 0.986
+ * better VAT support
+ * removed wp_filesystem(doesnt support cron..)
+ * some improvements with large data
+ * manul sync wc->linet
+
+
+2018.1.22 - version 0.985
+ * large data support
+ * sync only active items
+
+
+2018.1.22 - version 0.980
+ * variant sync data prices
+ * variant sync attributes
+ * no vat support by billing country
+ * language by billing country
+
+
+2017.10.29 - version 0.972
+ * variant sync data
+
+
+2017.10.26 - version 0.971
+ * picture sync!
+ * variant aware products!
+ * new settings:
+    disable email
+    one line doc
+ * manual sync was bad for catagories
+ * some minor bug fixes, better compatibly with WooCommerce API
+
+
 2017.8.21 - version 0.97
  * auto sync bug
 
@@ -8,17 +227,21 @@
  * add Donation Receipt
  * fixed receipt issues
 
+
 2017.5.17 - version 0.93
- * fixed Self:: for old PHP<5.5
+ * fixed self:: for old PHP<5.5
  * added docCheq & docDet auto remove by doc type
+
 
 2017.4.3 - version 0.92
  * fixed html entitis
+
 
 2016.12.19 - version 0.91
  * Add Ability to chose doc type
  * Add Ability to chose bill
  * Add Ability to chose hook
+
 
 2016.12.19 - version 0.7
  * Beta Release

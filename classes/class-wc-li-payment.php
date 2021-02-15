@@ -5,12 +5,13 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 0.97
+  Version: 2.1.6
   Text Domain: wc-linet
   Domain Path: /languages/
-  Requires WooCommerce: 2.2
-
-  Copyright 2016  Adam Ben Hour
+  WC requires at least: 2.2
+  WC tested up to: 4.2.2
+  
+  Copyright 2020  Adam Ben Hour
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2, as
@@ -31,6 +32,87 @@ if (!defined('ABSPATH')) {
 } // Exit if accessed directly
 
 class WC_LI_Payment {
+
+
+  public function process(){
+    switch ($this->order->payment_method) {
+      case 'cod':
+        $docCheq = [
+          [
+            "type" => 1,
+            "currency_id" => $currency_id,
+            //"currency_rate" => "1",
+            "sum" => $total,
+            "doc_sum" => $total,
+            "line" => 1
+          ]
+        ];
+        break;
+
+      case 'ppec_paypal':
+      case 'paypal':
+        $docCheq = [
+          [
+            "type" => 8,//paypal
+            "currency_id" => $currency_id,
+            //"currency_rate" => "1",
+            //add credit card
+            //add auth number
+            "sum" => $total,
+            "doc_sum" => $total,
+            "line" => 1
+          ]
+        ];
+        break;
+      case 'gotopay':
+        $docCheq = [
+          [
+            "type" => 3,
+            "currency_id" => $currency_id,
+            //"currency_rate" => "1",
+            //add credit card
+            //add auth number
+            "sum" => $total,
+            "doc_sum" => $total,
+            "line" => 1
+          ]
+        ];
+        break;
+      case 'pelacard':
+        $docCheq = [
+          [
+            "type" => 3,
+            "currency_id" => $currency_id,
+            //"currency_rate" => "1",
+            //add credit card
+            //add auth number
+            "sum" => $total,
+            "doc_sum" => $total,
+            "line" => 1
+          ]
+        ];
+        break;
+      default:
+        $docCheq = [
+          [
+            "type" => 3,
+            "currency_id" => $currency_id,
+            //"currency_rate" => "1",
+            "sum" => $total,
+            "doc_sum" => $total,
+            "line" => 1
+          ]
+        ];
+        break;
+    }
+
+    return $docCheq;
+
+  }
+
+
+
+
 
     private $invoice_id = '';
     private $code = '';

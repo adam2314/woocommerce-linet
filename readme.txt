@@ -1,10 +1,11 @@
 === Linet ERP-Woocommerce Integration Plugin ===
-Contributors: adam2314@gmail.com
+Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce, Linet
 Requires at least: 4.6
-Tested up to: 4.7
-Stable tag: 4.6
+Tested up to: 5.6
+Stable tag: 5.6
 License: GPLv2 or later
+Requires PHP: 5.2
 Donate link: http://www.linet.org.il
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -14,13 +15,13 @@ After installing this plugin you can sync woocommerce with Linet ERP.
 
 This Plugin enables integration and sync between Linet ERP & woocommerce through Linet ERP API. The integration/sync includes:
 
-1. Connect woocommerce (Login) to API of Linet ERP at https://app.linet.org.il with special unique identifiers as follows: 
+1. Connect woocommerce (Login) to API of Linet ERP at https://app.linet.org.il with special unique identifiers as follows:
 	a. User unique ID
 	b. API Key
 	c. Company ID
 2. Automatically creates sales documents at Linet ERP upon order complition in Woocommerce estore. The auto created documents are:
 	a. Invoice-receipt or Invoice (configurable through plugin settings), sent automaticaly by email to the client.
-	b. Sales order for company internal use. 
+	b. Sales order for company internal use.
 3. Update Linet ERP client list with new clients created at Woocommerce.
 4. Update Woocommerce category list with new item category created at Linet ERP.
 5. Update Woocommerce items list with new items created at Linet ERP.
@@ -45,12 +46,52 @@ No answer to that question.
 
 == Changelog ==
 
-= 1.0 =
-* This is the first version. No changes since.
+= 2021.02.10 - version 2.1.6 =
+
+* creditguard meta support 
+
+= 2021.02.04 - version 2.1.5 =
+
+* better custom fields sync
+
+= 2021.02.03 - version 2.1.4 =
+
+* aa
+
+= 2021.01.20 - version 2.1.3 =
+
+* stringfy name and description
+
+= 2021.01.19 - version 2.1.1 =
+
+* small fix in singleProdSync
+
+= 2021.01.14 - version 2.1.0 =
+
+* change update/create using wc internal product api
+* maintenance area: handle logs
+* maintenance area: handle duplicate linet_id,sku
+* maintenance area: handle missing meta data in attachmenet
+
+
+= 2021.01.05 - version 2.0.3 =
+
+* imporoved cat slug behviar
+
+= 2020.12.28 - version 2.0.0 =
+
+* sns update GA
+
+
+= 2020.12.17 - version 1.7.7 =
+
+* new filter woocommerce_linet_update_post_meta
+* adding create folder
+* wp_update_attachment_metadata
+
 
 
 == Upgrade Notice ==
 
 = 1.0 =
-No upgrade needed.
-
+* we can update the photo gallery!

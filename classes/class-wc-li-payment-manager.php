@@ -5,12 +5,13 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 0.97
+  Version: 2.1.6
   Text Domain: wc-linet
   Domain Path: /languages/
-  Requires WooCommerce: 2.2
+  WC requires at least: 2.2
+  WC tested up to: 4.2.2
 
-  Copyright 2016  Adam Ben Hour
+  Copyright 2020  Adam Ben Hour
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2, as
@@ -72,7 +73,7 @@ class WC_LI_Payment_Manager {
         // Get the order
         $order = wc_get_order($order_id);
 
-        if (!get_post_meta($order->id, '_linet_invoice_id', true)) {
+        if (!get_post_meta($order->get_id(), '_linet_invoice_id', true)) {
             $order->add_order_note(__('Linet Payment not created: Invoice has not been sent.', 'wc-linet'));
             return false;
         }
@@ -84,7 +85,7 @@ class WC_LI_Payment_Manager {
         $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
 
         // Logging start
-        $logger->write('START LINET NEW PAYMENT. order_id=' . $order->id);
+        $logger->write('START LINET NEW PAYMENT. order_id=' . $order->get_id());
 
         // Try to do the request
         try {
@@ -140,10 +141,10 @@ class WC_LI_Payment_Manager {
     public function get_payment_by_order($order) {
 
         // Get the LINET invoice ID
-        $invoice_id = get_post_meta($order->id, '_linet_invoice_id', true);
+        $invoice_id = get_post_meta($order->get_id(), '_linet_invoice_id', true);
 
         // Get the LINET currency rate
-        $currency_rate = get_post_meta($order->id, '_linet_currencyrate', true);
+        $currency_rate = get_post_meta($order->get_id(), '_linet_currencyrate', true);
 
         // Date time object of order data
         $order_dt = new DateTime($order->order_date);

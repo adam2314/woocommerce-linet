@@ -5,12 +5,12 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 0.97
   Text Domain: wc-linet
   Domain Path: /languages/
-  Requires WooCommerce: 2.2
+  WC requires at least: 2.2
+  WC tested up to: 4.2.2
 
-  Copyright 2016  Adam Ben Hour
+  Copyright 2020  Adam Ben Hour
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2, as
@@ -54,16 +54,13 @@ class WC_LI_Invoice_Manager {
         // Check if we need to send invoices when they're completed automatically
         $sendInv = get_option('wc_linet_sync_orders');
         //$option = $this->settings->get_option('send_invoices');
-        if ('completed' === $sendInv) {
+        if ('none' !== $sendInv && '' !== $sendInv) {
             //add_action('woocommerce_order_status_processing', array($this, 'send_invoice'));
-        //} elseif ('completion' === $sendPayments || 'on' === $sendPayments) {
-            add_action('woocommerce_order_status_completed', array($this, 'send_invoice'));
-        }elseif('processing' === $sendInv) {
-            add_action('woocommerce_order_status_processing', array($this, 'send_invoice'));
-        }else{//none...
-
-
+            add_action("woocommerce_order_status_$sendInv", array($this, 'send_invoice'));
+            //var_dump("woocommerce_order_status_$sendInv");
+            //exit;
         }
+
     }
 
     /**
@@ -78,7 +75,7 @@ class WC_LI_Invoice_Manager {
         // Get the order
         $order = wc_get_order($order_id);
         $supported_gateways=$this->settings->get_option('supported_gateways');
-        if(!in_array($order->payment_method, $supported_gateways)){
+        if(!in_array($order->get_payment_method(), $supported_gateways)){
             $order->add_order_note(__("LINET: Will not create doc. unsupported gateway", 'wc-linet'));
             return false;
             //echo $order->payment_method;exit;
@@ -100,7 +97,7 @@ class WC_LI_Invoice_Manager {
         // Check if the order total is 0 and if we need to send 0 total invoices to Linet
         if (0 == $invoice->get_total() && 'on' !== $this->settings->get_option('export_zero_amount')) {
             //if ( 0 == $invoice->get_total() && 'on' !== $this->settings->get_option( 'export_zero_amount' ) ) {
-            $logger->write('INVOICE HAS TOTAL OF 0, NOT SENDING ORDER WITH ID ' . $order->id);
+            $logger->write('INVOICE HAS TOTAL OF 0, NOT SENDING ORDER WITH ID ' . $order->get_id());
 
             $order->add_order_note(__("LINET: Didn't create doc. because total is 0 and send order with zero total is set to off.", 'wc-linet'));
 
@@ -110,7 +107,7 @@ class WC_LI_Invoice_Manager {
         // Invoice Request
         //$invoice_request = new WC_LI_Request_Invoice( $this->settings, $invoice );
         // Logging
-        $logger->write('START LINET NEW doc. order_id=' . $order->id);
+        $logger->write('START LINET NEW doc. order_id=' . $order->get_id());
 
         // Try to do the request
         try {
@@ -126,8 +123,11 @@ class WC_LI_Invoice_Manager {
             if ('200' == $json_response->status) {
 
                 // Add order meta data
-                update_post_meta($order->id, '_linet_invoice_id', (string) $json_response->body->id);
-                update_post_meta($order->id, '_linet_currency_rate', (string) $json_response->body->currency_rate);
+                update_post_meta($order->get_id(), '_linet_doc_id', (string) $json_response->body->id);
+                update_post_meta($order->get_id(), '_linet_docnum', (string) $json_response->body->docnum);
+
+                update_post_meta($order->get_id(), '_linet_invoice_id', (string) $json_response->body->id);
+                update_post_meta($order->get_id(), '_linet_currency_rate', (string) $json_response->body->currency_rate);
 
                 // Log response
                 //$logger->write('LINET RESPONSE:' . "\n" .print_r($json_response,true));
@@ -172,25 +172,11 @@ class WC_LI_Invoice_Manager {
      */
     public function get_invoice_by_order($order) {
 
-        // Date time object of order data
-        $order_dt = new DateTime($order->order_date);
-
         // Line Item manager
-        //$line_item_manager = new WC_LI_Line_Item_Manager( $this->settings );
         // Contact Manager
         //$contact_manager = new WC_LI_Contact_Manager( $this->settings );
         // Create invoice
-        $invoice = new WC_LI_Invoice(
-                //$this->settings,
-                //'',//$contact_manager->get_contact_by_order( $order ),
-                //$order_dt->format( 'Y-m-d' ),
-                //$order_dt->format( 'Y-m-d' ),
-                //'',//ltrim( $order->get_order_number(), '#' ),
-                //'',//$line_item_manager->build_line_items( $order ),
-                //'',//$order->get_order_currency(),
-                //'',//round( ( floatval( $order->order_tax ) + floatval( $order->order_shipping_tax ) ), 2 ),
-                //$order->order_total
-                );
+        $invoice = new WC_LI_Invoice(    );
 
         $invoice->set_order($order);
 

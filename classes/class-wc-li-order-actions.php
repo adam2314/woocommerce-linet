@@ -5,12 +5,13 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 0.97
+  Version: 2.1.6
   Text Domain: wc-linet
   Domain Path: /languages/
-  Requires WooCommerce: 2.2
+  WC requires at least: 2.2
+  WC tested up to: 4.2.2
 
-  Copyright 2016  Adam Ben Hour
+  Copyright 2020  Adam Ben Hour
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2, as
@@ -50,19 +51,16 @@ class WC_LI_Order_Actions {
      * Setup the required WooCommerce hooks
      */
     public function setup_hooks() {
-
         // Add order actions
 
         //$sync = get_option('sync_orders');
         //if($sync){
-            add_action('woocommerce_order_actions', array($this, 'add_order_actions'));
+        add_action('woocommerce_order_actions', array($this, 'add_order_actions'));
         //}
-
 
         //if $order->hasLinetDocId()
         // Catch order actions
         add_action('woocommerce_order_action_linet_manual_invoice',  [$this,'manual_invoice']);
-        //add_action('woocommerce_order_action_linet_manual_payment', array($this, 'manual_payment'));
     }
 
     /**
@@ -84,7 +82,6 @@ class WC_LI_Order_Actions {
         $data=get_post_meta($post->ID, '_linet_invoice_id');
         //if(count($data)==0)
             $actions['linet_manual_invoice'] = __('Send Doc. to Linet', 'wc-linet');
-        //$actions['linet_manual_payment'] = __('Send Payment to Linet', 'wc-linet');
 
         return $actions;
     }
@@ -98,34 +95,15 @@ class WC_LI_Order_Actions {
      */
     public function manual_invoice($order) {
 
-
-
-
         // Invoice Manager
         $invoice_manager = new WC_LI_Invoice_Manager($this->settings);
 
         // Send Invoice
-        $invoice_manager->send_invoice($order->id);
+        $invoice_manager->send_invoice($order->get_id());
 
         return true;
     }
 
-    /**
-     * Handle the order actions callback for creating a manual payment
-     *
-     * @param WC_Order $order
-     *
-     * @return boolean
-     */
-    public function manual_payment($order) {
 
-        // Payment Manager
-        $payment_manager = new WC_LI_Payment_Manager($this->settings);
-
-        // Send Payment
-        $payment_manager->send_payment($order->id);
-
-        return true;
-    }
 
 }
