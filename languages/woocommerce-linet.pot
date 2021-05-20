@@ -161,7 +161,7 @@ msgstr ""
 
 #: woocommerce-linet.php:129
 msgid ""
-"WooCommerce Linet Integration requires WooCommerce 2.2.0 or higher to be "
+"WooCommerce Linet Integration requires WooCommerce 2.5.0 or higher to be "
 "installed and activated!"
 msgstr ""
 

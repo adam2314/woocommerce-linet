@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.1.6
+  Version: 2.5.0
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -214,7 +214,7 @@ class WC_LI_Invoice {
             "item_id" => $genItm, //getLinetId $item['product_id']
             "name" => html_entity_decode($method->get_method_title()),
             "description" => "",
-            "qty" => 1,
+            "qty" => ($shiping_price<0)?-1:1,
             "currency_id" => $currency_id,
             //"currency_rate" => "1",
             "vat_cat_id" => ($country_id=="IL") ? 1 : 2,
@@ -232,13 +232,13 @@ class WC_LI_Invoice {
             "item_id" => $genItm, //getLinetId $item['product_id']
             "name" => html_entity_decode($fee['name']),
             "description" => "",
-            "qty" => 1,
+            "qty" => ($fee['total']<0)?-1:1,
             "currency_id" => $currency_id,
             //"currency_rate" => "1",
             "vat_cat_id" => ($country_id=="IL") ? 1 : 2,
             "account_id" => ($country_id=="IL") ? $income_acc : $income_acc_novat,
             "unit_id" => 0,
-            "iItem" => $fee['total'],
+            "iItem" => abs($fee['total']),
             "iItemWithVat" => 1
           ];
           $total += $fee['total'];

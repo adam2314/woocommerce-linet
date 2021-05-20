@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.1.6
+  Version: 2.5.0
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -42,14 +42,21 @@ if (!function_exists('woothemes_queue_update')) {
  * Main plugin class
  */
 class WC_Linet {
-  const VERSION = '2.1.6';
+  const VERSION = '2.5.0';
   /**
    * The constructor
    */
   public function __construct() {
-    if (is_woocommerce_active() && version_compare(WC()->version, '2.2.0', '>=')) {
+    if (is_woocommerce_active() && version_compare(WC()->version, '2.5.0', '>=')) {
       $this->setup();
-    } //else {
+    }
+
+    if( is_admin() ){
+      $this->add_elementor_action();
+
+    }
+
+     //else {
     //	add_action( 'admin_notices', array( $this, 'notice_wc_required' ) );
     //}
   }
@@ -58,6 +65,8 @@ class WC_Linet {
    * Setup the class
    */
   public function setup() {
+
+
 
     // Setup the autoloader
     $this->setup_autoloader();
@@ -73,12 +82,22 @@ class WC_Linet {
     // Setup Invoice hooks
     $invoice_manager = new WC_LI_Invoice_Manager($settings);
     $invoice_manager->setup_hooks();
+
+
+    $cf7 = new WC_LI_Linet_Cf7($settings);
+    $cf7->setup_hooks();
     // Setup Payment hooks
     //$payment_manager = new WC_LI_Payment_Manager($settings);
     //$payment_manager->setup_hooks();
 
     $sns = new WC_LI_Sns();
     $sns->setup_hooks();
+
+
+
+
+
+
 
 
 
@@ -90,7 +109,28 @@ class WC_Linet {
     ));//*/
 
 
+
+
+
   }
+
+
+
+  public function add_elementor_action()
+  {
+    add_action( 'elementor_pro/init', function() {
+      //$path = apply_filters('flashy/get_info', 'path');
+
+      //require_once( './class/Linet_Elementor.php');
+
+      // Instantiate the action class
+      $linetapp = new WC_LI_Linet_Elementor();
+
+      // Register the action with form widget
+      \ElementorPro\Plugin::instance()->modules_manager->get_modules( 'forms' )->add_form_action( $linetapp->get_name(), $linetapp );
+    });
+  }
+
 
   /**
    * Get the plugin file
@@ -124,7 +164,7 @@ class WC_Linet {
   public function notice_wc_required() {
     ?>
     <div class="error">
-        <p><?php _e('WooCommerce Linet Integration requires WooCommerce 2.2.0 or higher to be installed and activated!', 'wc-linet'); ?></p>
+        <p><?php _e('WooCommerce Linet Integration requires WooCommerce 2.5.0 or higher to be installed and activated!', 'wc-linet'); ?></p>
     </div>
     <?php
   }

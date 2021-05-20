@@ -2,8 +2,8 @@
 Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce, Linet
 Requires at least: 4.6
-Tested up to: 5.6
-Stable tag: 5.6
+Tested up to: 5.7
+Stable tag: 5.7
 License: GPLv2 or later
 Requires PHP: 5.2
 Donate link: http://www.linet.org.il
@@ -46,9 +46,40 @@ No answer to that question.
 
 == Changelog ==
 
+= 2021.05.18 - version 2.5.0 =
+
+* elemntor form integrtion
+* cf7 integrtion
+* adding ext to pic
+
+= 2021.04.20 - version 2.2.3 =
+
+* support till 50 variations
+* improve heb slug
+
+= 2021.04.13 - version 2.2.1 =
+
+* global attibute support hook
+* better fee and shipping handle (neagtive sum)
+
+= 2021.04.12 - version 2.2.0 =
+
+* global attibute support
+
+= 2021.03.18 - version 2.1.10 =
+
+* back sync bug
+
+
+= 2021.03.16 - version 2.1.8 =
+
+* warehouse exclude list
+* metadata block
+
+
 = 2021.02.10 - version 2.1.6 =
 
-* creditguard meta support 
+* creditguard meta support
 
 = 2021.02.04 - version 2.1.5 =
 

@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.1.6
+  Version: 2.5.0
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -72,6 +72,10 @@ class WC_LI_Settings {
 
 
     add_action('wp_ajax_LinetTest', 'WC_LI_Settings::TestAjax');
+
+    add_action('wp_ajax_RulerAjax', 'WC_LI_Settings::RulerAjax');
+
+
 
     add_action('wp_ajax_LinetItemSync', 'WC_LI_Inventory::catSyncAjax');
 
@@ -227,6 +231,21 @@ public function syncOptions(){
       ),
       'description' => __('Find Linet items by SKU and not there Item ID', 'wc-linet'),
     ),
+
+    'global_attr' => array(
+      'title' => __('Global attributes', 'wc-linet'),
+      'default' => 'off',
+      'type' => 'select',
+      'options' => array(
+        'off' => __( 'Off', 'wc-linet' ),
+        'on'  => __( 'On', 'wc-linet' ),
+      ),
+      'description' => __('use global attributes for variable products', 'wc-linet')
+      .'<a style="display:none;" href="#target1" class="button-primary" onclick="linet.doRuler();">Write Global Rulers</a> '
+      ,
+    ),
+
+
     'sync_orders' => array(
       'title' => __('Sync Orders', 'wc-linet'),
       'default' => 'none',
@@ -316,12 +335,34 @@ public function syncOptions(){
       ),
       'description' => __('Will sync Pictures', 'wc-linet'),
     ),
+
+
+    'not_product_attributes' => array(
+      'title' => __('No Product Attributes', 'wc-linet'),
+      'default' => 'off',
+      'type' => 'select',
+      'options' => array(
+        'off' => __( 'Off', 'wc-linet' ),
+        'on'  => __( 'On', 'wc-linet' ),
+      ),
+      'description' => __('Do not write product_attributes meta data', 'wc-linet'),
+    ),
+
+
     'warehouse_id' => array(
       'title' => __('Warehouse', 'wc-linet'),
       'default' => '115',
       'type' => 'text',
-      'description' => __('Warehouse', 'wc-linet'),
+      'description' => __('Warehouse ID from Linet', 'wc-linet'),
     ),
+
+    'warehouse_exclude' => array(
+      'title' => __('Warehouse exclude', 'wc-linet'),
+      'default' => '',
+      'type' => 'text',
+      'description' => __('Warehouse ID from Linet you can write a list with commas(,)', 'wc-linet'),
+    ),
+
     'warehouse_stock_count' => array(
       'title' => __('Stock Count Warehouse', 'wc-linet'),
       'default' => 'on',
@@ -405,6 +446,36 @@ public static function LinetCalcAttachment($id){
 
 
 
+public function form(){
+  global $wpdb;
+
+  $arr=array();
+
+
+
+  $args = array('post_type' => 'wpcf7_contact_form', 'posts_per_page' => -1);
+
+	if( $data = get_posts($args) )
+  foreach($data as $form) {
+
+
+
+    $arr["cf7".$form->ID]= array(
+      'title' => __('CF7:', 'wc-linet')." ".$form->post_title,
+      'default' => '',
+      'type' => 'cf7_text',
+      'payload' => array('form_id'=>$form->ID )
+      //'description' => __('Login ID  retrieved from <a href="http://app.linet.org.il" target="_blank">Linet</a>.', 'wc-linet'),
+    );
+
+  }
+
+/*
+  */
+
+
+  return $arr;
+}
 
 
 
@@ -446,8 +517,12 @@ public function maintenance(){
       'description' => "<a data-id='$attachment->ID' data-file='$attachment->post_title' onclick=\"linet.calcAttachment(this);\" href='#'>$attachment->post_title</a>",
     );
   }
+  $scanned_directory=array();
+  if(is_dir(WC_LOG_DIR)){
+    $scanned_directory = array_diff(scandir(WC_LOG_DIR), array('..', '.'));
 
-  $scanned_directory = array_diff(scandir(WC_LOG_DIR), array('..', '.'));
+  }
+
   $text=array();
   foreach($scanned_directory as $index=>$file){
     if(strpos($file,'linet')===0 ||strpos($file,'fatal-errors')===0 )
@@ -632,7 +707,8 @@ public function register_settings() {
     $this->lineOptions(),
     $this->syncOptions(),
     $this->connectionOptions(),
-    $this->maintenance()
+    $this->maintenance(),
+    $this->form()
   );
 
 
@@ -678,6 +754,12 @@ public function register_settings() {
 
        if($_GET["tab"] == "maintenance")    {
          $this->renderOptTab($this->maintenance());
+       }
+
+
+
+       if($_GET["tab"] == "form")    {
+         $this->renderOptTab($this->form());
        }
 
 
@@ -760,6 +842,8 @@ public function options_page() {
        $active_tab = "sync-options";
      if($_GET["tab"] == "maintenance")
        $active_tab = "maintenance";
+     if($_GET["tab"] == "form")
+       $active_tab = "form";
 
  }
 
@@ -801,6 +885,7 @@ public function options_page() {
           <a href="?page=woocommerce_linet&tab=line-options" class="nav-tab <?php if($active_tab == 'line-options'){echo 'nav-tab-active';} ?>"><?php _e('Line Options', 'sandbox'); ?></a>
           <a href="?page=woocommerce_linet&tab=sync-options" class="nav-tab <?php if($active_tab == 'sync-options'){echo 'nav-tab-active';} ?>"><?php _e('Sync Options', 'sandbox'); ?></a>
           <a href="?page=woocommerce_linet&tab=maintenance" class="nav-tab <?php if($active_tab == 'maintenance'){echo 'nav-tab-active';} ?>"><?php _e('Maintenance', 'sandbox'); ?></a>
+          <a href="?page=woocommerce_linet&tab=form" class="nav-tab <?php if($active_tab == 'form'){echo 'nav-tab-active';} ?>"><?php _e('Form', 'sandbox'); ?></a>
 
 
       </h2>
@@ -901,6 +986,25 @@ public function options_page() {
             //console.log(response);
             //console.log(response);
             alert(response.text);
+            //count
+
+          }, 'json');
+
+
+        },
+
+
+        doRuler: function () {
+          var data = {
+            'action': 'RulerAjax',
+            //'mode': 1
+          };
+
+
+          jQuery.post(ajaxurl, data, function (response) {
+            //console.log(response);
+            //console.log(response);
+            alert(response);
             //count
 
           }, 'json');
@@ -1080,6 +1184,14 @@ public function input_repeater_text($args) {
   include( plugin_dir_path( __FILE__ ) . '../templates/field-repeater.php');
 }
 
+
+
+public function input_cf7_text($args) {
+  $options = $this->get_option($args['key']);
+  include( plugin_dir_path( __FILE__ ) . '../templates/field-cf7.php');
+}
+
+
 /**
 * Text setting field
 *
@@ -1207,6 +1319,29 @@ public static function TestAjax() {
 
 
   echo json_encode($res);
+  wp_die();
+
+}
+
+
+
+
+public static function RulerAjax() {
+  $res = self::sendAPI('rulers');
+
+  if(
+    $res &&
+    isset($res->body) &&
+    is_array($res->body)
+  ){
+    foreach($res->body as $ruler){
+      WC_LI_Inventory::syncRuler($ruler,null);
+    }
+  }
+
+  delete_option("_transient_wc_attribute_taxonomies");
+  echo json_encode('ok');
+
   wp_die();
 
 }

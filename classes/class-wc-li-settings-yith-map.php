@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.1.6
+  Version: 2.5.0
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -41,9 +41,9 @@ class WC_LI_Settings_Yith_Map {
     global $wpdb;
 
 
-    $query = "SELECT label,id FROM {$wpdb->prefix}yith_wapo_types WHERE 1";
+    $query = "SELECT label,id FROM {$wpdb->prefix}yith_wapo_types WHERE %n";
 
-    $items = $wpdb->get_results($wpdb->prepare($query,[]));
+    $items = $wpdb->get_results($wpdb->prepare($query,array(1)));
 
     foreach($items as $itm){
       //$decoded=json_decode($itm->meta_value);
