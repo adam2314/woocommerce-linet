@@ -46,6 +46,10 @@ No answer to that question.
 
 == Changelog ==
 
+= 2021.05.26 - version 2.6.0 =
+
+* orde status back sync
+
 = 2021.05.18 - version 2.5.0 =
 
 * elemntor form integrtion

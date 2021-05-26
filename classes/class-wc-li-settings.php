@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.5.0
+  Version: 2.6.0
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -254,6 +254,17 @@ public function syncOptions(){
       'options' => $statuses,
       'description' => __('Auto Genrate Invoice Recipet in Linet', 'wc-linet'),
     ),
+
+
+    'sync_back_status' => array(
+      'title' => __('sync back order status', 'wc-linet'),
+      'default' => 'none',
+      //type' => 'checkbox',
+      'type' => 'select',
+      'options' => $statuses,
+      'description' => __('will change order stauts after action in linet', 'wc-linet'),
+    ),
+
 
     'supported_gateways' => array(
       'title' => __('Supported Gateways', 'wc-linet'),
