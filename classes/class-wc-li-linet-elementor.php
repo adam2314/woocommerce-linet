@@ -51,15 +51,35 @@ class WC_LI_Linet_Elementor extends \ElementorPro\Modules\Forms\Classes\Action_B
 		// Normalize the Form Data
 		$fields = [];
 
-		foreach ( $raw_fields as $id => $field ) {
-			$fields[ $id ] = $field['value'];
+		$elementor_form_map = get_option('wc_linet_elementor_form');
+
+		$place=array_search ($settings['form_name'] , $elementor_form_map['form_name'] ) ;
+		$map_linet=array();
+		$map_elm=array();
+
+		if($place!==false){
+			$map_linet=$elementor_form_map['li_field'][$place];
+			$map_elm=$elementor_form_map['el_field'][$place];
+
 		}
 
-    /*var_dump($settings);
-var_dump($raw_fields);
-var_dump($fields);
 
-exit;*/
+
+		foreach ( $raw_fields as $id => $field ) {
+			$has_map=array_search ($id , $map_elm ) ;
+
+
+			if($has_map!==false){
+				$fields[ $map_linet[$has_map] ] = $field['value'];
+
+			}else{
+				$fields[ $id ] = $field['value'];
+
+			}
+		}
+
+		//exit;
+
     $newLinItem = WC_LI_Settings::sendAPI('create/account',$fields);
 
 		//$find = flashy()->api->contacts->get($fields['email']);

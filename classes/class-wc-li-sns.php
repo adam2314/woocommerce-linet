@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.6.0
+  Version: 2.6.1
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -74,32 +74,19 @@ class WC_LI_Sns {
     public static function updateOrder($doc,$logger){
       if($doc['refstatus']==1){
         $number=str_replace (__('Online Order', 'wc-linet')." #","",$doc['refnum_ext']);
-        //var_dump($number);
 
         $order = new WC_Order($number);
 
         $sync_back_status= get_option('wc_linet_sync_back_status');
+        if($sync_back_status!='none'&&$sync_back_status=''){
+          $order->set_status($sync_back_status);
+          $order->save();
+        }
 
-        $order->set_status($sync_back_status);
-        $order->save();
-        //..var_dump($order->get_id());
       }
 
 
-      //exit;
 
-
-      $docs = WC_LI_Settings::sendAPI('search/docs', array('id'=>$doc->id));
-      foreach($docs->body as $doc){
-        //find order
-
-
-
-        //set status
-        //$doc
-        //Woocomerce Order #
-        //WC_LI_Inventory::singleCatSync($cat,$logger);
-      }
     }
 
 

@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.6.0
+  Version: 2.6.1
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -462,24 +462,29 @@ public function form(){
 
   $arr=array();
 
-
-
   $args = array('post_type' => 'wpcf7_contact_form', 'posts_per_page' => -1);
 
-	if( $data = get_posts($args) )
-  foreach($data as $form) {
-
-
-
-    $arr["cf7".$form->ID]= array(
-      'title' => __('CF7:', 'wc-linet')." ".$form->post_title,
-      'default' => '',
-      'type' => 'cf7_text',
-      'payload' => array('form_id'=>$form->ID )
-      //'description' => __('Login ID  retrieved from <a href="http://app.linet.org.il" target="_blank">Linet</a>.', 'wc-linet'),
-    );
-
+	if( $data = get_posts($args) ){
+    foreach($data as $form) {
+      $arr["cf7".$form->ID]= array(
+        'title' => __('CF7:', 'wc-linet')." ".$form->post_title,
+        'default' => '',
+        'type' => 'cf7_text',
+        'payload' => array('form_id'=>$form->ID )
+        //'description' => __('Login ID  retrieved from <a href="http://app.linet.org.il" target="_blank">Linet</a>.', 'wc-linet'),
+      );
+    }
   }
+
+  $arr["elementor_form"]= array(
+    'title' => __('elementor form map', 'wc-linet'),
+    'default' => '',
+    'type' => 'elementor_text',
+    //'payload' => array('form_id'=>1),
+    'description' => __('map form by name and field id', 'wc-linet'),
+  );
+
+
 
 /*
   */
@@ -1200,6 +1205,11 @@ public function input_repeater_text($args) {
 public function input_cf7_text($args) {
   $options = $this->get_option($args['key']);
   include( plugin_dir_path( __FILE__ ) . '../templates/field-cf7.php');
+}
+
+public function input_elementor_text($args) {
+  $options = $this->get_option($args['key']);
+  include( plugin_dir_path( __FILE__ ) . '../templates/field-elementor.php');
 }
 
 

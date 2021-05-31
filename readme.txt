@@ -46,6 +46,10 @@ No answer to that question.
 
 == Changelog ==
 
+= 2021.05.31 - version 2.6.1 =
+
+* added mapper support for elmntor
+
 = 2021.05.26 - version 2.6.0 =
 
 * orde status back sync
