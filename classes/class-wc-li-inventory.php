@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.6.1
+  Version: 2.6.2
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -540,8 +540,10 @@ public static function singleCatSync($cat,$logger) {
        LIMIT 1;
       ";//$catParams['parent']
       //_linet_cat
-      $term_id = $wpdb->get_col($wpdb->prepare($query,$cat->name,$cat->name));
-      $logger->write("Term found " . $term_id->get_error_message());
+      $term_id = $wpdb->get_col($wpdb->prepare($query,$cat->name));
+      //$logger->write("Term found " . $term_id->get_error_message());
+
+
 
       //$term_id=$term_id['term_id'];
       // echo $term_id->get_error_message();

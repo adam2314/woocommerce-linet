@@ -46,6 +46,10 @@ No answer to that question.
 
 == Changelog ==
 
+= 2021.06.01 - version 2.6.2 =
+
+* cat sync improv
+
 = 2021.05.31 - version 2.6.1 =
 
 * added mapper support for elmntor
