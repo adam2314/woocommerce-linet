@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.6.2
+  Version: 2.6.3
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -72,15 +72,23 @@ class WC_LI_Sns {
 
 
     public static function updateOrder($doc,$logger){
-      if($doc['refstatus']==1){
+      $logger->write("updateOrder ". $doc['refstatus']);
+
+      if($doc['refstatus']=="1"){
+
         $number=str_replace (__('Online Order', 'wc-linet')." #","",$doc['refnum_ext']);
 
         $order = new WC_Order($number);
 
         $sync_back_status= get_option('wc_linet_sync_back_status');
-        if($sync_back_status!='none'&&$sync_back_status=''){
+        $logger->write("sync_back_status: ". $sync_back_status);
+
+        if($sync_back_status!='none'&&$sync_back_status!=''){
+
           $order->set_status($sync_back_status);
-          $order->save();
+
+          $logger->write("save: ". $order->save());
+
         }
 
       }
@@ -101,7 +109,7 @@ class WC_LI_Sns {
         if(count($data)==3){
           update_option('wc_linet_last_sns', date('Y-m-d H:i:s'));
 
-          if($data[1]=='\\app\models\Item')
+          if($data[1]=='\\app\\models\\Item')
             return self::updateItem((int)$data[2],$logger);
           if($data[1]=='\\app\\models\\Itemcategory')
             return self::updateCat((int)$data[2],$logger);
@@ -123,7 +131,7 @@ class WC_LI_Sns {
         if(count($data)==3){
           update_option('wc_linet_last_sns', date('Y-m-d H:i:s'));
 
-          if($data[1]=='\\app\models\Item')
+          if($data[1]=='\\app\\models\\Item')
             return self::updateItem((int)$data[2],$logger);
           if($data[1]=='\\app\\models\\Itemcategory')
             return self::updateCat((int)$data[2],$logger);
@@ -137,7 +145,7 @@ class WC_LI_Sns {
         if(count($data)==3){
           update_option('wc_linet_last_sns', date('Y-m-d H:i:s'));
 
-          if($data[1]=='\\app\models\Item')
+          if($data[1]=='\\app\\models\\Item')
             return self::updateItem((int)$data[2],$logger);
           if($data[1]=='\\app\\models\\Itemcategory')
             return self::updateCat((int)$data[2],$logger);

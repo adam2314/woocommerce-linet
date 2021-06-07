@@ -46,6 +46,10 @@ No answer to that question.
 
 == Changelog ==
 
+= 2021.06.07 - version 2.6.3 =
+
+* small back sync bug
+
 = 2021.06.01 - version 2.6.2 =
 
 * cat sync improv
