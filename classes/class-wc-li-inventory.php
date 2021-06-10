@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.6.3
+  Version: 2.6.4
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -81,7 +81,7 @@ DELETE a,c FROM wp_terms AS a
 
 
 */
-  echo json_encode("succuss");
+  echo json_encode("Success");
   wp_die();
 
 }
@@ -451,7 +451,7 @@ public static function catSyncAjax() {
 
     echo json_encode(
       array(
-        'status' => 'succuss',
+        'status' => 'Success',
         'cats' => count($cats->body)
       )
     );
@@ -481,7 +481,7 @@ public static function catSyncAjax() {
 
     echo json_encode(
       array(
-        'status' => 'succuss',
+        'status' => 'Success',
         'items' => count($products)
       )
     );
@@ -593,6 +593,9 @@ public static function getImage($pic,$parent_id='') {
   if ($dev == 'on') {
     $server = WC_LI_Settings::DEV_SERVER;
   }
+
+  $rect_img = get_option('wc_linet_rect_img');
+
   $basePath = wp_upload_dir()['basedir'].'/';
   $realtivePath = self::IMAGE_DIR."/".$pic;
   $filePath = $basePath.$realtivePath;
@@ -627,7 +630,7 @@ public static function getImage($pic,$parent_id='') {
     if(!is_file($filePath) || filesize ($filePath)==0){
       $ch = curl_init();
       curl_setopt_array($ch, array(
-        CURLOPT_URL => $server . "/site/largethumbnail/" . $pic,
+        CURLOPT_URL => $server . "/site/largethumbnail/" . $pic.(($rect_img == 'on')?"?rect=true":""),
         CURLOPT_RETURNTRANSFER => TRUE,
         CURLOPT_HTTPHEADER => array('Content-Type: application/json'),
       ));
@@ -780,7 +783,7 @@ public static function findByProdId($item_id){
         if($result)
           echo json_encode(
             array(
-              'status'=>'succuss',
+              'status'=>'Success',
               'result'=>$result
             )
           );

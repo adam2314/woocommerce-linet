@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.6.3
+  Version: 2.6.4
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -345,6 +345,16 @@ public function syncOptions(){
         'on'  => __( 'On', 'wc-linet' ),
       ),
       'description' => __('Will sync Pictures', 'wc-linet'),
+    ),
+    'rect_img' => array(
+      'title' => __('Rectangular Picture', 'wc-linet'),
+      'default' => 'off',
+      'type' => 'select',
+      'options' => array(
+        'off' => __( 'Off', 'wc-linet' ),
+        'on'  => __( 'On', 'wc-linet' ),
+      ),
+      'description' => __('Will force Rectangular Pictures', 'wc-linet'),
     ),
 
 
