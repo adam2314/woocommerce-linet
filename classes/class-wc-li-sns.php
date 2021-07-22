@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.6.4
+  Version: 2.6.5
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -51,12 +51,18 @@ class WC_LI_Sns {
     }
 
     public static function updateItem($item_id,$logger){
-        $products = WC_LI_Settings::sendAPI(WC_LI_Inventory::syncStockURL(), array('id'=>$item_id));
+        $params=WC_LI_Inventory::syncParams();
+        unset($params['limit']);
+
+        $params['id']=$item_id;
+
+        $products = WC_LI_Settings::sendAPI(WC_LI_Inventory::syncStockURL(), $params);
         foreach($products->body as $item){
           WC_LI_Inventory::singleProdSync( $item,$logger);
         }
-
-       $products = WC_LI_Settings::sendAPI(WC_LI_Inventory::syncStockURL(), array('parent_item_id'=>$item_id));
+        unset($params['id']);
+        $params['parent_item_id']=$item_id;
+       $products = WC_LI_Settings::sendAPI(WC_LI_Inventory::syncStockURL(), $params);
        foreach($products->body as $item){
          WC_LI_Inventory::singleProdSync( $item,$logger);
        }

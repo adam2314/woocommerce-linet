@@ -46,6 +46,10 @@ No answer to that question.
 
 == Changelog ==
 
+= 2021.07.22 - version 2.6.5 =
+
+* SNS ignored exclude bug fix
+
 = 2021.06.10 - version 2.6.4 =
 
 * Rectangular Picture sync
