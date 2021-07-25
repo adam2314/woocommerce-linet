@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.6.5
+  Version: 2.6.6
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -42,7 +42,7 @@ if (!function_exists('woothemes_queue_update')) {
  * Main plugin class
  */
 class WC_Linet {
-  const VERSION = '2.6.5';
+  const VERSION = '2.6.6';
   /**
    * The constructor
    */
@@ -51,10 +51,9 @@ class WC_Linet {
       $this->setup();
     }
 
-    if( is_admin() ){
-      $this->add_elementor_action();
 
-    }
+    $this->add_elementor_action();
+
 
      //else {
     //	add_action( 'admin_notices', array( $this, 'notice_wc_required' ) );
@@ -95,20 +94,11 @@ class WC_Linet {
 
 
 
-
-
-
-
-
-
-
     // Plugins Links
     add_filter('plugin_action_links_' . plugin_basename(self::get_plugin_file()), array(
         $this,
         'plugin_links'
     ));//*/
-
-
 
 
 
@@ -119,9 +109,6 @@ class WC_Linet {
   public function add_elementor_action()
   {
     add_action( 'elementor_pro/init', function() {
-      //$path = apply_filters('flashy/get_info', 'path');
-
-      //require_once( './class/Linet_Elementor.php');
 
       // Instantiate the action class
       $linetapp = new WC_LI_Linet_Elementor();

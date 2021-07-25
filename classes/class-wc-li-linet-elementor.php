@@ -57,36 +57,26 @@ class WC_LI_Linet_Elementor extends \ElementorPro\Modules\Forms\Classes\Action_B
 		$map_linet=array();
 		$map_elm=array();
 
+
 		if($place!==false){
 			$map_linet=$elementor_form_map['li_field'][$place];
 			$map_elm=$elementor_form_map['el_field'][$place];
-
 		}
 
-
-
 		foreach ( $raw_fields as $id => $field ) {
-			$has_map=array_search ($id , $map_elm ) ;
-
+			$has_map = array_search ($id , $map_elm ) ;
 
 			if($has_map!==false){
 				$fields[ $map_linet[$has_map] ] = $field['value'];
-
 			}else{
 				$fields[ $id ] = $field['value'];
-
 			}
 		}
 
+		//var_dump($fields);
 		//exit;
 
     $newLinItem = WC_LI_Settings::sendAPI('create/account',$fields);
-
-		//$find = flashy()->api->contacts->get($fields['email']);
-
-		//$create = flashy()->api->lists->subscribe($settings['flashy_list'], $fields);
-
-
 
 		return true;
 	}
