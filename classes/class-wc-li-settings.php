@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.6.6
+  Version: 2.6.7
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -1345,7 +1345,9 @@ public static function sendAPI($req, $body = array()) {
 }
 
 public static function TestAjax() {
-  $genral_item = get_option('wc_linet_genral_item');
+  $genral_item = (string)get_option('wc_linet_genral_item');
+
+  $genral_item = ($genral_item=="")?"1":$genral_item;
   $res = self::sendAPI('view/item?id=' . $genral_item);
 
 

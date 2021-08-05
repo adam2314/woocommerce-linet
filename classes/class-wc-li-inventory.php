@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.6.6
+  Version: 2.6.7
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -574,7 +574,7 @@ public static function singleCatSync($cat,$logger) {
 
   $picsync = get_option('wc_linet_picsync');
   if($picsync == 'on'){
-    $thumbed = self::getImage($cat->pic);
+    $thumbed = self::getImage($cat->pic,$logger);
     if($thumbed){
       update_term_meta($term_id, 'thumbnail_id', $thumbed);
     }
@@ -586,7 +586,7 @@ public static function singleCatSync($cat,$logger) {
   return $term_id;
 }
 
-public static function getImage($pic,$parent_id='') {
+public static function getImage($pic,$logger=false) {//unused ,$parent_id=''
   $server = WC_LI_Settings::SERVER;
 
   $dev = get_option('wc_linet_dev');
@@ -628,27 +628,33 @@ public static function getImage($pic,$parent_id='') {
 
   if($pic!='' ){
     if(!is_file($filePath) || filesize ($filePath)==0){
+      $url=$server . "/site/largethumbnail/" . $pic.(($rect_img == 'on')?"?rect=true":"");
+      $logger->write("get img: ".$url);
+
       $ch = curl_init();
       curl_setopt_array($ch, array(
-        CURLOPT_URL => $server . "/site/largethumbnail/" . $pic.(($rect_img == 'on')?"?rect=true":""),
+        CURLOPT_URL => $url,
         CURLOPT_RETURNTRANSFER => TRUE,
         CURLOPT_HTTPHEADER => array('Content-Type: application/json'),
       ));
       $response = curl_exec($ch);
       $content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-      $content_type=explode("; ",$content_type);
+      $content_type = explode("; ",$content_type);
       if(
         !isset($content_type[0]) ||
         (substr($content_type[0], 0, 6) !== "image/")
       ){
+
         return false;
       }
+
+      $logger->write("mimetype img: ".$content_type[0]);
+
 
       $ext=substr($content_type[0], 6);
 
       if( isset($ext) && !empty($ext) ) {
 					$filePath .= '.'. $ext;
-
 			}
 
       file_put_contents($filePath,$response);
@@ -679,13 +685,9 @@ public static function getImage($pic,$parent_id='') {
 					'post_status' => 'inherit'
 				);
 
-				$attach_id = wp_insert_attachment( $attachment, $filePath );
+				$post_id = wp_insert_attachment( $attachment, $filePath );
 
-        wp_update_attachment_metadata($post_id,wp_generate_attachment_metadata($attach_id,$filePath));
-
-
-
-
+        wp_update_attachment_metadata($post_id,wp_generate_attachment_metadata($post_id,$filePath));
 
     }else{
       $post_id = $image_id[0];
@@ -1124,7 +1126,9 @@ public static function singleProdSync( $item,$logger ) {
   $picsync = get_option('wc_linet_picsync');
   //echo $picsync;exit;
   if($picsync == 'on' && ($item->has_pictures != "0" ||$item->item->pic!="")){
-    $thumbed = self::getImage($item->item->pic,$post_id);
+    $thumbed = self::getImage($item->item->pic,$logger);
+    $logger->write("Linet before thumbed Img:".$thumbed);
+
     if($thumbed){
       $product->set_image_id($thumbed);
       $logger->write("Linet thumbed Img: " . $thumbed);
@@ -1143,7 +1147,7 @@ public static function singleProdSync( $item,$logger ) {
     $imgs=[];
     if(is_array($galleryImgs->body)){
       foreach($galleryImgs->body as $img){
-        $newImg=self::getImage($img->hash);
+        $newImg=self::getImage($img->hash,$logger);
         if($newImg)
           $imgs[]=$newImg;
       }

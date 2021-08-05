@@ -95,7 +95,10 @@ class WC_LI_Invoice {
     public function set_order($order) {
         $total = 0;
 
-        $genItm = get_option('wc_linet_genral_item');
+=
+        $genral_item = (string)get_option('wc_linet_genral_item');
+        $genral_item = ($genral_item=="")?"1":$genral_item;
+
         $warehouse = get_option('wc_linet_warehouse_id');
 
         $one_item_order = get_option('wc_linet_one_item_order');
@@ -192,7 +195,7 @@ class WC_LI_Invoice {
         if($one_item_order=='on'){
           $this->doc['docDet']=[
             [
-              "item_id" => $genItm, //getLinetId $item['product_id']
+              "item_id" => $genral_item, //getLinetId $item['product_id']
               "name" =>  __('Online Order', 'wc-linet')." #" . $order->get_id(),
               "description" => "",
               "qty" => 1,
@@ -211,7 +214,7 @@ class WC_LI_Invoice {
           $shiping_price = (double)$method->get_total()+(double)$method->get_total_tax();
 
           $this->doc['docDet'][] = [
-            "item_id" => $genItm, //getLinetId $item['product_id']
+            "item_id" => $genral_item, //getLinetId $item['product_id']
             "name" => html_entity_decode($method->get_method_title()),
             "description" => "",
             "qty" => ($shiping_price<0)?-1:1,
@@ -229,7 +232,7 @@ class WC_LI_Invoice {
         foreach ( $order->get_fees() as $fee) {
         //foreach ( WC_Cart::get_fees() as $fee) {
           $this->doc['docDet'][] = [
-            "item_id" => $genItm, //getLinetId $item['product_id']
+            "item_id" => $genral_item, //getLinetId $item['product_id']
             "name" => html_entity_decode($fee['name']),
             "description" => "",
             "qty" => ($fee['total']<0)?-1:1,
@@ -390,8 +393,9 @@ class WC_LI_Invoice {
           }
         }
         //echo "id not found:". $itemId;  exit;
-        $genItm = get_option('wc_linet_genral_item');
-        return $genItm; //genrel item
+        $genral_item = (string)get_option('wc_linet_genral_item');
+        $genral_item = ($genral_item=="")?"1":$genral_item;
+        return $genral_item; //genrel item
     }
 
     public function getAcc($email) {
