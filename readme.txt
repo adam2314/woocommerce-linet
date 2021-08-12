@@ -46,6 +46,10 @@ No answer to that question.
 
 == Changelog ==
 
+= 2021.08.12 - version 2.6.8 =
+
+* fast sku and linet_id save to pravent duplicate create in big sites
+
 = 2021.08.05 - version 2.6.7 =
 
 * beter image fix  (bad post_id on first fire!)
