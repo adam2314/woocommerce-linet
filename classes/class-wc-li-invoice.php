@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.6.8
+  Version: 2.6.9
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -140,8 +140,11 @@ class WC_LI_Invoice {
           if(isset($item['variation_id'])&&$item['variation_id']!=0){
             $item_id = self::getLinetItemId($item['variation_id']);
             $product = wc_get_product( $item['variation_id']);
+
+            $name= $item['name']." - ".$product->get_description();
           }  else{
             $item_id = self::getLinetItemId($item['product_id']);
+            $name=$item['name'];
           }
 
 
@@ -155,7 +158,7 @@ class WC_LI_Invoice {
 
          $detail = array(
             "item_id" => $item_id, //getLinetId $item['product_id']
-            "name" => html_entity_decode($item['name']),
+            "name" => html_entity_decode($name),
             "description" => "",
             "qty" => $item['qty'],
             "currency_id" => $currency_id,
@@ -312,6 +315,15 @@ class WC_LI_Invoice {
           case 'gotopay':
             break;
           case 'pelacard':
+            break;
+          case 'gobitpaymentgateway':
+              $rcpt["type"] = 1;
+              $token = get_post_meta( $order->get_id(), 'tranzila_authnr', true);
+              if($token != ''){
+                $rcpt['auth_number']['value'] = $token;
+                $this->doc[$j5Token]=$token;
+
+              }
             break;
           default:
             break;

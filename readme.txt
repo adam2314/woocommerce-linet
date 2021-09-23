@@ -46,6 +46,11 @@ No answer to that question.
 
 == Changelog ==
 
+= 2021.09.14 - version 2.6.9 =
+
+* cat sync save old meta
+* gobitpaymentgateway tranzila_authnr
+
 = 2021.08.12 - version 2.6.8 =
 
 * fast sku and linet_id save to pravent duplicate create in big sites

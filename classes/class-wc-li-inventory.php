@@ -328,7 +328,7 @@ public static function WpSmallItemsSyncAjax($offset){
         $metas['_product_image_gallery'][0] &&
         $metas['_product_image_gallery'][0] != ""
       ){
-        $images_id=explode(",",$metas['_product_image_gallery'][0]);
+        $images_id = explode(",",$metas['_product_image_gallery'][0]);
         self::savePicToLinet($item_id,$images_id);
       }
     }
@@ -861,15 +861,15 @@ public static function findByProdId($item_id){
 
 
     $attribute=array(
-      'attribute_name'=>$slug,
-      'attribute_label'=>$name,
-      'attribute_type'=>'select',
-      'attribute_orderby'=>'id',
-      'attribute_public'=>0
+      'attribute_name' => $slug,
+      'attribute_label' => $name,
+      'attribute_type' => 'select',
+      'attribute_orderby' => 'id',
+      'attribute_public' => 0
     );
 
     if (count($post) == 1) {
-      $ruler_id=$post[0];
+      $ruler_id = $post[0];
       $wpdb->update($wpdb->prefix . 'woocommerce_attribute_taxonomies', $attribute , array('attribute_id'=>$ruler_id));
     }else{
       $ruler_id=$wpdb->insert( $wpdb->prefix . 'woocommerce_attribute_taxonomies', $attribute );
@@ -892,7 +892,7 @@ public static function syncRuler($ruler,$logger){
 
     $query = "SELECT term_id FROM {$wpdb->prefix}terms  WHERE name=%s  LIMIT 1;";
     $post = $wpdb->get_col($wpdb->prepare($query,array($unit->name)));
-    $attr =	array("name"=>$unit->name,	"slug"=>strtolower(urlencode($unit->slug)),	"term_group" =>0);
+    $attr =	array("name" => $unit->name, "slug"=>strtolower(urlencode($unit->slug)), "term_group" =>0);
     if (count($post) == 1) {
       $term_id=$post[0];
       $wpdb->update($wpdb->prefix . 'terms', $attr , array('term_id'=>$term_id));
@@ -924,7 +924,7 @@ public static function singleProdSync( $item,$logger ) {
   $user_id = 1;
   $onlyStockManage = get_option('wc_linet_only_stock_manage');
 
-  $global_attr= get_option('wc_linet_global_attr')=='on';
+  $global_attr = get_option('wc_linet_global_attr') == 'on';
 
   $parent_id = false;
 
@@ -935,7 +935,7 @@ public static function singleProdSync( $item,$logger ) {
     if($post_id && $product){
       //date('Y-m-d H:i:s')
       $product->update_meta_data('_linet_last_update',date('Y-m-d H:i:s'));
-      $product=self::updateStock($product,$item,$logger);
+      $product = self::updateStock($product,$item,$logger);
     }
 
     $logger->write("singleProdSync only stock: (post_id,linet_id)$post_id," . $item->item->id);
@@ -959,7 +959,7 @@ public static function singleProdSync( $item,$logger ) {
 
     if($update_product_type=="variable"){
       wp_set_object_terms($post_id, 'variable', 'product_type');
-      $update_product_type="product";
+      $update_product_type = "product";
     }else{
       wp_set_object_terms($post_id, 'simple', 'product_type');
     }
@@ -978,9 +978,9 @@ public static function singleProdSync( $item,$logger ) {
     //$classname = WC_Product_Factory::get_product_classname( $post_id, $product_type );
     //$product = new $classname();
 
-    if($product_type=='product_variation'){
+    if($product_type == 'product_variation'){
       $product = new WC_Product_Variation( );
-    }elseif($product_type=="variable"){
+    }elseif($product_type == "variable"){
       $product = new WC_Product_Variable();
     }else{
       $product = new WC_Product();

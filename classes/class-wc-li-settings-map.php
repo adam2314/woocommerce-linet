@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.6.8
+  Version: 2.6.9
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -87,8 +87,7 @@ class WC_LI_Settings_Map {
 
   static public function metaMapOrder( $linetObj, $wpObj,$optKey ) {
 
-    $meta_data=get_post_meta($wpObj->ID);
-
+    $meta_data=get_post_meta($wpObj->get_id());
 
 		if( !$meta_data )
 			return $linetObj;
@@ -111,22 +110,19 @@ class WC_LI_Settings_Map {
 		}
 
 		return $linetObj;
-
 	}
 
   static public function is_sync_field($name,$optKey) {
 
 		$syncFields = get_option('wc_linet_'.$optKey);//not very efficent shuld be outside
-    $obj=[
-      'key'=>$optKey,
-      'fields'=>$syncFields
+    $obj = [
+      'key' => $optKey,
+      'fields' => $syncFields
     ];
 
-    $obj= apply_filters( 'woocommerce_linet_sync_cf',  $obj );
-    $syncFields=$obj['fields'];
-    //var_dump($syncFields);
-    //var_dump($optKey);
-    //exit;
+    $obj = apply_filters( 'woocommerce_linet_sync_cf',  $obj );
+    $syncFields = $obj['fields'];
+
     if(isset($syncFields['wc_field'])&& isset($syncFields['linet_field'])){
       $syncWcFields = $syncFields['wc_field'];
       $syncLinetFields = $syncFields['linet_field'];
