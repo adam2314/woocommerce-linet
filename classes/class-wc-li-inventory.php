@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.6.8
+  Version: 2.6.10
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -563,13 +563,44 @@ public static function singleCatSync($cat,$logger) {
   }
   $logger->write("update term: ".json_encode($catParams));
 
+
+  $prev_metas = get_term_meta($term_id);
+
+
   $update_term = wp_update_term($term_id, 'product_cat', $catParams);
   if(is_wp_error( $update_term )){
     $logger->write("Term update error: (term_id)$term_id " . $update_term->get_error_message());
 
   }
 
+
+
+  $exclude_metas = [
+    'product_count_product_cat',
+    'thumbnail_id',
+    'display_type',
+    'order',
+    'jet_woo_builder_template'
+  ];
+  $exclude_metas = apply_filters( 'woocommerce_linet_exclude_meta_save_on_sync', $exclude_metas );
+  foreach($prev_metas as $meta_key => $meta_value) {
+    if( substr( $meta_key, 0, 1 ) !== "_" && !in_array($meta_key, $exclude_metas) ) {
+      update_term_meta($term_id, $meta_key, $meta_value);
+    }
+  }
+
+
+
+
+
+
   update_term_meta($term_id, '_linet_cat', $cat->id);
+
+
+
+
+
+
 
 
   $picsync = get_option('wc_linet_picsync');
