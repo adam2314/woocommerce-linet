@@ -46,6 +46,14 @@ No answer to that question.
 
 == Changelog ==
 
+= 2021.09.29 - version 2.6.12 =
+
+* go bit index fish
+
+= 2021.09.26 - version 2.6.11 =
+
+* cat sync save old meta
+
 = 2021.09.23 - version 2.6.10 =
 
 * cat sync save old meta

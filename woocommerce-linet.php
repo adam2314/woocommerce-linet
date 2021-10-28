@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.6.10
+  Version: 2.6.12
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -42,7 +42,7 @@ if (!function_exists('woothemes_queue_update')) {
  * Main plugin class
  */
 class WC_Linet {
-  const VERSION = '2.6.10';
+  const VERSION = '2.6.12';
   /**
    * The constructor
    */
@@ -82,6 +82,9 @@ class WC_Linet {
     $invoice_manager = new WC_LI_Invoice_Manager($settings);
     $invoice_manager->setup_hooks();
 
+    $inventory = new WC_LI_Inventory($settings);
+    $inventory->setup_hooks();
+
 
     $cf7 = new WC_LI_Linet_Cf7($settings);
     $cf7->setup_hooks();
@@ -94,6 +97,8 @@ class WC_Linet {
 
 
 
+
+
     // Plugins Links
     add_filter('plugin_action_links_' . plugin_basename(self::get_plugin_file()), array(
         $this,
@@ -102,7 +107,11 @@ class WC_Linet {
 
 
 
+
+
   }
+
+
 
 
 

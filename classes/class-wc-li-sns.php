@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.6.10
+  Version: 2.6.12
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -54,7 +54,7 @@ class WC_LI_Sns {
         $params=WC_LI_Inventory::syncParams();
         unset($params['limit']);
 
-        $params['id']=$item_id;
+        $params['id'] = $item_id;
 
         $products = WC_LI_Settings::sendAPI(WC_LI_Inventory::syncStockURL(), $params);
         foreach($products->body as $item){
@@ -76,20 +76,19 @@ class WC_LI_Sns {
       }
     }
 
-
     public static function updateOrder($doc,$logger){
       $logger->write("updateOrder ". $doc['refstatus']);
 
-      if($doc['refstatus']=="1"){
+      if($doc['refstatus'] == "1"){
 
-        $number=str_replace (__('Online Order', 'wc-linet')." #","",$doc['refnum_ext']);
+        $number = str_replace (__('Online Order', 'wc-linet')." #","",$doc['refnum_ext']);
 
         $order = new WC_Order($number);
 
-        $sync_back_status= get_option('wc_linet_sync_back_status');
+        $sync_back_status = get_option('wc_linet_sync_back_status');
         $logger->write("sync_back_status: ". $sync_back_status);
 
-        if($sync_back_status!='none'&&$sync_back_status!=''){
+        if($sync_back_status != 'none' && $sync_back_status != ''){
 
           $order->set_status($sync_back_status);
 
@@ -98,9 +97,6 @@ class WC_LI_Sns {
         }
 
       }
-
-
-
     }
 
 
@@ -109,9 +105,8 @@ class WC_LI_Sns {
         return self::authMsg($msg,$logger);
       }
 
-
       if(isset($msg['Message'])){
-        $data=explode("-",$msg['Message']);
+        $data = explode("-",$msg['Message']);
         if(count($data)==3){
           update_option('wc_linet_last_sns', date('Y-m-d H:i:s'));
 
@@ -127,11 +122,7 @@ class WC_LI_Sns {
       return false;
     }
 
-
-
     public static function parseNextMsg($msg,$logger){
-
-
       if(isset($msg['MessageNext'])&&isset($msg['MessageNext']['title'])){
         $data=explode("-",$msg['MessageNext']['title']);
         if(count($data)==3){
@@ -147,7 +138,7 @@ class WC_LI_Sns {
       }
 
       if(isset($msg['Message'])&&isset($msg['Message']['title'])){
-        $data=explode("-",$msg['Message']['title']);
+        $data = explode("-",$msg['Message']['title']);
         if(count($data)==3){
           update_option('wc_linet_last_sns', date('Y-m-d H:i:s'));
 
@@ -159,8 +150,6 @@ class WC_LI_Sns {
             return self::updateOrder($msg['Message']['model'],$logger);
         }
       }
-
-
       return self::parsekMsg($msg,$logger);
     }
 
@@ -179,13 +168,12 @@ class WC_LI_Sns {
       $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
       $logger->write("sns msg: " .file_get_contents("php://input"));
 
-      $msg=json_decode(file_get_contents("php://input"),true);
+      $msg = json_decode(file_get_contents("php://input"),true);
       if(!is_null($msg)&&isset($msg['Type'])){
         self::parseNextMsg($msg,$logger);
       }
       return 200;
     }
-
 
     public function setup_hooks() {
       $autoSync= get_option('wc_linet_sync_items');
@@ -197,8 +185,6 @@ class WC_LI_Sns {
             'permission_callback' => '__return_true',
           ) );
         } );
-
-
 
         add_action( 'rest_api_init', function () {
           register_rest_route( 'linet-fast-sync/v2', '/sync', array(

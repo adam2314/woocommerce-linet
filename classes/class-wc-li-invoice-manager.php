@@ -61,7 +61,81 @@ class WC_LI_Invoice_Manager {
             //exit;
         }
 
+        add_action( 'manage_edit-shop_order_columns', array( $this, 'order_download_column_header' ), 20 );
+        add_filter( 'manage_shop_order_posts_custom_column', array( $this, 'order_pdf_column_content' ), 10, 3 );
+
+
     }
+
+
+
+    public static function order_download_column_header($clmns){
+    	foreach ( $clmns as $name => $info ) {
+    		$next_clmns[ $name ] = $info;
+    		if ( 'order_total' === $name ) {
+    			$next_clmns['linet_link_column'] = __( 'Linet Invoice', 'wc-linet' );
+    		}
+    	}
+    	return $next_clmns;
+
+    }
+
+    public static function order_pdf_column_content($column,$post_id){
+      if ( 'linet_link_column' === $column ) {
+
+    		//global $post;
+    		//$post_id = $post->ID;
+
+    		if( !$post_id )
+    			return;
+
+    		$doc_id = get_post_meta($post_id, '_linet_invoice_id' ,true);
+
+    		if( !$doc_id )
+    			return;
+
+        $doc_url = get_post_meta($post_id, '_linet_doc_url' ,true);
+        $docnum = get_post_meta($post_id, '_linet_docnum' ,true);
+
+        if( $doc_url ){
+          return self::create_pdf_link_html_tag($doc_url,$docnum);
+        }
+
+    		$doc_url = self::get_doc_url($doc_id,$post_id);
+        if( !$doc_url )
+    			return;
+
+    		return self::create_pdf_link_html_tag($doc_url,$docnum);
+	     }
+    }
+
+    public static function get_doc_url($doc_id,$post_id) {
+    	$doc_url = false;
+
+    	if( !$doc_id )
+    		return;
+
+    	$res = WC_LI_Settings::sendAPI("print/doc/$doc_id",[	'href' => 1	]	);
+
+    	if( $res->status == 200 && $res->text == 'OK' && $res->errorCode == 0 ) {
+    		$doc_url = (string) $res->body;
+        update_post_meta($post_id, '_linet_doc_url', (string) $doc_url);
+    	}
+    	return $doc_url;
+
+    }
+
+    public static function create_pdf_link_html_tag($doc_url="#hash",$docnum='') {
+    	$alt = __('Download Invoice', 'wc-linet');
+
+      $base = plugin_dir_url( ""  ). "linet-erp-woocommerce-integration";
+    	echo "<a href='$doc_url' title='$alt ($docnum)' target='_blank'>
+    	       <img src='$base/assets/pdf.png' alt='$alt' style='width: 30px; height: 30px;'>
+            </a>";
+    }
+
+
+
 
     /**
      * Send invoice to LINET API
@@ -138,6 +212,17 @@ class WC_LI_Invoice_Manager {
                 // Log reponse
                 $logger->write('LINET ERROR RESPONSE:' . "\n" . print_r($json_response,true));
 
+                $to = get_option( 'admin_email' );
+
+                $subject = __('ERROR creating Linet doc: ', 'wc-linet') .
+                        __(' ErrorNumber: ', 'wc-linet') . $json_response->status .
+                        __(' ErrorType: ', 'wc-linet') . $json_response->errorCode .
+                        __(' Message: ', 'wc-linet') . $json_response->text ;
+
+                $message =   __(' Order: ', 'wc-linet') . $order->get_id().__(' Detail: ', 'wc-linet') . $json_response->body;
+
+                wp_mail($to, $subject, $message );
+
                 // Format error message
                 //$error_message = $xml_response->Elements->DataContractBase->ValidationErrors->ValidationError->Message ? $xml_response->Elements->DataContractBase->ValidationErrors->ValidationError->Message : __('None', 'wc-linet');
 
@@ -146,7 +231,6 @@ class WC_LI_Invoice_Manager {
                         __(' ErrorNumber: ', 'wc-linet') . $json_response->status .
                         __(' ErrorType: ', 'wc-linet') . $json_response->errorCode .
                         __(' Message: ', 'wc-linet') . $json_response->text .
-
                         __(' Detail: ', 'wc-linet') . $json_response->body);
             }
         } catch (Exception $e) {

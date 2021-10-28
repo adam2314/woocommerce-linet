@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.6.10
+  Version: 2.6.12
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -40,10 +40,91 @@ class WC_LI_Inventory {
 */
 public function setup_hooks() {//out
 
-  add_action('admin_init', array($this, 'register_settings'));
+      //add_action('admin_init', array($this, 'register_settings'));
+      //add_action('admin_menu', array($this, 'add_menu_item'));
 
-  add_action('admin_menu', array($this, 'add_menu_item'));
+      add_filter( 'manage_edit-product_cat_columns', array( $this, 'category_columns_head' ) );
+  		add_filter( 'manage_product_cat_custom_column', array( $this, 'category_columns' ), 10, 3 );
+      add_filter( 'manage_edit-product_cat_sortable_columns', array( $this, 'category_columns_sort' ) );
+
+      add_action( 'manage_product_posts_custom_column', array( $this, 'product_columns' ), 10, 2 );
+  		add_filter( 'manage_product_posts_columns', array( $this, 'product_columns_head' ) );
+  		add_filter( 'manage_edit-product_sortable_columns', array( $this, 'product_columns_sort' ) );
+  		add_action( 'pre_get_posts', array( $this, 'linet_posts_orderby' ) );
+
 }
+
+
+public function category_columns_head($columns) {
+		$columns['linet_id'] = __('Linet ID', 'wc-linet' );
+		//$columns['linet_actions'] = 'Linet Actions';
+		return $columns;
+	}
+
+	public function category_columns_sort($columns) {
+		$columns['linet_id'] = 'linet_id';
+		return $columns;
+	}
+
+  public function category_columns($content, $column_name, $term_id) {
+		if( $column_name == 'linet_id') {
+
+			$linet_id = get_term_meta($term_id, '_linet_cat', true);
+
+
+			return isset($linet_id) && !empty($linet_id) ?
+        "<a target='_blank' href='https://app.linet.org.il/itemcategory/update?id=$linet_id'>$linet_id</a>"
+        :
+        $content;
+
+		}
+		return $content;
+	}
+
+
+
+
+function product_columns( $column, $post_id ) {
+
+		if ( $column == 'linet_id' ) {
+      $linet_id=get_post_meta( $post_id, '_linet_id', true );
+			echo "<a target='_blank' href='https://app.linet.org.il/item/update?id=$linet_id'>$linet_id</a>";
+		}
+		if ( $column == 'linet_last_update' ) {
+			echo get_post_meta( $post_id, '_linet_last_update', true );
+		}
+
+	}
+
+  function product_columns_head( $clmns ) {
+		$clmns['linet_id'] = __('Linet ID', 'wc-linet' );
+		$clmns['linet_last_update'] = __('Linet Update', 'wc-linet' );
+		return $clmns;
+	}
+
+	function product_columns_sort( $clmns ) {
+		$clmns['linet_id'] = '_linet_id';
+		$clmns['linet_last_update'] = '_linet_last_update';
+		return $clmns;
+	}
+
+  function linet_posts_orderby( $query ) {
+		if ( ! is_admin() || ! $query->is_main_query() ) {
+			return;
+		}
+
+		if ( '_linet_id' === $query->get( 'orderby' ) ) {
+			$query->set( 'orderby', 'meta_value' );
+			$query->set( 'meta_key', '_linet_id' );
+			$query->set( 'meta_type', 'numeric' );
+		}
+		if ( '_linet_last_update' === $query->get( 'orderby' ) ) {
+			$query->set( 'orderby', 'meta_value' );
+			$query->set( 'meta_key', '_linet_last_update' );
+			$query->set( 'meta_type', 'DATE' );
+		}
+	}
+
 
 
 
@@ -543,18 +624,13 @@ public static function singleCatSync($cat,$logger) {
       $term_id = $wpdb->get_col($wpdb->prepare($query,$cat->name));
       //$logger->write("Term found " . $term_id->get_error_message());
 
-
-
       //$term_id=$term_id['term_id'];
       // echo $term_id->get_error_message();
       $term_id=$term_id[0];
 
     }else{
       $term_id=$term_id['term_id'];
-
     }
-
-
 
     update_term_meta($term_id, 'order', '');
     update_term_meta($term_id, 'display_type', '');
@@ -563,29 +639,31 @@ public static function singleCatSync($cat,$logger) {
   }
   $logger->write("update term: ".json_encode($catParams));
 
-
   $prev_metas = get_term_meta($term_id);
+
 
 
   $update_term = wp_update_term($term_id, 'product_cat', $catParams);
   if(is_wp_error( $update_term )){
     $logger->write("Term update error: (term_id)$term_id " . $update_term->get_error_message());
-
   }
 
-
-
-  $exclude_metas = [
+  $exclude_metas = array(
     'product_count_product_cat',
     'thumbnail_id',
     'display_type',
     'order',
     'jet_woo_builder_template'
-  ];
+  );
+
   $exclude_metas = apply_filters( 'woocommerce_linet_exclude_meta_save_on_sync', $exclude_metas );
   foreach($prev_metas as $meta_key => $meta_value) {
     if( substr( $meta_key, 0, 1 ) !== "_" && !in_array($meta_key, $exclude_metas) ) {
-      update_term_meta($term_id, $meta_key, $meta_value);
+      if(is_array($meta_value)&&isset($meta_value[0])){
+        update_term_meta($term_id, $meta_key, $meta_value[0]);
+      }else{
+        update_term_meta($term_id, $meta_key, $meta_value);
+      }
     }
   }
 
