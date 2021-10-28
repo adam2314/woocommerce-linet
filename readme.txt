@@ -46,6 +46,15 @@ No answer to that question.
 
 == Changelog ==
 
+
+= 2021.10.28 - version 2.7.1 =
+
+* admin table product linet_id
+* admin table cat linet_id
+* admin table order download link
+* mail send on create doc error
+
+
 = 2021.09.29 - version 2.6.12 =
 
 * go bit index fish
