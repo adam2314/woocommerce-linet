@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.7.1
+  Version: 2.8.2
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -53,17 +53,11 @@ class WC_LI_Order_Actions {
     public function setup_hooks() {
         // Add order actions
 
-        //$sync = get_option('sync_orders');
-        //if($sync){
         add_action('woocommerce_order_actions', array($this, 'add_order_actions'));
-        //}
 
         //if $order->hasLinetDocId()
         // Catch order actions
         add_action('woocommerce_order_action_linet_manual_invoice',  array($this,'manual_invoice'));
-
-
-
     }
 
     /**
@@ -81,9 +75,10 @@ class WC_LI_Order_Actions {
         }
         global $post;
 
-
         $data=get_post_meta($post->ID, '_linet_invoice_id');
-        //if(count($data)==0)
+        $doctype = get_option('wc_linet_manual_linet_doc');
+
+        if($doctype!=0)
             $actions['linet_manual_invoice'] = __('Send Doc. to Linet', 'wc-linet');
 
         return $actions;
@@ -101,12 +96,12 @@ class WC_LI_Order_Actions {
         // Invoice Manager
         $invoice_manager = new WC_LI_Invoice_Manager($this->settings);
 
+
+        $doctype = get_option('wc_linet_manual_linet_doc');
+
         // Send Invoice
-        $invoice_manager->send_invoice($order->get_id());
+        $invoice_manager->send_invoice($order->get_id(),$doctype);
 
         return true;
     }
-
-
-
 }

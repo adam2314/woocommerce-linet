@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.7.1
+  Version: 2.8.2
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -123,18 +123,20 @@ class WC_LI_Sns {
     }
 
     public static function parseNextMsg($msg,$logger){
-      if(isset($msg['MessageNext'])&&isset($msg['MessageNext']['title'])){
-        $data=explode("-",$msg['MessageNext']['title']);
-        if(count($data)==3){
+      if(isset($msg['MessageNext'])&&isset($msg['MessageNext']['classname'])){
+          $classname=$msg['MessageNext']['classname'];
+          $sender=$msg['MessageNext']['sender'];
+        //$data=explode("-",$msg['MessageNext']['title']);
+        //if(count($data)==3){
           update_option('wc_linet_last_sns', date('Y-m-d H:i:s'));
 
-          if($data[1]=='\\app\\models\\Item')
-            return self::updateItem((int)$data[2],$logger);
-          if($data[1]=='\\app\\models\\Itemcategory')
-            return self::updateCat((int)$data[2],$logger);
-          if($data[1]=='\\app\\models\\Docs')
+          if($classname=='\\app\\models\\Item')
+            return self::updateItem((int)$sender,$logger);
+          if($classname=='\\app\\models\\Itemcategory')
+            return self::updateCat((int)$sender,$logger);
+          if($classname=='\\app\\models\\Docs')
             return self::updateOrder($msg['MessageNext']['model'],$logger);
-        }
+       // }
       }
 
       if(isset($msg['Message'])&&isset($msg['Message']['title'])){

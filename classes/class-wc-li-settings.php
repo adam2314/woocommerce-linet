@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.7.1
+  Version: 2.8.2
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -58,17 +58,12 @@ class WC_LI_Settings {
 
     add_action('linetItemSync', 'WC_LI_Inventory::fullSync');
 
-
     add_action('wp_ajax_LinetGetFile', 'WC_LI_Settings::LinetGetFile');
     add_action('wp_ajax_LinetDeleteFile', 'WC_LI_Settings::LinetDeleteFile');
     add_action('wp_ajax_LinetDeleteProd', 'WC_LI_Settings::LinetDeleteProd');
 
     add_action('wp_ajax_LinetDeleteAttachment', 'WC_LI_Settings::LinetDeleteAttachment');
     add_action('wp_ajax_LinetCalcAttachment', 'WC_LI_Settings::LinetCalcAttachment');
-
-
-
-
 
 
     add_action('wp_ajax_LinetTest', 'WC_LI_Settings::TestAjax');
@@ -107,26 +102,7 @@ public function orderOptions(){
       ),
       'description' => __('Remove all items from linet doc and make one item only', 'wc-linet'),
     ),
-    'linet_doc' => array(
-      'title' => __('Linet Document Type', 'wc-linet'),
-      'default' => '9',
-      //type' => 'checkbox',
-      'type' => 'select',
-      'options' => array(
-        '1' => __('Performa', 'wc-linet'),
-        '2' => __('Delivery Doc.', 'wc-linet'),
-        '3' => __('Invoice', 'wc-linet'),
 
-        '7' => __('Sales Order', 'wc-linet'),
-        '8' => __('Receipt', 'wc-linet'),
-        '9' => __('Invoice Receipt', 'wc-linet'),
-        '17' => __('Stock Exist Doc.', 'wc-linet'),
-        '18' => __('Donation Receipt', 'wc-linet'),
-
-      ),
-
-      'description' => __('Select linet document type', 'wc-linet'),
-    ),
 
     'autosend' => array(
       'title' => __('Mail Document', 'wc-linet'),
@@ -219,7 +195,8 @@ public function syncOptions(){
   foreach(wc_get_order_statuses() as $key=>$name){
     $statuses[str_replace("wc-","",$key)]=__($name, 'wc-linet');
   }
-  return array(
+
+  $array=array(
 
     'sku_find' => array(
       'title' => __('SKU Find', 'wc-linet'),
@@ -243,18 +220,63 @@ public function syncOptions(){
       'description' => __('use global attributes for variable products', 'wc-linet')
       .'<a style="display:none;" href="#target1" class="button-primary" onclick="linet.doRuler();">Write Global Rulers</a> '
       ,
-    ),
+    )
+    );
+
+    foreach(wc_get_order_statuses() as $key=>$name){
+      $skey=str_replace("wc-","",$key);
+    $statuses[$skey]=__($name, 'wc-linet');
 
 
-    'sync_orders' => array(
-      'title' => __('Sync Orders', 'wc-linet'),
+	$array["sync_orders_$key"]= array(
+      'title' => __('Sync Orders On'.' '.$name, 'wc-linet'),
       'default' => 'none',
       //type' => 'checkbox',
       'type' => 'select',
-      'options' => $statuses,
-      'description' => __('Auto Genrate Invoice Recipet in Linet', 'wc-linet'),
-    ),
+      'options' => array(
+	'' => __('None', 'wc-linet'),
+      	'1' => __('Performa', 'wc-linet'),
+        '2' => __('Delivery Doc.', 'wc-linet'),
+        '3' => __('Invoice', 'wc-linet'),
 
+        '7' => __('Sales Order', 'wc-linet'),
+        '8' => __('Receipt', 'wc-linet'),
+        '9' => __('Invoice Receipt', 'wc-linet'),
+        '17' => __('Stock Exist Doc.', 'wc-linet'),
+        '18' => __('Donation Receipt', 'wc-linet'),
+
+      ),
+      'description' => __('Auto Genrate Doc in Linet', 'wc-linet'),
+    );
+
+
+    }
+
+
+
+
+  return $array+array(
+
+    'manual_linet_doc'=>array(
+        'title' => __('Sync Orders Manual', 'wc-linet'),
+        'default' => 'none',
+        //type' => 'checkbox',
+        'type' => 'select',
+        'options' => array(
+  	'' => __('None', 'wc-linet'),
+        	'1' => __('Performa', 'wc-linet'),
+          '2' => __('Delivery Doc.', 'wc-linet'),
+          '3' => __('Invoice', 'wc-linet'),
+
+          '7' => __('Sales Order', 'wc-linet'),
+          '8' => __('Receipt', 'wc-linet'),
+          '9' => __('Invoice Receipt', 'wc-linet'),
+          '17' => __('Stock Exist Doc.', 'wc-linet'),
+          '18' => __('Donation Receipt', 'wc-linet'),
+
+        ),
+        'description' => __('Auto Genrate Doc in Linet', 'wc-linet'),
+      ),
 
     'sync_back_status' => array(
       'title' => __('sync back order status', 'wc-linet'),
@@ -844,7 +866,13 @@ public function options_page() {
 
 
   $autoSync= get_option('wc_linet_sync_items');
-  if($autoSync=='on'){
+
+  $login_id = get_option('wc_linet_consumer_id');
+  $hash = get_option('wc_linet_consumer_key');
+  $company = get_option('wc_linet_company');
+
+
+  if($autoSync=='on' && $login_id!=''&& $hash!=''&& $company!=''){
     if (!wp_next_scheduled('linetItemSync')) {
       wp_schedule_event(time(), 'hourly', 'linetItemSync');
     }
@@ -1299,10 +1327,12 @@ public function input_pay_list($args) {
 public static function sendAPI($req, $body = array()) {
 
   $server = self::SERVER;
-  $dev = get_option('wc_linet_dev');
-  if ($dev == 'on') {
+  $dev = get_option('wc_linet_dev') == 'on';
+  if ($dev) {
     $server = self::DEV_SERVER;
   }
+
+  //var_dump($dev);exit;
 
   $login_id = get_option('wc_linet_consumer_id');
   $hash = get_option('wc_linet_consumer_key');
@@ -1312,6 +1342,10 @@ public static function sendAPI($req, $body = array()) {
   $body['login_hash'] = $hash;
   $body['login_company'] = $company;
 
+  if($login_id=='' || $hash==''|| $company==''){
+    return false;
+  }
+
   $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
   $ch = curl_init();
   $logger->write('OWER REQUEST(' .$server . "/api/" . $req. ")\n" .json_encode($body));
@@ -1319,6 +1353,8 @@ public static function sendAPI($req, $body = array()) {
     CURLOPT_URL => $server . "/api/" . $req,
     CURLOPT_POST => TRUE,
     CURLOPT_RETURNTRANSFER => TRUE,
+    CURLOPT_SSL_VERIFYHOST => !$dev,
+    CURLOPT_SSL_VERIFYPEER => !$dev,
     CURLOPT_HTTPHEADER => array(
       'Content-Type: application/json',
       'Wordpress-Site: '.str_replace("http://","",str_replace("https://","",get_site_url())),

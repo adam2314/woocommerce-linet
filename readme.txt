@@ -46,6 +46,16 @@ No answer to that question.
 
 == Changelog ==
 
+= 2021.12.14 - version 2.8.2 =
+
+* manul send flag
+* custemer note to description instead
+
+
+= 2021.12.08 - version 2.8.1 =
+
+* multipule status support
+* better sns
 
 = 2021.10.28 - version 2.7.1 =
 

@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.7.1
+  Version: 2.8.2
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -86,10 +86,13 @@ class WC_LI_Invoice {
         //add_filter('woocommerce_linet_invoice_due_date', array($this, 'set_org_default_due_date'), 10, 2);
     }
 
-    public function do_request() {
+    public function do_request($doctype=null) {
         //update linetDocId
         //var_dump($this->to_array());exit;
-        return WC_LI_Settings::sendAPI('create/doc', $this->to_array());
+        $body=$this->to_array($doctype);
+        if(is_array($body))
+          return WC_LI_Settings::sendAPI('create/doc', $body);
+        return false;
     }
 
     public function set_order($order) {
@@ -111,6 +114,8 @@ class WC_LI_Invoice {
 
         $yith_woocommerce_product_add_ons=WC_Dependencies::check_yith_woocommerce_product_add_ons();
 
+        //var_dump('aa');exit;
+
 
         if(!$income_acc)
           $income_acc = 100;
@@ -122,12 +127,11 @@ class WC_LI_Invoice {
         if($country_id==""){
           $country_id = "IL";
         }
-        //exit;
-        //var_dump($order);
+
         foreach ($order->get_items() as $item) {
 
           $product = wc_get_product( $item['product_id']);
-          //var_dump($item);
+
           $one_item=(double)$item["total"]+(double)$item["total_tax"];
           $discount=(double)$item["subtotal"]-(double)$item["total"];
 
@@ -153,8 +157,6 @@ class WC_LI_Invoice {
             $vat_cat=2;
           }
 
-          //var_dump($vat_cat);
-          //exit;
 
          $detail = array(
             "item_id" => $item_id, //getLinetId $item['product_id']
@@ -287,6 +289,10 @@ class WC_LI_Invoice {
                 $rcpt['auth_number']['value']=$zc_response['ID'];
               }
 
+              //description
+
+              //$this->doc["description"]
+
 
             break;
 
@@ -336,14 +342,17 @@ class WC_LI_Invoice {
         $this->doc["docCheq"] = [$rcpt];
 
 
-        $doctype = get_option('wc_linet_linet_doc');
 
 
 
-        if(in_array($doctype,[8,18])){
+
+
+
+
+        if(in_array($this->doc['doctype'],[8,18])){
           unset($this->doc['docDet']);
         }
-        if(!in_array($doctype,[8,9,18])){
+        if(!in_array($this->doc['doctype'],[8,9,18])){
           unset($this->doc['docCheq']);
         }
 
@@ -443,7 +452,7 @@ class WC_LI_Invoice {
      *
      * @return string
      */
-    public function to_array() {
+    public function to_array($doctype=null) {
 
         if (strlen($this->order->get_billing_company()) > 0) {
             $invoice_name = $this->order->get_billing_company();
@@ -491,7 +500,17 @@ class WC_LI_Invoice {
         }//*/
 
 
-        $doctype = get_option('wc_linet_linet_doc');
+	        //get order status
+
+          //var_dump($this->order->get_status());
+          //exit;
+
+
+
+          //var_dump($doctype);exit;
+
+
+        //$doctype = get_option('wc_linet_linet_doc');
 
         //if((9!=$doctype)&&(8!=$doctype)){
         //    unset($this->doc["docCheq"]);
@@ -518,7 +537,10 @@ class WC_LI_Invoice {
         $this->doc["language"] = ($country_id=='IL') ? "he_il" : "en_us";
         $this->doc["autoRound"] = false;
 
-        $this->doc["comments"] = $this->order->get_customer_note();
+        if(!isset($this->doc["description"]))
+        	$this->doc["description"]='';
+
+        $this->doc["description"] .= $this->order->get_customer_note();
 
 
 

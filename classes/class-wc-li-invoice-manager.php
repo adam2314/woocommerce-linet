@@ -50,20 +50,37 @@ class WC_LI_Invoice_Manager {
      * Method to setup the hooks
      */
     public function setup_hooks() {
-
         // Check if we need to send invoices when they're completed automatically
-        $sendInv = get_option('wc_linet_sync_orders');
+        $do_doc = get_option('wc_linet_sync_orders');
+
+        $doctype = get_option('wc_linet_linet_doc');
+
         //$option = $this->settings->get_option('send_invoices');
-        if ('none' !== $sendInv && '' !== $sendInv) {
-            //add_action('woocommerce_order_status_processing', array($this, 'send_invoice'));
-            add_action("woocommerce_order_status_$sendInv", array($this, 'send_invoice'));
-            //var_dump("woocommerce_order_status_$sendInv");
-            //exit;
+        if ('none' !== $do_doc && '' !== $do_doc) {
+          update_option("wc_linet_sync_orders_wc-$do_doc", $doctype);
+
+          delete_option( 'wc_linet_sync_orders' );
+          delete_option( 'wc_linet_linet_doc' );
+
         }
+
+        foreach(wc_get_order_statuses() as $key=>$name){
+
+          $do_doc = get_option("wc_linet_sync_orders_$key");
+          if ('none' !== $do_doc && '' !== $do_doc) {
+
+            $skey=str_replace("wc-","",$key);
+            //var_dump($do_doc);
+            //var_dump("woocommerce_order_status_$skey");
+            add_action("woocommerce_order_status_$skey", array($this, 'send_invoice'));
+          }
+        }
+
+        //add_action("woocommerce_order_status_wc-on-hold", array($this, 'send_invoice'));
+        //exit;
 
         add_action( 'manage_edit-shop_order_columns', array( $this, 'order_download_column_header' ), 20 );
         add_filter( 'manage_shop_order_posts_custom_column', array( $this, 'order_pdf_column_content' ), 10, 3 );
-
 
     }
 
@@ -73,7 +90,7 @@ class WC_LI_Invoice_Manager {
     	foreach ( $clmns as $name => $info ) {
     		$next_clmns[ $name ] = $info;
     		if ( 'order_total' === $name ) {
-    			$next_clmns['linet_link_column'] = __( 'Linet Invoice', 'wc-linet' );
+    			$next_clmns['linet_link_column'] = __( 'Linet Document', 'wc-linet' );
     		}
     	}
     	return $next_clmns;
@@ -126,16 +143,14 @@ class WC_LI_Invoice_Manager {
     }
 
     public static function create_pdf_link_html_tag($doc_url="#hash",$docnum='') {
-    	$alt = __('Download Invoice', 'wc-linet');
+    	$alt = __('Download Document', 'wc-linet');
 
       $base = plugin_dir_url( ""  ). "linet-erp-woocommerce-integration";
     	echo "<a href='$doc_url' title='$alt ($docnum)' target='_blank'>
     	       <img src='$base/assets/pdf.png' alt='$alt' style='width: 30px; height: 30px;'>
-            </a>";
+            </a>
+            ";
     }
-
-
-
 
     /**
      * Send invoice to LINET API
@@ -144,7 +159,9 @@ class WC_LI_Invoice_Manager {
      *
      * @return bool
      */
-    public function send_invoice($order_id) {
+    public function send_invoice($order_id,$doctype=null) {
+      //var_dump('send_invoice');
+      //exit;
 
         // Get the order
         $order = wc_get_order($order_id);
@@ -184,14 +201,33 @@ class WC_LI_Invoice_Manager {
         $logger->write('START LINET NEW doc. order_id=' . $order->get_id());
 
         // Try to do the request
+        if(is_null($doctype)){
+          $doctype = (int)get_option("wc_linet_sync_orders_wc-".$order->get_status());
+          if($doctype===0){
+
+            $order->add_order_note(__('wont create Linet doc: ', 'wc-linet') .
+                    __(' status: ', 'wc-linet') . $order->get_status().
+                    __(' not mapped to doctype', 'wc-linet')
+
+                    );
+
+            return false;
+          }
+        }
+
+
+
         try {
             // Do the request
 
             //$logger->write('OWER REQUEST:' . "\n" .print_r($invoice->to_array(),true));
-            $json_response = $invoice->do_request();
+            $json_response = $invoice->do_request($doctype);
 
             //var_dump($json_response);
             //exit;
+            if($json_response===false){
+              return false;
+            }
 
             // Check response status
             if ('200' == $json_response->status) {
