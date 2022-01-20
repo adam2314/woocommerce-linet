@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.8.2
+  Version: 2.8.4
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -95,7 +95,8 @@ class WC_LI_Invoice {
         return false;
     }
 
-    public function set_order($order) {
+    public function set_order($order,$doctype) {
+        $this->doc['doctype']=$doctype;
         $total = 0;
 
         $genral_item = (string)get_option('wc_linet_genral_item');
@@ -110,9 +111,9 @@ class WC_LI_Invoice {
         $j5Token = get_option('wc_linet_j5Token');
         $j5Number = get_option('wc_linet_j5Number');
 
-        $custom_product_addons=WC_Dependencies::check_custom_product_addons();
+        $custom_product_addons = WC_Dependencies::check_custom_product_addons();
 
-        $yith_woocommerce_product_add_ons=WC_Dependencies::check_yith_woocommerce_product_add_ons();
+        $yith_woocommerce_product_add_ons = WC_Dependencies::check_yith_woocommerce_product_add_ons();
 
         //var_dump('aa');exit;
 
@@ -266,11 +267,37 @@ class WC_LI_Invoice {
             "line" => 1
           ];
 
+          //var_dump($order->get_payment_method());
+
+          //var_dump(get_post_meta( $order->get_id()));
+
+
         switch ($order->get_payment_method()) {
           case 'cod':
             $rcpt["type"]=1;
 
             break;
+          case 'bitpay-payment':
+            $rcpt["type"]=4;
+
+            $metas = get_post_meta( $order->get_id());
+
+            if(isset($metas['bit_transaction_asmatcha'])&&isset($metas['bit_transaction_asmatcha'][0])){
+              $rcpt['refnum']['value']=$metas['bit_transaction_asmatcha'][0];
+            }
+
+            break;
+          case 'meshulam-payment':
+            $rcpt["type"]=3;
+
+            $metas = get_post_meta( $order->get_id());
+
+            if(isset($metas['payment_transaction_id'])&&isset($metas['payment_transaction_id'][0])){
+              $rcpt['auth_number']['value']=$metas['payment_transaction_id'][0];
+            }
+
+            break;
+
 
           case 'zcredit_payment':
           case 'zcredit_checkout_payment':
@@ -343,18 +370,15 @@ class WC_LI_Invoice {
 
 
 
-
-
-
-
-
-
         if(in_array($this->doc['doctype'],[8,18])){
           unset($this->doc['docDet']);
         }
         if(!in_array($this->doc['doctype'],[8,9,18])){
           unset($this->doc['docCheq']);
         }
+
+        //exit;
+
 
         $this->total = $total;
         $this->order = $order;

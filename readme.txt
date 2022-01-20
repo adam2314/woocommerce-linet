@@ -46,6 +46,14 @@ No answer to that question.
 
 == Changelog ==
 
+= 2022.01.20 - version 2.8.4 =
+
+* bad send invoice
+
+= 2022.01.19 - version 2.8.3 =
+
+* add refnums fronm bitpay,mesholm-pay
+
 = 2021.12.14 - version 2.8.2 =
 
 * manul send flag

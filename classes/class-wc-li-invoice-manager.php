@@ -175,45 +175,10 @@ class WC_LI_Invoice_Manager {
 
         //$order->payment_method//if type==
 
-
-
-        // Get the invoice
-        $invoice = $this->get_invoice_by_order($order);
-
         // Write exception message to log
         $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
 
 
-
-        // Check if the order total is 0 and if we need to send 0 total invoices to Linet
-        if (0 == $invoice->get_total() && 'on' !== $this->settings->get_option('export_zero_amount')) {
-            //if ( 0 == $invoice->get_total() && 'on' !== $this->settings->get_option( 'export_zero_amount' ) ) {
-            $logger->write('INVOICE HAS TOTAL OF 0, NOT SENDING ORDER WITH ID ' . $order->get_id());
-
-            $order->add_order_note(__("LINET: Didn't create doc. because total is 0 and send order with zero total is set to off.", 'wc-linet'));
-
-            return false;
-        }
-
-        // Invoice Request
-        //$invoice_request = new WC_LI_Request_Invoice( $this->settings, $invoice );
-        // Logging
-        $logger->write('START LINET NEW doc. order_id=' . $order->get_id());
-
-        // Try to do the request
-        if(is_null($doctype)){
-          $doctype = (int)get_option("wc_linet_sync_orders_wc-".$order->get_status());
-          if($doctype===0){
-
-            $order->add_order_note(__('wont create Linet doc: ', 'wc-linet') .
-                    __(' status: ', 'wc-linet') . $order->get_status().
-                    __(' not mapped to doctype', 'wc-linet')
-
-                    );
-
-            return false;
-          }
-        }
 
 
 
@@ -221,7 +186,49 @@ class WC_LI_Invoice_Manager {
             // Do the request
 
             //$logger->write('OWER REQUEST:' . "\n" .print_r($invoice->to_array(),true));
+
+
+
+            // Get the invoice
+            $invoice = $this->get_invoice_by_order($order,$doctype);
+
+
+
+
+            // Check if the order total is 0 and if we need to send 0 total invoices to Linet
+            if (0 == $invoice->get_total() && 'on' !== $this->settings->get_option('export_zero_amount')) {
+                //if ( 0 == $invoice->get_total() && 'on' !== $this->settings->get_option( 'export_zero_amount' ) ) {
+                $logger->write('INVOICE HAS TOTAL OF 0, NOT SENDING ORDER WITH ID ' . $order->get_id());
+
+                $order->add_order_note(__("LINET: Didn't create doc. because total is 0 and send order with zero total is set to off.", 'wc-linet'));
+
+                return false;
+            }
+
+            // Invoice Request
+            //$invoice_request = new WC_LI_Request_Invoice( $this->settings, $invoice );
+            // Logging
+            $logger->write('START LINET NEW doc. order_id=' . $order->get_id());
+
+            // Try to do the request
+            if(is_null($doctype)){
+              $doctype = (int)get_option("wc_linet_sync_orders_wc-".$order->get_status());
+              if($doctype===0){
+
+                $order->add_order_note(__('wont create Linet doc: ', 'wc-linet') .
+                        __(' status: ', 'wc-linet') . $order->get_status().
+                        __(' not mapped to doctype', 'wc-linet')
+
+                        );
+
+                return false;
+              }
+            }
+
+
             $json_response = $invoice->do_request($doctype);
+
+
 
             //var_dump($json_response);
             //exit;
@@ -290,7 +297,7 @@ class WC_LI_Invoice_Manager {
      *
      * @return WC_LI_Invoice
      */
-    public function get_invoice_by_order($order) {
+    public function get_invoice_by_order($order,$doctype) {
 
         // Line Item manager
         // Contact Manager
@@ -298,7 +305,7 @@ class WC_LI_Invoice_Manager {
         // Create invoice
         $invoice = new WC_LI_Invoice(    );
 
-        $invoice->set_order($order);
+        $invoice->set_order($order,$doctype);
 
         // Return invoice
         return $invoice;
