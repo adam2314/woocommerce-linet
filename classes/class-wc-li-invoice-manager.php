@@ -162,22 +162,29 @@ class WC_LI_Invoice_Manager {
     public function send_invoice($order_id,$doctype=null) {
       //var_dump('send_invoice');
       //exit;
+      $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
 
-        // Get the order
-        $order = wc_get_order($order_id);
-        $supported_gateways=$this->settings->get_option('supported_gateways');
-        if(!in_array($order->get_payment_method(), $supported_gateways)){
-            $order->add_order_note(__("LINET: Will not create doc. unsupported gateway", 'wc-linet'));
-            return false;
-            //echo $order->payment_method;exit;
+      // Get the order
+      $order = wc_get_order($order_id);
+      $supported_gateways=$this->settings->get_option('supported_gateways');
+      if(!in_array($order->get_payment_method(), $supported_gateways)){
+          $order->add_order_note(__("LINET: Will not create doc. unsupported gateway", 'wc-linet'));
+          return false;
+      }
+
+      if(is_null($doctype)){
+        $doctype = (int)get_option("wc_linet_sync_orders_wc-".$order->get_status());
+        if($doctype===0){
+
+          $order->add_order_note(__('wont create Linet doc: ', 'wc-linet') .
+                  __(' status: ', 'wc-linet') . $order->get_status().
+                  __(' not mapped to doctype', 'wc-linet')
+
+                  );
+
+          return false;
         }
-        //print_r();
-
-        //$order->payment_method//if type==
-
-        // Write exception message to log
-        $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
-
+      }
 
 
 
@@ -186,8 +193,6 @@ class WC_LI_Invoice_Manager {
             // Do the request
 
             //$logger->write('OWER REQUEST:' . "\n" .print_r($invoice->to_array(),true));
-
-
 
             // Get the invoice
             $invoice = $this->get_invoice_by_order($order,$doctype);
@@ -210,28 +215,12 @@ class WC_LI_Invoice_Manager {
             // Logging
             $logger->write('START LINET NEW doc. order_id=' . $order->get_id());
 
+
             // Try to do the request
-            if(is_null($doctype)){
-              $doctype = (int)get_option("wc_linet_sync_orders_wc-".$order->get_status());
-              if($doctype===0){
-
-                $order->add_order_note(__('wont create Linet doc: ', 'wc-linet') .
-                        __(' status: ', 'wc-linet') . $order->get_status().
-                        __(' not mapped to doctype', 'wc-linet')
-
-                        );
-
-                return false;
-              }
-            }
-
 
             $json_response = $invoice->do_request($doctype);
 
 
-
-            //var_dump($json_response);
-            //exit;
             if($json_response===false){
               return false;
             }

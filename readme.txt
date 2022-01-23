@@ -46,6 +46,15 @@ No answer to that question.
 
 == Changelog ==
 
+= 2022.01.22 - version 2.8.6 =
+
+* MINOR Fix: gobitpaymentgateway wrong payment type map
+* MINOR Fix: creditguard wrong payment type map
+
+= 2022.01.22 - version 2.8.5 =
+
+* everybody loves cake
+
 = 2022.01.20 - version 2.8.4 =
 
 * bad send invoice

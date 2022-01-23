@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.8.4
+  Version: 2.8.6
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -337,7 +337,7 @@ class WC_LI_Invoice {
               //&& isset($metas['_firstPayment']) && isset($metas['_firstPayment'][0])
               //&& isset($metas['_periodicalPayment']) && isset($metas['_periodicalPayment'][0])
             ){
-              $rcpt["type"]=1;
+              $rcpt["type"]=6;
               $rcpt['paymentsNo']['value']=$metas['_numberOfPayments'][0];
             }
             break;
@@ -350,7 +350,7 @@ class WC_LI_Invoice {
           case 'pelacard':
             break;
           case 'gobitpaymentgateway':
-              $rcpt["type"] = 1;
+              //$rcpt["type"] = 3;
               $token = get_post_meta( $order->get_id(), 'tranzila_authnr', true);
               $token_index = get_post_meta( $order->get_id(), '_transaction_id', true);
 
