@@ -5,12 +5,12 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.8.6
+  Version: 3.0.0
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
   WC tested up to: 4.2.2
-  
+
   Copyright 2020  Adam Ben Hour
 
   This program is free software; you can redistribute it and/or modify
@@ -30,8 +30,7 @@
 /**
  * Functions used by plugins
  */
-if (!class_exists('WC_Dependencies'))
-    require_once 'class-wc-dependencies.php';
+require_once 'class-wc-dependencies.php';
 
 /**
  * WC Detection
@@ -39,7 +38,7 @@ if (!class_exists('WC_Dependencies'))
 if (!function_exists('is_woocommerce_active')) {
 
     function is_woocommerce_active() {
-        return WC_Dependencies::woocommerce_active_check();
+        return LI_WC_Dependencies::woocommerce_active_check();
     }
 
 }

@@ -201,19 +201,21 @@ class WC_LI_Invoice_Manager {
 
 
             // Check if the order total is 0 and if we need to send 0 total invoices to Linet
+            /*
             if (0 == $invoice->get_total() && 'on' !== $this->settings->get_option('export_zero_amount')) {
-                //if ( 0 == $invoice->get_total() && 'on' !== $this->settings->get_option( 'export_zero_amount' ) ) {
-                $logger->write('INVOICE HAS TOTAL OF 0, NOT SENDING ORDER WITH ID ' . $order->get_id());
+              //if ( 0 == $invoice->get_total() && 'on' !== $this->settings->get_option( 'export_zero_amount' ) ) {
+              $logger->write('INVOICE HAS TOTAL OF 0, NOT SENDING ORDER WITH ID ' . $order->get_id());
 
-                $order->add_order_note(__("LINET: Didn't create doc. because total is 0 and send order with zero total is set to off.", 'wc-linet'));
+              $order->add_order_note(__("LINET: Didn't create doc. because total is 0 and send order with zero total is set to off.", 'wc-linet'));
 
-                return false;
+              return false;
             }
+            */
 
             // Invoice Request
             //$invoice_request = new WC_LI_Request_Invoice( $this->settings, $invoice );
             // Logging
-            $logger->write('START LINET NEW doc. order_id=' . $order->get_id());
+            $logger->write('START LINET NEW doc. order_id=' . $order->get_id()." To ".$doctype);
 
 
             // Try to do the request

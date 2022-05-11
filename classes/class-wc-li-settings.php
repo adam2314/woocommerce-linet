@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 2.8.6
+  Version: 3.0.0
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -38,7 +38,8 @@ class WC_LI_Settings {
   const DEV_SERVER = "https://dev.linet.org.il";
   //const DEV_SERVER = "http://10.8.0.6:8123";
 
-  const STOCK_LIMIT=10;
+  const STOCK_LIMIT = 50;
+  const RUNTIME_LIMIT = 21;
 
   // Settings defaults
   private $settings = array();
@@ -72,9 +73,11 @@ class WC_LI_Settings {
 
 
 
-    add_action('wp_ajax_LinetItemSync', 'WC_LI_Inventory::catSyncAjax');
+    add_action('wp_ajax_LinetItemSync', 'WC_LI_Inventory::catSyncAjax');//linet to wp all prod
 
-    add_action('wp_ajax_LinetSingleItemSync', 'WC_LI_Inventory::singleSyncAjax');
+    add_action('wp_ajax_LinetSingleItemSync', 'WC_LI_Inventory::singleSyncAjax');//linet to wp
+    add_action('wp_ajax_LinetSingleProdSync', 'WC_LI_Inventory::singleProdAjax');//wp to linet
+
 
     add_action('wp_ajax_LinetCatList', 'WC_LI_Inventory::CatListAjax');
 
@@ -191,7 +194,7 @@ public function lineOptions(){
 
 public function syncOptions(){
 
-  $statuses=array('none' => __('Manually', 'wc-linet'));
+  $statuses = array('none' => __('Manually', 'wc-linet'));
   foreach(wc_get_order_statuses() as $key=>$name){
     $statuses[str_replace("wc-","",$key)]=__($name, 'wc-linet');
   }
@@ -218,42 +221,37 @@ public function syncOptions(){
         'on'  => __( 'On', 'wc-linet' ),
       ),
       'description' => __('use global attributes for variable products', 'wc-linet')
-      .'<a style="display:none;" href="#target1" class="button-primary" onclick="linet.doRuler();">Write Global Rulers</a> '
+      .'<a style="" href="#target1" class="button-primary" onclick="linet.doRuler();">Write Global Rulers</a> '
       ,
     )
     );
 
     foreach(wc_get_order_statuses() as $key=>$name){
-      $skey=str_replace("wc-","",$key);
-    $statuses[$skey]=__($name, 'wc-linet');
+      $skey = str_replace("wc-","",$key);
+      $statuses[$skey] = __($name, 'wc-linet');
 
+      $array["sync_orders_$key"]= array(
+        'title' => __('Sync Orders On'.' '.$name, 'wc-linet'),
+        'default' => 'none',
+        //type' => 'checkbox',
+        'type' => 'select',
+        'options' => array(
+          '' => __('None', 'wc-linet'),
+          '1' => __('Performa', 'wc-linet'),
+          '2' => __('Delivery Doc.', 'wc-linet'),
+          '3' => __('Invoice', 'wc-linet'),
 
-	$array["sync_orders_$key"]= array(
-      'title' => __('Sync Orders On'.' '.$name, 'wc-linet'),
-      'default' => 'none',
-      //type' => 'checkbox',
-      'type' => 'select',
-      'options' => array(
-	'' => __('None', 'wc-linet'),
-      	'1' => __('Performa', 'wc-linet'),
-        '2' => __('Delivery Doc.', 'wc-linet'),
-        '3' => __('Invoice', 'wc-linet'),
-
-        '7' => __('Sales Order', 'wc-linet'),
-        '8' => __('Receipt', 'wc-linet'),
-        '9' => __('Invoice Receipt', 'wc-linet'),
-        '17' => __('Stock Exist Doc.', 'wc-linet'),
-        '18' => __('Donation Receipt', 'wc-linet'),
-
-      ),
-      'description' => __('Auto Genrate Doc in Linet', 'wc-linet'),
-    );
+          '7' => __('Sales Order', 'wc-linet'),
+          '8' => __('Receipt', 'wc-linet'),
+          '9' => __('Invoice Receipt', 'wc-linet'),
+          '17' => __('Stock Exist Doc.', 'wc-linet'),
+          '18' => __('Donation Receipt', 'wc-linet'),
+        ),
+        'description' => __('Auto Genrate Doc in Linet', 'wc-linet'),
+      );
 
 
     }
-
-
-
 
   return $array+array(
 
@@ -286,7 +284,6 @@ public function syncOptions(){
       'options' => $statuses,
       'description' => __('will change order stauts after action in linet', 'wc-linet'),
     ),
-
 
     'supported_gateways' => array(
       'title' => __('Supported Gateways', 'wc-linet'),
@@ -335,8 +332,8 @@ public function syncOptions(){
       ),
 
       'description' => __('Manual Items Sync:', 'wc-linet') .
-      ' <br /><button type="button" id="linwc-btn" class="button-primary" onclick="linet.catSync();">Linet->WC</button>' .
-      ' <br /><button type="button" id="wclin-btn" class="button" onclick="linet.tryOpptSend();">WC->Linet</button>' .
+      ' <br /><button type="button" id="linwc-btn" class="button-primary" onclick="linet.fullItemsSync();">Linet->WC</button>' .
+      ' <br /><button type="button" id="wclin-btn" class="button" onclick="linet.fullProdSync();">WC->Linet</button>' .
       "<div id='mItems' class='hidden'>" .
       '
       <div id="target"></div>
@@ -565,7 +562,7 @@ public function maintenance(){
       'description' => "<a data-id='$attachment->ID' data-file='$attachment->post_title' onclick=\"linet.calcAttachment(this);\" href='#'>$attachment->post_title</a>",
     );
   }
-  $scanned_directory=array();
+  $scanned_directory = array();
   if(is_dir(WC_LOG_DIR)){
     $scanned_directory = array_diff(scandir(WC_LOG_DIR), array('..', '.'));
 
@@ -668,6 +665,8 @@ public function setup_hooks() {
   add_action('admin_menu', array($this, 'add_menu_item'));
 
   add_action('post_submitbox_start', array($this, 'custom_button'));
+  add_action('post_submitbox_start', array($this, 'custom_button_wp'));
+
 
   add_action('product_cat_edit_form_fields',  array($this, 'custom_term_button'));
 
@@ -714,6 +713,32 @@ function custom_button($post) {
     }
 }
 
+function custom_button_wp($post) {
+  $types = ['product'];
+  if(in_array(get_post_type($post),$types)){
+    //$metas = get_post_meta($post->ID);
+    ?>
+    <script>
+      var wlinet={
+        singleProdSync:function(post_id){
+          jQuery.post(ajaxurl, {
+            'action': 'LinetSingleProdSync',
+            'post_id': post_id
+            //'post_id': jQuery(this).data("post_id")
+          }, function (response) {
+            alert(response.status);
+            location.reload();
+          }, 'json');
+        }
+      }
+    </script>
+    <a class="button" data-post_id="<?=$post->ID;?>" onclick="wlinet.singleProdSync(<?=$post->ID;?>);">
+      Sync Item To Linet 
+    </a>
+    <?php
+  }
+}
+
 /**
 * Get an option
 *
@@ -742,7 +767,7 @@ public function get_option($key) {
 */
 public function register_settings() {
 
-  //self::catSync();
+  //self::fullItemsSync();
   // Add section
   add_settings_section('wc_linet_settings',
   __('Linet Settings', 'wc-linet'),
@@ -769,7 +794,7 @@ public function register_settings() {
          $this->renderOptTab($this->lineOptions());
 
          /*
-         if(WC_Dependencies::check_custom_product_addons()){
+         if(LI_WC_Dependencies::check_custom_product_addons()){
            $settingsMap = new WC_LI_Settings_Map();
            foreach($settingsMap->settings as $key => $setting){
              add_settings_field(self::OPTION_PREFIX . $setting['name']. $key, $setting['label'], array(
@@ -780,7 +805,7 @@ public function register_settings() {
            }
          }
 
-         if(WC_Dependencies::check_yith_woocommerce_product_add_ons()){
+         if(LI_WC_Dependencies::check_yith_woocommerce_product_add_ons()){
            $settingsMap = new WC_LI_Settings_Yith_Map();
            foreach($settingsMap->settings as $key => $setting){
              add_settings_field(self::OPTION_PREFIX .'ywapo'. $setting['elementId']. $key, $setting['label'], array(
@@ -789,7 +814,9 @@ public function register_settings() {
              ), 'woocommerce_linet', 'wc_linet_settings', array('key' =>'ywapo'. $setting['elementId'], 'option' => $setting));
              register_setting('woocommerce_linet', self::OPTION_PREFIX .'ywapo'. $setting['elementId']);
            }
-         }*/
+         }
+
+         */
 
 
        }
@@ -1066,7 +1093,7 @@ public function options_page() {
 
         },
 
-        tryOpptSend: function () {
+        fullProdSync: function () {
           //event.preventDefault();
           var data = {
             'action': 'WpItemSync',
@@ -1076,30 +1103,47 @@ public function options_page() {
           jQuery.post(ajaxurl, data, function (response) {
             jQuery('#target').html("Items:  0/" + response );
             jQuery('#targetBar').prop('max',response);
-            linet.doOpptCall(response,0);
+            linet.timeoutErrorCount = 0;
+            if (response){
+              linet.prodSync(0);
+
+            }
           });
           return false
         },
 
 
-        doOpptCall: function (num,offset) {
-          //console.log('doOpptCall',num,offset);
+        prodSync: function (offset) {
           var data = {
             'action': 'WpItemSync',
             'offset': offset,
             'mode': 1
           };
           //max = jQuery('#targetBar').attr("max");
-          if (num)
+
+          clearTimeout(linet.resumeTimeOut);
+
+          linet.resumeTimeOut = setTimeout(
+            ()=>{
+              linet.itemSync(offset);
+              linet.timeoutErrorCount++
+            },1000*60
+          )
+
+          num = jQuery('#targetBar').prop('max');
+
+
+         
           jQuery.post(ajaxurl, data, function (response) {
             //console.log(response);
             bar = offset + response*1;
+
             jQuery('#target').html("Items:  " + bar + "/" + num );
             jQuery('#targetBar').val(bar);
             //jQuery('#subTarget').html("Items: 0" );
 
             if (num-bar > 0)
-              linet.doOpptCall(num,bar);
+              linet.prodSync(bar);
             //jQuery('#subTargetBar').attr("max", 1 * response);
             //linet.subCall(num - 1, 1);
             //count
@@ -1150,7 +1194,7 @@ public function options_page() {
 
 
 
-        catSync: function () {
+        fullItemsSync: function () {
           //event.preventDefault();
 
           var data = {
@@ -1166,6 +1210,7 @@ public function options_page() {
             //console.log(response);
             jQuery('#target').html("Categories:  " + response.cats + "");
             //jQuery('#targetBar').attr("max", response);
+            linet.timeoutErrorCount = 0;
 
             linet.itemSync(0);
           }, 'json');
@@ -1178,12 +1223,20 @@ public function options_page() {
           var data = {
             'action': 'LinetItemSync',
             'mode': 'ItemSync',
-            'offset':offset
+            'offset': offset
           };
 
 
+          clearTimeout(linet.resumeTimeOut);
 
-          var items=jQuery('#subTargetBar').val()*1;
+          linet.resumeTimeOut = setTimeout(
+            ()=>{
+              linet.itemSync(offset);
+              linet.timeoutErrorCount++
+            },1000*60
+          )
+
+          var items = jQuery('#subTargetBar').val()*1;
           jQuery.post(ajaxurl, data, function (response) {
 
             jQuery('#subTarget').html("Items: " + (offset+response.items) );

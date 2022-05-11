@@ -46,6 +46,38 @@ No answer to that question.
 
 == Changelog ==
 
+= 2022.05.11 - version 3.0.0 =
+
+* wp->linet mutex sync support
+* single product wp->linet sync button
+* better intial sync performnce(time & limit and auto resume)
+
+
+= 2022.03.29 - version 2.8.11 =
+
+* ship and fee hooks
+* improved qty support
+
+= 2022.03.28 - version 2.8.10 =
+
+* remove old zero invoice
+
+= 2022.02.27 - version 2.8.9 =
+
+* new log points
+* new hooks
+
+= 2022.02.22 - version 2.8.8 =
+
+* small update
+* added button to sync global attributes
+* fix duplicate name with woothemes
+
+
+= 2022.01.24 - version 2.8.7 =
+
+* Fix: double sns item creation protction
+
 = 2022.01.22 - version 2.8.6 =
 
 * MINOR Fix: gobitpaymentgateway wrong payment type map
