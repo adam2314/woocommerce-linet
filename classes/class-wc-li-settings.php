@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 3.0.0
+  Version: 3.0.1
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -692,7 +692,7 @@ function custom_button($post) {
       $metas=get_post_meta($post->ID);
        ?>
       <script>
-        var linet={
+        var linet = {
           singleSync:function(post_id){
             jQuery.post(ajaxurl, {
               'action': 'LinetSingleItemSync',
@@ -818,7 +818,6 @@ public function register_settings() {
 
          */
 
-
        }
        if($_GET["tab"] == "sync-options")    {
          $this->renderOptTab($this->syncOptions());
@@ -831,17 +830,12 @@ public function register_settings() {
          $this->renderOptTab($this->maintenance());
        }
 
-
-
        if($_GET["tab"] == "form")    {
          $this->renderOptTab($this->form());
        }
 
-
-
    } else  {
      $this->renderOptTab($this->connectionOptions());
-
    }
 
 
@@ -1125,7 +1119,7 @@ public function options_page() {
 
           linet.resumeTimeOut = setTimeout(
             ()=>{
-              linet.itemSync(offset);
+              linet.prodSync(offset);
               linet.timeoutErrorCount++
             },1000*60
           )

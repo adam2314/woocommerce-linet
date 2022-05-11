@@ -46,6 +46,11 @@ No answer to that question.
 
 == Changelog ==
 
+= 2022.05.11 - version 3.0.1 =
+
+* timeout bug wp->linet
+
+
 = 2022.05.11 - version 3.0.0 =
 
 * wp->linet mutex sync support
