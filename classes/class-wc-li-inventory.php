@@ -5,11 +5,11 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 3.0.1
+  Version: 3.1.0
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
-  WC tested up to: 4.2.2
+  WC tested up to: 6.0
 
   Copyright 2020  Adam Ben Hour
 
@@ -32,7 +32,7 @@ if (!defined('ABSPATH')) {
 } // Exit if accessed directly
 
 class WC_LI_Inventory {
-  const IMAGE_DIR='images';
+  const IMAGE_DIR = 'images';
 
 
   /**
@@ -84,7 +84,7 @@ class WC_LI_Inventory {
   function product_columns( $column, $post_id ) {
 
 		if ( $column == 'linet_id' ) {
-      $linet_id=get_post_meta( $post_id, '_linet_id', true );
+      $linet_id = get_post_meta( $post_id, '_linet_id', true );
 			echo "<a target='_blank' href='https://app.linet.org.il/item/update?id=$linet_id'>$linet_id</a>";
 		}
 		if ( $column == 'linet_last_update' ) {
@@ -178,14 +178,15 @@ class WC_LI_Inventory {
 
   public static function CatListAjax() {
     //$genral_item = get_option('wc_linet_genral_item');
-    $res = WC_LI_Settings::sendAPI('search/itemcategory');
+    $catFilter = self::syncCatParams();
+
+    $res = WC_LI_Settings::sendAPI('newsearch/itemcategory', $catFilter );
     echo json_encode($res);
     wp_die();
   }
 
   public static function WpCatSyncAjax() {
     //$genral_item = get_option('wc_linet_genral_item');
-    //$res = WC_LI_Settings::sendAPI('search/itemcategory');
     $cat_id = intval($_POST['id']);
 
     $products = WC_LI_Settings::sendAPI('search/item', array('category_id' => $cat_id));
@@ -253,18 +254,18 @@ class WC_LI_Inventory {
     wp_die();
   }
 
-public static function WpCatSync($item){
+public static function WpCatSync($item){  //wp->linet
   //$cat_id=0;
 
   $terms = wp_get_post_terms($item->ID,'product_cat');
   $cats = array();
-  if(is_array($terms)&&count($terms)>0){
+  if(is_array($terms) && count($terms)>0){
 
     foreach( $terms as $term){
 
       $termsMeta = get_term_meta($term->term_id);
 
-      if(isset($termsMeta['_linet_cat'])&&isset($termsMeta['_linet_cat'][0])){
+      if(isset($termsMeta['_linet_cat']) && isset($termsMeta['_linet_cat'][0])){
         $linCat = WC_LI_Settings::sendAPI('view/itemcategory?id='.$termsMeta['_linet_cat'][0]);
         //var_dump("_linet_cat search");
         //var_dump($linCat);exit;
@@ -287,7 +288,6 @@ public static function WpCatSync($item){
       }else{
           $cat_id = $linCat->body[0]->id;
           //update body pic?
-          //$linItem = WC_LI_Settings::sendAPI('update/itemcategory?id='.$id, $catBody);
           update_term_meta($term->term_id, '_linet_cat',$cat_id);
           $cats[] = (int)$cat_id;
       }
@@ -375,7 +375,13 @@ public static function linetSaveRuler($attr,$item_id){
   
   foreach ($attr->get_terms() as $term){
         
-    $rulerUnitBody=array('ruler_id'=>$rulerId	,'name'=>$term->name,	'value'=>$term->slug,	'uValue'=>$term->slug,	'slug'=>$term->slug);
+    $rulerUnitBody = array(
+      'ruler_id' => $rulerId,
+      'name' => $term->name,	
+      'value' => $term->slug,	
+      'uValue' => $term->slug,	
+      'slug' => $term->slug
+    );
     
     $linItem = WC_LI_Settings::sendAPI('search/MutexRulerUnit', $rulerUnitBody);
     $rulerUnitId = false;
@@ -407,7 +413,7 @@ public static function getProdSku($post_id){
 
 
 
-public static function WpItemSync($item){
+public static function WpItemSync($item){//wp->linet
   $product = wc_get_product($item->ID);
 
   $metas = get_post_meta($item->ID);
@@ -541,8 +547,6 @@ public static function WpItemSync($item){
 
   
   
-  
-  
   if($item_id){
     if($isProduct == 3){
      
@@ -556,15 +560,14 @@ public static function WpItemSync($item){
           $typeId = self::linetSaveRuler($attr,$item_id);
           $fields[] = $typeId;
           $template[] = "{{".$typeId."}}";
-
         }
       }
       
       
       $catName = implode("-",$template);
       /**********************************************************************************************/
-      
-      
+      //$catName
+      //WpCatSync cat name?
       
       $linCat = WC_LI_Settings::sendAPI('search/itemcategory', array('name' => $catName));
       $mutex_cat_id = 0;
@@ -650,7 +653,7 @@ public static function WpItemSync($item){
 
 
 public static function savePicToLinet($linet_item_id,$post_id,$thumb=false){
-  $metas=get_post_meta($post_id);
+  $metas = get_post_meta($post_id);
 
   if(
     isset($metas['_wp_attached_file']) &&
@@ -695,9 +698,9 @@ public static function savePicToLinet($linet_item_id,$post_id,$thumb=false){
       $file->errorCode == 0
 
     ){
-      $body=[
+      $body = array(
         'pic' => $file->body->hash
-      ];
+      );
       $linItem = WC_LI_Settings::sendAPI('update/item?id='.$linet_item_id, $body);
       //var_dump($linItem);exit;
       //update item image
@@ -728,12 +731,12 @@ public static function syncParams(){
   );
   $syncField = get_option('wc_linet_syncField');
   $syncValue = get_option('wc_linet_syncValue');
-  if($syncField!='' && $syncValue!=''){
+  if($syncField != '' && $syncValue != ''){
     $arr[$syncField] = $syncValue;
   }
 
-  $warehouse_exclude=get_option('wc_linet_warehouse_exclude');
-  if((string)$warehouse_exclude!=''){
+  $warehouse_exclude = get_option('wc_linet_warehouse_exclude');
+  if((string)$warehouse_exclude != ''){
     if(substr_count ($warehouse_exclude,",") == 0){
       $arr['exclude'] = [$warehouse_exclude];
 
@@ -748,12 +751,30 @@ public static function syncParams(){
 }
 
 
+public static function syncCatParams(){
+  $arr = array(
+    //'limit' => WC_LI_Settings::STOCK_LIMIT,
+  );
+  $syncField = get_option('wc_linet_syncCatField');
+  $syncValue = get_option('wc_linet_syncCatValue');
+  if($syncField != '' && $syncValue != ''){
+    $arr[$syncField] = $syncValue;
+  }
+
+
+
+  return array('query' => $arr);
+}
+
+
 public static function catSyncAjax() {
   $mode = $_POST['mode'];
   $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
 
   if ($mode === "CatSync") {
-    $cats = WC_LI_Settings::sendAPI('search/itemcategory');
+    $catFilter = self::syncCatParams();
+
+    $cats = WC_LI_Settings::sendAPI('newsearch/itemcategory', $catFilter );
     foreach($cats->body as $cat){
       self::singleCatSync($cat,$logger);
     }
@@ -786,13 +807,8 @@ public static function catSyncAjax() {
 
       if(microtime(true) - $runtime<WC_LI_Settings::RUNTIME_LIMIT){
         self::singleProdSync( $prod,$logger);
-
         $sync_count++;
-
-      
-  
       }
-      
     }
 
     echo json_encode(
@@ -970,9 +986,9 @@ public static function getImage($pic,$logger=false) {//unused ,$parent_id=''
     mkdir($basePath.self::IMAGE_DIR);
   }
 
-  if($pic!='' ){
+  if($pic != '' ){
     if(!is_file($filePath) || filesize ($filePath)==0){
-      $url=$server . "/site/largethumbnail/" . $pic.(($rect_img == 'on')?"?rect=true":"");
+      $url = $server . "/site/largethumbnail/" . $pic.(($rect_img == 'on')?"?rect=true":"");
       $logger->write("get img: ".$url);
 
       $ch = curl_init();
@@ -1002,7 +1018,7 @@ public static function getImage($pic,$logger=false) {//unused ,$parent_id=''
 
 
 
-      $ext=substr($content_type[0], 6);
+      $ext = substr($content_type[0], 6);
 
       if( isset($ext) && !empty($ext) ) {
 					$filePath .= '.'. $ext;
@@ -1019,10 +1035,10 @@ public static function getImage($pic,$logger=false) {//unused ,$parent_id=''
 
       $mime_type='';
       if(function_exists ('mime_content_type')){
-        $mime_type=mime_content_type($filePath);
+        $mime_type = mime_content_type($filePath);
       }else{
          $finfo = new finfo(FILEINFO_MIME); //<5.3
-         $mime_type=$finfo->file($filePath);
+         $mime_type = $finfo->file($filePath);
       }
 
       if ( ! function_exists( 'wp_generate_attachment_metadata' ) ) {//rest api!
@@ -1051,7 +1067,7 @@ public static function getImage($pic,$logger=false) {//unused ,$parent_id=''
 }
 
 public static function findByCatId($cat_id){
-  $term =self::findTermByCatId($cat_id);
+  $term = self::findTermByCatId($cat_id);
   if( $term ) {
      return $term->term_id;
   }
@@ -1086,7 +1102,7 @@ public static function getLinetId($post_id){
   $query = "SELECT meta_value FROM $wpdb->posts LEFT JOIN $wpdb->postmeta ON $wpdb->postmeta.post_id=$wpdb->posts.ID ".
    "WHERE ".
    //"($wpdb->posts.post_type='product' OR $wpdb->posts.post_type='product_variation') AND " .
-  "$wpdb->postmeta.meta_key='_linet_id' AND $wpdb->posts.ID=%d LIMIT 1;";
+  "$wpdb->postmeta.meta_key='_linet_id123' AND $wpdb->posts.ID=%d LIMIT 1;";
   $post = $wpdb->get_col($wpdb->prepare($query,array($post_id)));
 
   if (count($post) == 1) {
@@ -1101,7 +1117,7 @@ public static function findByProdId($item_id){
   $query = "SELECT * FROM $wpdb->posts LEFT JOIN $wpdb->postmeta ON $wpdb->postmeta.post_id=$wpdb->posts.ID ".
    "WHERE ".
    //"($wpdb->posts.post_type='product' OR $wpdb->posts.post_type='product_variation') AND " .
-  "$wpdb->postmeta.meta_key='_linet_id' AND $wpdb->postmeta.meta_value=%s LIMIT 1;";
+  "$wpdb->postmeta.meta_key='_linet_id321' AND $wpdb->postmeta.meta_value=%s LIMIT 1;";
   $post= $wpdb->get_col($wpdb->prepare($query,array($item_id)));
 
   if (count($post) == 1) {
@@ -1184,15 +1200,15 @@ public static function findByProdId($item_id){
     if($result)
       echo json_encode(
         array(
-          'status'=>'Success',
-          'result'=>$result
+          'status' => 'Success',
+          'result' => $result
         )
       );
     else
       echo json_encode(
         array(
-          'status'=>'empty',
-          'result'=>$result
+          'status' => 'empty',
+          'result' => $result
         )
       );
     wp_die();
@@ -1204,7 +1220,7 @@ public static function findByProdId($item_id){
     $item = null;
     $found = false;
     $params = self::syncParams();
-    $params['limit']=1;
+    $params['limit'] = 1;
 
     if(isset($metas['_linet_id']) && isset($metas['_linet_id'][0])){
       $params['id']=$metas['_linet_id'][0];
@@ -1265,7 +1281,7 @@ public static function findByProdId($item_id){
       $ruler_id = $post[0];
       $wpdb->update($wpdb->prefix . 'woocommerce_attribute_taxonomies', $attribute , array('attribute_id'=>$ruler_id));
     }else{
-      $ruler_id=$wpdb->insert( $wpdb->prefix . 'woocommerce_attribute_taxonomies', $attribute );
+      $ruler_id = $wpdb->insert( $wpdb->prefix . 'woocommerce_attribute_taxonomies', $attribute );
     }
     return $ruler_id;
   }
@@ -1273,33 +1289,44 @@ public static function findByProdId($item_id){
   public static function syncRuler($ruler,$logger){
     global $wpdb;
 
-    $rulerslug=$ruler->slug;
+    $rulerslug = $ruler->slug;
 
+    $ruler_id = self::saveRuler($ruler->name,$ruler->slug);
 
-    $ruler_id=self::saveRuler($ruler->name,$ruler->slug);
+    $logger->write("syncRuler  (slug,wp_id,name,id,) $rulerslug, $ruler_id, " . $ruler->name.", ".$ruler->id);
 
     foreach($ruler->units as $unit){
 
       $query = "SELECT term_id FROM {$wpdb->prefix}terms  WHERE name=%s  LIMIT 1;";
       $post = $wpdb->get_col($wpdb->prepare($query,array($unit->name)));
-      $attr =	array("name" => $unit->name, "slug"=>strtolower(urlencode($unit->slug)), "term_group" =>0);
+      $attr =	array(
+        "name" => $unit->name, 
+        "slug" => strtolower(urlencode($unit->slug)), 
+        "term_group" => 0
+      );
       if (count($post) == 1) {
-        $term_id=$post[0];
-        $wpdb->update($wpdb->prefix . 'terms', $attr , array('term_id'=>$term_id));
+        $term_id = $post[0];
+        $wpdb->update($wpdb->prefix . 'terms', $attr , array('term_id' => $term_id));
       }else{
-        $term_id=$wpdb->insert( $wpdb->prefix . 'terms', $attr );
+        $term_id = $wpdb->insert( $wpdb->prefix . 'terms', $attr );
       }
 
 
       $query = "SELECT term_id FROM {$wpdb->prefix}term_taxonomy  WHERE term_id=%d AND taxonomy=%s LIMIT 1;";
-      $texonomy="pa_".str_replace(" ","-",$rulerslug);
+      $texonomy = "pa_".str_replace(" ","-",$rulerslug);
       $post = $wpdb->get_col($wpdb->prepare($query,array($term_id,$texonomy)));
-      $attr =	array("term_id"=>$term_id,	"taxonomy"=>$texonomy,	"description"=>'',	"parent"=>0,	"count"=>0);
+      $attr =	array(
+        "term_id" => $term_id,	
+        "taxonomy" => $texonomy,	
+        "description" => '',	
+        "parent" => 0,	
+        "count" => 0
+      );
       if (count($post) == 1) {
         //$term_id=$post[0];
         //$wpdb->update($wpdb->prefix . 'terms', $attr , array('term_id'=>$term_id));
       }else{
-        $term_id=$wpdb->insert( $wpdb->prefix . 'term_taxonomy', $attr );
+        $term_id = $wpdb->insert( $wpdb->prefix . 'term_taxonomy', $attr );
       }
     }
   }
@@ -1342,7 +1369,7 @@ public static function singleProdSync( $item,$logger ) {
     $product_type = "variable";
 
   $logger->write("singleProdSync: $product_type(post_id,linet_id)$post_id," . $item->item->id);
-  $product=false;
+  $product = false;
 
   if(!$post_id){
 
@@ -1352,7 +1379,7 @@ public static function singleProdSync( $item,$logger ) {
 
   if($post_id){
     $logger->write("singleProdSync update");
-    $update_product_type=$product_type;
+    $update_product_type = $product_type;
 
     if($update_product_type=="variable"){
       wp_set_object_terms($post_id, 'variable', 'product_type');
@@ -1391,7 +1418,7 @@ public static function singleProdSync( $item,$logger ) {
 
     $logger->write("singleProdSync new product save: ".$product->save());
 
-    $post_id=$product->get_id();
+    $post_id = $product->get_id();
 
   } else {
 
@@ -1415,27 +1442,27 @@ public static function singleProdSync( $item,$logger ) {
     $not_product_attributes = get_option('wc_linet_not_product_attributes');
 
     if($not_product_attributes!="on"){
-      $bla=array();
+      $bla = array();
       //var_dump($item);exit;
-      foreach($item->mutex as $in=>$prop){
+      foreach($item->mutex as $in => $prop){
         if($global_attr && isset($item->slugmutex[$in]) ){
-          $perp=$item->slugmutex[$in];
+          $perp = $item->slugmutex[$in];
 
-          $id_name="pa_".strtolower(urlencode(str_replace(" ","-",$perp->rulerSlug)));
-          $aa_name="pa_".strtolower(str_replace(" ","-",$perp->rulerSlug));
+          $id_name = "pa_".strtolower(urlencode(str_replace(" ","-",$perp->rulerSlug)));
+          $aa_name = "pa_".strtolower(str_replace(" ","-",$perp->rulerSlug));
 
-          $bla[$id_name]=array(
-            "name"=>$aa_name,
-            "value"=>"",
+          $bla[$id_name] = array(
+            "name" => $aa_name,
+            "value" => "",
 
-            "position"=>0,
-            "is_visible"=>1,
-            "is_variation"=>1,
-            "is_taxonomy"=>1,
+            "position" => 0,
+            "is_visible" => 1,
+            "is_variation" => 1,
+            "is_taxonomy" => 1,
           );
-            $tmparray=array();
+            $tmparray = array();
             foreach($item->slugmutex[$in]->units as $mutexvalue){
-              $tmparray[]=strtolower(str_replace(" ","-",$mutexvalue->slug));
+              $tmparray[] = strtolower(str_replace(" ","-",$mutexvalue->slug));
             }
 
             wp_set_object_terms($post_id,$tmparray,$aa_name);
@@ -1444,27 +1471,27 @@ public static function singleProdSync( $item,$logger ) {
 
 
         }else{
-          $bla[$prop->name]=array(
-            "name"=>$prop->name,
-            "value"=>implode(" | ",$prop->unitnames),
-            "position"=>0,
-            "is_visible"=>1,
-            "is_variation"=>1,
-            "is_taxonomy"=>0,
+          $bla[$prop->name] = array(
+            "name" => $prop->name,
+            "value" => implode(" | ",$prop->unitnames),
+            "position" => 0,
+            "is_visible" => 1,
+            "is_variation" => 1,
+            "is_taxonomy" => 0,
           );
         }
       }
 
-        $obj=array(
-          'item_id'=>$post_id,
-          'linet_item'=>$item,
-          'wc_product'=>$product,
-          'product_attributes'=>$bla
+        $obj = array(
+          'item_id' => $post_id,
+          'linet_item' => $item,
+          'wc_product' => $product,
+          'product_attributes' => $bla
         );
 
-        $obj= apply_filters( 'woocommerce_linet_product_attributes',   $obj  );
+        $obj = apply_filters( 'woocommerce_linet_product_attributes', $obj );
         if(isset($obj["product_attributes"]))
-          $bla=$obj["product_attributes"];
+          $bla = $obj["product_attributes"];
 
 
 
@@ -1489,14 +1516,14 @@ public static function singleProdSync( $item,$logger ) {
         foreach($item->mutex as $type=>$attr){
           if($type!='SKU'){
             if ($global_attr){
-              $attry=strtolower(urlencode(str_replace(" ","-",$attr->rulerslug)));
-              $slug=strtolower(urlencode(str_replace(" ","-",$attr->slug)));
+              $attry = strtolower(urlencode(str_replace(" ","-",$attr->rulerslug)));
+              $slug = strtolower(urlencode(str_replace(" ","-",$attr->slug)));
 
               self::smart_update_post_meta($post_id,'attribute_pa_'.$attry, $slug, array());
               $logger->write("singleProdSync mutex global ".'attribute_pa_'.$attry." ".$slug);
 
             }else{
-              $attry=strtolower(urlencode(str_replace(" ","-",$type)));
+              $attry = strtolower(urlencode(str_replace(" ","-",$type)));
               self::smart_update_post_meta($post_id,'attribute_'.$attry, $attr->name, array());
 
               $logger->write("singleProdSync mutex simple ".'attribute_'.$attry." ". $attr->name);
@@ -1520,8 +1547,8 @@ public static function singleProdSync( $item,$logger ) {
 
   $product->set_regular_price( $item->item->saleprice );
   $product->set_price( $item->item->saleprice );
-  if($item->item->discount!=0){  //discount for all
-    $product->set_sale_price($item->item->saleprice-$item->item->discount);
+  if($item->item->discount != 0){  //discount for all
+    $product->set_sale_price($item->item->saleprice - $item->item->discount);
   }else{
     $product->set_sale_price("");
   }
@@ -1550,7 +1577,7 @@ public static function singleProdSync( $item,$logger ) {
 
   $product->update_meta_data('_linet_id',$item->item->id);
 
-  $product=self::updateStock($product,$item,$logger);//by parent_item_id
+  $product = self::updateStock($product,$item,$logger);//by parent_item_id
 
 
 
@@ -1567,20 +1594,19 @@ public static function singleProdSync( $item,$logger ) {
     }
 
     //$imgs//get files concted to item with type
-    $params=array(
+    $params = array(
       'nparent_type' => 5,
       'filetype' => 15,
-
       'parent_id' => $item->item->id
     );
 
     $galleryImgs = WC_LI_Settings::sendAPI('search/file', $params);
-    $imgs=[];
+    $imgs = array();
     if(is_array($galleryImgs->body)){
       foreach($galleryImgs->body as $img){
-        $newImg=self::getImage($img->hash,$logger);
+        $newImg = self::getImage($img->hash,$logger);
         if($newImg)
-          $imgs[]=$newImg;
+          $imgs[] = $newImg;
       }
     }
     $logger->write("Linet GalleryImgs: " . implode(",",$imgs));
@@ -1592,18 +1618,18 @@ public static function singleProdSync( $item,$logger ) {
   if(is_array($itemFields) && isset($itemFields["linet_field"])){
     foreach ($itemFields["linet_field"] as $index_key => $key_field_linet) {
         //mybe if number add eav
-        $linet_field='eav'.$key_field_linet;
-        $wc_field=$itemFields["wc_field"][$index_key];
+        $linet_field = 'eav'.$key_field_linet;
+        $wc_field = $itemFields["wc_field"][$index_key];
 
-        $post_fields=array(  );
+        $post_fields = array();
 
         if(isset($item->item->$linet_field)){
-          $fieldValue=$item->item->$linet_field;
+          $fieldValue = $item->item->$linet_field;
 
 
           if(in_array($wc_field,$post_fields)){
-            $update=array('ID'=>$post_id);
-            $update[$wc_field]=$fieldValue;
+            $update = array('ID' => $post_id);
+            $update[$wc_field] = $fieldValue;
             wp_update_post($update);
           }elseif($wc_field=='post_date'){
             $product->set_date_created($fieldValue);
@@ -1626,25 +1652,22 @@ public static function singleProdSync( $item,$logger ) {
   }
   $product->update_meta_data('_linet_last_update',date('Y-m-d H:i:s'));
 
-
-  $obj=array(
-    'item_id'=>$post_id,
-    'linet_item'=>$item,
-    'wc_product'=>$product,
+  $obj = array(
+    'item_id' => $post_id,
+    'linet_item' => $item,
+    'wc_product' => $product,
   );
 
-  $obj= apply_filters( 'woocommerce_linet_item',   $obj  );
+  $obj= apply_filters( 'woocommerce_linet_item', $obj );
   if(isset($obj["wc_product"]))
-    $product=$obj["wc_product"];
+    $product = $obj["wc_product"];
   $logger->write("singleProdSync product save: ".$product->save());
 
   $logger->write("singleProdSync: done");
 
-
   return 0;
 
 }
-
 
 public static function updateStock($product,$item,$logger){
 
@@ -1663,7 +1686,6 @@ public static function updateStock($product,$item,$logger){
   }
   $logger->write("updateStock product save: $qty ".$product->save());
 
-
   return $product;
 }
 
@@ -1671,12 +1693,12 @@ public static function smart_update_post_meta($post_id,$attr, $value, $metas=arr
   //if(isset($metas[$attr])&& $metas[$attr]!= $value){
   //  return false;
   //}
-  $obj=array(
-    'post_id'=>$post_id,
-    'attr'=>$attr,
-    'value'=>$value,
-    'metas'=>$metas,
-    'update'=>true
+  $obj = array(
+    'post_id' => $post_id,
+    'attr' => $attr,
+    'value' => $value,
+    'metas' => $metas,
+    'update' => true
   );
 
   $obj= apply_filters( 'woocommerce_linet_update_post_meta',   $obj  );
@@ -1699,21 +1721,21 @@ public static function prodSync( $logger,$status) {
   $params = self::syncParams();
   //$params['category_id'] = $linet_cat_id;
   $params['offset'] = 0;
-  $params['since']=get_option('wc_linet_last_update');
+  $params['since'] = get_option('wc_linet_last_update');
 
   $products = WC_LI_Settings::sendAPI(self::syncStockURL(), $params);
   $products = $products->body;
   while(count($products)){
     foreach ($products as $item) {
       $logger->write("Linet Item Id: " . $item->item->id . " start sync");
-      $result=self::singleProdSync( $item,$logger);
+      $result = self::singleProdSync( $item,$logger);
 
       $logger->write("Linet Item Id: " . $item->item->id . " was synced");
       unset($result);
       unset($item);
     }//end each
-    $status['offset']+=count($products);
-    $params['offset']+=count($products);
+    $status['offset'] += count($products);
+    $params['offset'] += count($products);
 
     wp_cache_set( 'linet_fullSync_status', $status );
 
@@ -1746,7 +1768,11 @@ public static function prodSync( $logger,$status) {
     }
     wp_cache_set( 'linet_fullSync_status', $status );
 
-    $cats = WC_LI_Settings::sendAPI('search/itemcategory');
+    $catFilter = self::syncCatParams();
+
+    $cats = WC_LI_Settings::sendAPI('newsearch/itemcategory', $catFilter );
+
+
     $cats = $cats->body;
 
     $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
@@ -1761,10 +1787,10 @@ public static function prodSync( $logger,$status) {
 
     }
 
-    $status=self::prodSync($logger,$status);
+    $status = self::prodSync($logger,$status);
 
 
-    $status['running']=false;
+    $status['running'] = false;
     wp_cache_set( 'linet_fullSync_status', $status );
 
     //update_option('wc_linet_last_update', "2018-06-01 00:00:00");

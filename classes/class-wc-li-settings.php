@@ -5,11 +5,11 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 3.0.1
+  Version: 3.1.0
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
-  WC tested up to: 4.2.2
+  WC tested up to: 6.0
 
   Copyright 2020  Adam Ben Hour
 
@@ -199,7 +199,7 @@ public function syncOptions(){
     $statuses[str_replace("wc-","",$key)]=__($name, 'wc-linet');
   }
 
-  $array=array(
+  $array = array(
 
     'sku_find' => array(
       'title' => __('SKU Find', 'wc-linet'),
@@ -344,16 +344,28 @@ public function syncOptions(){
       ,
     ),
     'syncField' => array(
-      'title' => __('Custom Field ID', 'wc-linet'),
+      'title' => __('Custom Field ID (Product)', 'wc-linet'),
       'default' => '',
       'type' => 'text',
       'description' => __('Linet Custom Field ID (eav{N}) for auto syncd products', 'wc-linet'),
     ),
     'syncValue' => array(
-      'title' => __('Custom Field Value', 'wc-linet'),
+      'title' => __('Custom Field Value (Product)', 'wc-linet'),
       'default' => '',
       'type' => 'text',
       'description' => __('Linet Custom Field Value for auto syncd products', 'wc-linet'),
+    ),
+    'syncCatField' => array(
+      'title' => __('Custom Field ID (Category)', 'wc-linet'),
+      'default' => '',
+      'type' => 'text',
+      'description' => __('Linet Custom Field ID (eav{N}) for auto syncd categories', 'wc-linet'),
+    ),
+    'syncCatValue' => array(
+      'title' => __('Custom Field Value (Category)', 'wc-linet'),
+      'default' => '',
+      'type' => 'text',
+      'description' => __('Linet Custom Field Value for auto syncd categories', 'wc-linet'),
     ),
     'picsync' => array(
       'title' => __('Picture Sync', 'wc-linet'),
@@ -528,7 +540,7 @@ public function form(){
 public function maintenance(){
   global $wpdb;
 
-  $arr=array();
+  $arr = array();
 
   $query = "SELECT post_id,meta_value ,count(meta_value) as num FROM $wpdb->postmeta where meta_key='_sku' GROUP by meta_value HAVING num>1";
   $products = $wpdb->get_results($query);
@@ -543,8 +555,8 @@ public function maintenance(){
 
   $query = "SELECT post_id,meta_value ,count(meta_value) as num FROM $wpdb->postmeta where meta_key='_linet_id' GROUP by meta_value HAVING num>1";
   $products = $wpdb->get_results($query);
-  foreach($products as $index=>$product){
-    $arr['linet_id'.$index]= array(
+  foreach($products as $index => $product){
+    $arr['linet_id'.$index] = array(
       'title' => __('duplicate linet_id', 'wc-linet')." <br /><a data-key='_linet_id' data-value='$product->meta_value' onclick=\"linet.deleteProd(this);\" href='#'>Delete</a>",
       'default' => '',
       'type' => 'none',
@@ -780,7 +792,7 @@ public function register_settings() {
     $this->lineOptions(),
     $this->syncOptions(),
     $this->connectionOptions(),
-    $this->maintenance(),
+    //$this->maintenance(),
     $this->form()
   );
 
@@ -1155,13 +1167,9 @@ public function options_page() {
             //'mode': 1
           };
 
-
           jQuery.post(ajaxurl, data, function (response) {
-            //console.log(response);
             jQuery('#catList').html("");
-            //console.log(response.body.length);
             for (i = 0; i < response.body.length; i++) {
-              //console.log(response.body[i].name);
               jQuery('#catList').append("<li>" + response.body[i].name + " <span id='catValue" + response.body[i].id + "'></span></li>");
 
               jQuery.post(ajaxurl, {
@@ -1175,18 +1183,9 @@ public function options_page() {
 
             }
 
-            //console.log(response);
-            //alert(response.text);
-            //count
-
           }, 'json');
 
-
         },
-
-
-
-
 
         fullItemsSync: function () {
           //event.preventDefault();
@@ -1358,7 +1357,7 @@ public function input_pay_list($args) {
 
   foreach ($args['option']['options'] as $key => $value) {
     $selected='';
-    if(in_array($key, $option)){
+    if(is_array($option) && in_array($key, $option)){
       $selected='selected';
     }
     //$selected = selected($option, $key, false);
@@ -1389,7 +1388,7 @@ public static function sendAPI($req, $body = array()) {
   $body['login_hash'] = $hash;
   $body['login_company'] = $company;
 
-  if($login_id=='' || $hash==''|| $company==''){
+  if($login_id=='' || $hash=='' || $company==''){
     return false;
   }
 
@@ -1400,13 +1399,12 @@ public static function sendAPI($req, $body = array()) {
     CURLOPT_URL => $server . "/api/" . $req,
     CURLOPT_POST => TRUE,
     CURLOPT_RETURNTRANSFER => TRUE,
-    CURLOPT_SSL_VERIFYHOST => !$dev,
+    CURLOPT_SSL_VERIFYHOST => $dev?0:2,
     CURLOPT_SSL_VERIFYPEER => !$dev,
     CURLOPT_HTTPHEADER => array(
       'Content-Type: application/json',
       'Wordpress-Site: '.str_replace("http://","",str_replace("https://","",get_site_url())),
       'Wordpress-Plugin: '. WC_Linet::VERSION
-
     ),
     CURLOPT_POSTFIELDS => json_encode($body)
   ));
@@ -1433,7 +1431,6 @@ public static function TestAjax() {
   $genral_item = ($genral_item=="")?"1":$genral_item;
   $res = self::sendAPI('view/item?id=' . $genral_item);
 
-
   echo json_encode($res);
   wp_die();
 
@@ -1450,8 +1447,10 @@ public static function RulerAjax() {
     isset($res->body) &&
     is_array($res->body)
   ){
+    $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
+
     foreach($res->body as $ruler){
-      WC_LI_Inventory::syncRuler($ruler,null);
+      WC_LI_Inventory::syncRuler($ruler,$logger);
     }
   }
 

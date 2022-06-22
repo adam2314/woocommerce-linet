@@ -5,11 +5,11 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 3.0.1
+  Version: 3.0.2
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
-  WC tested up to: 4.2.2
+  WC tested up to: 6.0
 
   Copyright 2020  Adam Ben Hour
 
@@ -142,13 +142,13 @@ class WC_LI_Invoice {
 
       $product = wc_get_product( $item['product_id']);
 
-      $one_item=(double)$item["total"]+(double)$item["total_tax"];
-      $discount=(double)$item["subtotal"]-(double)$item["total"];
+      $one_item = (double)$item["total"]+(double)$item["total_tax"];
+      $discount = (double)$item["subtotal"]-(double)$item["total"];
 
 
       if($item['qty']!=0){
-        $one_item=round($one_item/$item['qty'],2);
-        $discount=round($discount/$item['qty'],2);
+        $one_item = round($one_item/$item['qty'],2);
+        $discount = round($discount/$item['qty'],2);
       }
 
       if(isset($item['variation_id'])&&$item['variation_id']!=0){
@@ -158,13 +158,13 @@ class WC_LI_Invoice {
         $name= $item['name']." - ".$product->get_description();
       }  else{
         $item_id = self::getLinetItemId($item['product_id']);
-        $name=$item['name'];
+        $name = $item['name'];
       }
 
 
       $vat_cat=($country_id=="IL") ? 1 : 2;
       if($vat_cat===1 && $product && $product->get_tax_status()==='none'){
-        $vat_cat=2;
+        $vat_cat = 2;
       }
 
 
@@ -186,7 +186,7 @@ class WC_LI_Invoice {
       );
 
       //if($custom_product_addons){
-        $detail=WC_LI_Settings_Map::metaMap($detail,$item,"syncFields");
+        $detail = WC_LI_Settings_Map::metaMap($detail,$item,"syncFields");
       //}
 
 
@@ -313,26 +313,26 @@ class WC_LI_Invoice {
 
     switch ($order->get_payment_method()) {
       case 'cod':
-        $rcpt["type"]=1;
+        $rcpt["type"] = 1;
 
         break;
       case 'bitpay-payment':
-        $rcpt["type"]=4;
+        $rcpt["type"] = 4;
 
         $metas = get_post_meta( $order->get_id());
 
         if(isset($metas['bit_transaction_asmatcha'])&&isset($metas['bit_transaction_asmatcha'][0])){
-          $rcpt['refnum']['value']=$metas['bit_transaction_asmatcha'][0];
+          $rcpt['refnum']['value'] = $metas['bit_transaction_asmatcha'][0];
         }
 
         break;
       case 'meshulam-payment':
-        $rcpt["type"]=3;
+        $rcpt["type"] = 3;
 
         $metas = get_post_meta( $order->get_id());
 
         if(isset($metas['payment_transaction_id'])&&isset($metas['payment_transaction_id'][0])){
-          $rcpt['auth_number']['value']=$metas['payment_transaction_id'][0];
+          $rcpt['auth_number']['value'] = $metas['payment_transaction_id'][0];
         }
 
         break;
@@ -352,7 +352,7 @@ class WC_LI_Invoice {
               $this->doc[$j5Number] = $zc_response['ReferenceNumber'];
           }
           if(isset($zc_response['ID'])){
-            $rcpt['auth_number']['value']=$zc_response['ID'];
+            $rcpt['auth_number']['value'] = $zc_response['ID'];
           }
 
           //description
@@ -388,7 +388,7 @@ class WC_LI_Invoice {
         if(isset($metas['payplus_token_uid']) && isset($metas['payplus_token_uid'][0] ) ){
           $rcpt['card_no']['value'] = $metas['payplus_token_uid'][0];
           if($j5Token)
-            $this->doc[$j5Token]=$metas['payplus_token_uid'][0];
+            $this->doc[$j5Token] = $metas['payplus_token_uid'][0];
           
         }
 
@@ -443,10 +443,10 @@ class WC_LI_Invoice {
 
 
 
-    if(in_array($this->doc['doctype'],[8,18])){
+    if(in_array($this->doc['doctype'],array(8,18))){
       unset($this->doc['docDet']);
     }
-    if(!in_array($this->doc['doctype'],[8,9,18])){
+    if(!in_array($this->doc['doctype'],array(8,9,18))){
       unset($this->doc['docCheq']);
     }
 
@@ -641,7 +641,7 @@ class WC_LI_Invoice {
     $this->doc["autoRound"] = false;
 
     if(!isset($this->doc["description"]))
-      $this->doc["description"]='';
+      $this->doc["description"] =' ';
 
     $this->doc["description"] .= $this->order->get_customer_note();
 
@@ -677,8 +677,6 @@ class WC_LI_Invoice {
 
     return $this->doc;
   }
-
-
 
 
 }

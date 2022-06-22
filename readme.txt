@@ -46,6 +46,11 @@ No answer to that question.
 
 == Changelog ==
 
+
+= 2022.06.22 - version 3.0.2 =
+
+* performnce and stablity fixes
+
 = 2022.05.11 - version 3.0.1 =
 
 * timeout bug wp->linet

@@ -8,7 +8,7 @@
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
-  WC tested up to: 4.2.2
+  WC tested up to: 6.0
 
   Copyright 2020  Adam Ben Hour
 
