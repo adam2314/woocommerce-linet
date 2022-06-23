@@ -47,7 +47,7 @@ No answer to that question.
 == Changelog ==
 
 
-= 2022.06.22 - version 3.0.2 =
+= 2022.06.22 - version 3.1.1 =
 
 * performnce and stablity fixes
 

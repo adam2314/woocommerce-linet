@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 3.1.0
+  Version: 3.1.1
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -1506,6 +1506,9 @@ public static function singleProdSync( $item,$logger ) {
     if( $item->item->isProduct==0 && $item->item->parent_item_id!=0){
 
       $parent_id = self::findByProdId($item->item->parent_item_id);
+
+      $logger->write("parent_id ".$parent_id);
+
 
       $product->set_name($item->item->sku);
       $product->set_parent_id($parent_id);
