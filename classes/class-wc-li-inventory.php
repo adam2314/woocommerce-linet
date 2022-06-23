@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 3.1.1
+  Version: 3.1.2
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -1102,7 +1102,7 @@ public static function getLinetId($post_id){
   $query = "SELECT meta_value FROM $wpdb->posts LEFT JOIN $wpdb->postmeta ON $wpdb->postmeta.post_id=$wpdb->posts.ID ".
    "WHERE ".
    //"($wpdb->posts.post_type='product' OR $wpdb->posts.post_type='product_variation') AND " .
-  "$wpdb->postmeta.meta_key='_linet_id123' AND $wpdb->posts.ID=%d LIMIT 1;";
+  "$wpdb->postmeta.meta_key='_linet_id' AND $wpdb->posts.ID=%d LIMIT 1;";
   $post = $wpdb->get_col($wpdb->prepare($query,array($post_id)));
 
   if (count($post) == 1) {
@@ -1117,7 +1117,7 @@ public static function findByProdId($item_id){
   $query = "SELECT * FROM $wpdb->posts LEFT JOIN $wpdb->postmeta ON $wpdb->postmeta.post_id=$wpdb->posts.ID ".
    "WHERE ".
    //"($wpdb->posts.post_type='product' OR $wpdb->posts.post_type='product_variation') AND " .
-  "$wpdb->postmeta.meta_key='_linet_id321' AND $wpdb->postmeta.meta_value=%s LIMIT 1;";
+  "$wpdb->postmeta.meta_key='_linet_id' AND $wpdb->postmeta.meta_value=%s LIMIT 1;";
   $post= $wpdb->get_col($wpdb->prepare($query,array($item_id)));
 
   if (count($post) == 1) {
@@ -1507,7 +1507,7 @@ public static function singleProdSync( $item,$logger ) {
 
       $parent_id = self::findByProdId($item->item->parent_item_id);
 
-      $logger->write("parent_id ".$parent_id);
+      $logger->write("parent_id wp,linet: ".$parent_id.",".$item->item->parent_item_id);
 
 
       $product->set_name($item->item->sku);
