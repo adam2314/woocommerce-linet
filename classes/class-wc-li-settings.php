@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 3.1.2
+  Version: 3.1.3
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -455,6 +455,21 @@ public static function LinetDeleteProd($id){
   $key = $_POST['key'];
   $value = $_POST['value'];
 
+  if($key ==="id"){
+    $post_id = $value;
+    $product=wc_get_product($post_id);
+
+    if(!empty($product))
+     echo $product->delete(true);
+
+    echo delete_post_meta($post_id,"_linet_id");
+    echo delete_post_meta($post_id,"_sku");
+    echo wc_delete_product_transients($post_id);
+
+    return true;
+
+  }
+
   $query = "SELECT post_id FROM $wpdb->postmeta where meta_key=%s AND meta_value=%s";
   $posts = $wpdb->get_col($wpdb->prepare($query,$key,$value));
 
@@ -546,7 +561,7 @@ public function maintenance(){
   $products = $wpdb->get_results($query);
   foreach($products as $index=>$product){
     $arr['sku'.$index]= array(
-      'title' => __('duplicate sku', 'wc-linet')." <br /><a data-key='_sku' data-value='$product->meta_value' onclick=\"linet.deleteProd(this);\" href='#'>Delete</a>",
+      'title' => __('duplicate sku', 'wc-linet')." <br /><a data-key='_sku' data-value='$product->meta_value' onclick=\"linet.deleteProd(event,this);\" href=''>Delete</a>",
       'default' => '',
       'type' => 'none',
       'description' => $product->post_id." ".$product->meta_value." ".$product->num,
@@ -557,23 +572,64 @@ public function maintenance(){
   $products = $wpdb->get_results($query);
   foreach($products as $index => $product){
     $arr['linet_id'.$index] = array(
-      'title' => __('duplicate linet_id', 'wc-linet')." <br /><a data-key='_linet_id' data-value='$product->meta_value' onclick=\"linet.deleteProd(this);\" href='#'>Delete</a>",
+      'title' => __('duplicate linet_id', 'wc-linet')." <br /><a data-key='_linet_id' data-value='$product->meta_value' onclick=\"linet.deleteProd(event,this);\" href=''>Delete</a>",
       'default' => '',
       'type' => 'none',
       'description' => $product->post_id." ".$product->meta_value." ".$product->num,
     );
   }
+  
 
   $query = "SELECT ID,post_title,meta_value FROM $wpdb->posts LEFT JOIN $wpdb->postmeta ON post_id=ID AND meta_key = '_wp_attachment_metadata' where post_type='attachment' AND meta_value is null";
   $attachments = $wpdb->get_results($query);
   foreach($attachments as $index=>$attachment){
     $arr['attachment'.$index]= array(
-      'title' => __('attachment metadata missing', 'wc-linet')." <br /><a data-id='$attachment->ID' onclick=\"linet.deleteAttachment(this);\" href='#'>Delete</a>",
+      'title' => __('attachment metadata missing', 'wc-linet')." <br /><a data-id='$attachment->ID' onclick=\"linet.deleteAttachment(this);\" href=''>Delete</a>",
       'default' => '',
       'type' => 'none',
-      'description' => "<a data-id='$attachment->ID' data-file='$attachment->post_title' onclick=\"linet.calcAttachment(this);\" href='#'>$attachment->post_title</a>",
+      'description' => "<a data-id='$attachment->ID' data-file='$attachment->post_title' onclick=\"linet.calcAttachment(this);\" href=''>$attachment->post_title</a>",
     );
   }
+
+
+
+
+
+
+
+
+  $query = "select a.* ,meta_id.`meta_value` as meta_id,meta_sku.`meta_value` as meta_sku
+
+  FROM 
+  (
+  SELECT  count(`id`) as inst,max(`id`) as lasty,`post_type`,`post_title`,`post_excerpt`,`post_parent`
+  FROM $wpdb->posts 
+
+
+  where 
+  `post_parent` in (SELECT DISTINCT `post_parent` FROM $wpdb->posts WHERE `post_type`='product_variation') and `post_parent`!=0 
+  and post_type='product_variation'
+  GROUP by `post_parent`,`post_excerpt`  
+  HAVING inst>1  
+  ORDER BY $wpdb->posts.`post_parent` ASC
+
+  ) a
+
+  LEFT JOIN $wpdb->postmeta meta_sku on meta_sku.`meta_key`='_sku' AND meta_sku.`post_id`=a.lasty
+  LEFT JOIN $wpdb->postmeta meta_id on meta_id.`meta_key`='_linet_id' AND meta_id.`post_id`=a.lasty";
+
+$products = $wpdb->get_results($query);
+foreach($products as $index => $product){
+  $arr['vari'.$index] = array(
+    'title' => __('duplicate product_variation', 'wc-linet')." <br /><a data-key='id' data-value='$product->lasty' onclick=\"linet.deleteProd(event,this);\" href=''>Delete</a>",
+    'default' => '',
+    'type' => 'none',
+    'description' => "post_id: ".$product->lasty." post_parent: ".$product->post_parent." linet_id:".$product->meta_id." sku:".$product->meta_sku." count: ".$product->inst,
+  );
+}
+
+
+  
   $scanned_directory = array();
   if(is_dir(WC_LOG_DIR)){
     $scanned_directory = array_diff(scandir(WC_LOG_DIR), array('..', '.'));
@@ -584,7 +640,7 @@ public function maintenance(){
   foreach($scanned_directory as $index=>$file){
     if(strpos($file,'linet')===0 ||strpos($file,'fatal-errors')===0 )
       $arr['file'.$index]= array(
-        'title' => __('Log File', 'wc-linet')."<br /><a data-name='$file'  onclick=\"linet.deleteFile(this);\" href='#'>Delete</a>",
+        'title' => __('Log File', 'wc-linet')."<br /><a data-name='$file'  onclick=\"linet.deleteFile(event,this);\" href='#'>Delete</a>",
         'default' => '',
         'type' => 'none',
         'description' => "<a  onclick=\"linet.getFile('$file');\" href='#'>$file</a>",
@@ -1018,7 +1074,11 @@ public function options_page() {
           return false;
         },
 
-        deleteProd: function (obj) {
+        deleteProd: function (e,obj) {
+          console.log(obj);console.log(jQuery(obj).data());
+          e.preventDefault();
+
+
           var key = jQuery(obj).data('key');
           var value = jQuery(obj).data('value');
           jQuery(obj).parent().parent().hide();
@@ -1034,7 +1094,9 @@ public function options_page() {
           });
           return false;
         },
-        deleteFile: function (obj) {
+        deleteFile: function (e,obj) {
+          e.preventDefault();
+
           var name = jQuery(obj).data('name');
           jQuery(obj).parent().parent().hide();
           var data = {

@@ -46,6 +46,11 @@ No answer to that question.
 
 == Changelog ==
 
+= 2022.06.23 - version 3.1.3 =
+
+* better delete handler
+* product vartion duplcate finder
+
 = 2022.06.23 - version 3.1.2 =
 
 * small mistake big errors
