@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 3.1.3
+  Version: 3.1.4
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -333,7 +333,7 @@ public function syncOptions(){
 
       'description' => __('Manual Items Sync:', 'wc-linet') .
       ' <br /><button type="button" id="linwc-btn" class="button-primary" onclick="linet.fullItemsSync();">Linet->WC</button>' .
-      ' <br /><button type="button" id="wclin-btn" class="button" onclick="linet.fullProdSync();">WC->Linet</button>' .
+      ' <br /><button type="button" id="wclin-btn" class="button" style="display:none;" onclick="linet.fullProdSync();">WC->Linet</button>' .
       "<div id='mItems' class='hidden'>" .
       '
       <div id="target"></div>
@@ -621,7 +621,7 @@ public function maintenance(){
 $products = $wpdb->get_results($query);
 foreach($products as $index => $product){
   $arr['vari'.$index] = array(
-    'title' => __('duplicate product_variation', 'wc-linet')." <br /><a data-key='id' data-value='$product->lasty' onclick=\"linet.deleteProd(event,this);\" href=''>Delete</a>",
+    'title' => __('duplicate product_variation', 'wc-linet')." <br /><a class='duplidel' data-key='id' data-value='$product->lasty' onclick=\"linet.deleteProd(event,this);\" href=''>Delete</a>",
     'default' => '',
     'type' => 'none',
     'description' => "post_id: ".$product->lasty." post_parent: ".$product->post_parent." linet_id:".$product->meta_id." sku:".$product->meta_sku." count: ".$product->inst,
@@ -733,7 +733,7 @@ public function setup_hooks() {
   add_action('admin_menu', array($this, 'add_menu_item'));
 
   add_action('post_submitbox_start', array($this, 'custom_button'));
-  add_action('post_submitbox_start', array($this, 'custom_button_wp'));
+  //add_action('post_submitbox_start', array($this, 'custom_button_wp'));
 
 
   add_action('product_cat_edit_form_fields',  array($this, 'custom_term_button'));

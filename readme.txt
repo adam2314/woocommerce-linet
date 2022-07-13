@@ -46,6 +46,11 @@ No answer to that question.
 
 == Changelog ==
 
+= 2022.07.13 - version 3.1.4 =
+
+* hide wp->line sync
+* mutex urldecode
+
 = 2022.06.23 - version 3.1.3 =
 
 * better delete handler

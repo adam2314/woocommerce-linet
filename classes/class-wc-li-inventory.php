@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 3.1.3
+  Version: 3.1.4
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -249,7 +249,7 @@ class WC_LI_Inventory {
     }else{
       $offset = intval($_POST['offset']);
       $logger->write("WP->Linet Sync Pulse:$offset");
-      echo json_encode(self::WpSmallItemsSyncAjax($offset));
+      echo json_encode(self::WpSmallItemsSyncAjax($offset,$logger));
     }
     wp_die();
   }
@@ -283,7 +283,7 @@ public static function WpCatSync($item){  //wp->linet
         $linCat = WC_LI_Settings::sendAPI('create/itemcategory',$catBody);
         if($linCat->errorCode==0 && $linCat->status==200 ){
           update_term_meta($term->term_id, '_linet_cat',$linCat->body->id);
-          $cats[] = (int)$linCat->body->id;
+          $cats[] = (int) $linCat->body->id;
         }
       }else{
           $cat_id = $linCat->body[0]->id;
@@ -296,7 +296,7 @@ public static function WpCatSync($item){  //wp->linet
   return array_unique($cats);
 }
 
-public static function WpSmallItemsSyncAjax($offset){
+public static function WpSmallItemsSyncAjax($offset,$logger){
   global $wpdb;
   $query = "SELECT * FROM $wpdb->posts ".
   //"INNER JOIN $wpdb->postmeta ON $wpdb->postmeta.post_id=" . "$wpdb->posts.ID ".
@@ -311,7 +311,7 @@ public static function WpSmallItemsSyncAjax($offset){
 
   foreach($products as $product){
     if(microtime(true) - $runtime<WC_LI_Settings::RUNTIME_LIMIT){
-      self::wpItemSync($product);
+      self::wpItemSync($product,$logger);
       $sync_count++;
 
     }
@@ -378,9 +378,9 @@ public static function linetSaveRuler($attr,$item_id){
     $rulerUnitBody = array(
       'ruler_id' => $rulerId,
       'name' => $term->name,	
-      'value' => $term->slug,	
-      'uValue' => $term->slug,	
-      'slug' => $term->slug
+      'value' => urldecode($term->slug),	
+      'uValue' => urldecode($term->slug),	
+      'slug' => urldecode($term->slug)
     );
     
     $linItem = WC_LI_Settings::sendAPI('search/MutexRulerUnit', $rulerUnitBody);
@@ -406,15 +406,17 @@ public static function getProdSku($post_id){
   if(isset($metas['_sku']) &&
       isset($metas['_sku'][0]) &&
       $metas['_sku'][0] != '')
-    return  $metas['_sku'][0];
+    return $metas['_sku'][0];
     
   return $post_id;
 }
 
 
 
-public static function WpItemSync($item){//wp->linet
+public static function WpItemSync($item,$logger){//wp->linet
   $product = wc_get_product($item->ID);
+  $logger->write("WpItemSync (post_id): ".$item->ID);
+
 
   $metas = get_post_meta($item->ID);
   
@@ -446,7 +448,8 @@ public static function WpItemSync($item){//wp->linet
   if(isset($terms[0])){
     if($terms[0]->name == 'variable'){
       $isProduct = 3;
-      
+      $logger->write("WpItemSync sku(variable): ".$itemSku);
+
       if (strpos($itemSku, '-') !== false) {
         $itemSku = str_replace("-", "", $itemSku);
         $product->set_sku($itemSku);
@@ -461,9 +464,12 @@ public static function WpItemSync($item){//wp->linet
     $isProduct = 0;
     $sku = array(self::getProdSku($item->post_parent));
     foreach(wc_get_product_variation_attributes( $item->ID ) as $val){
-      $sku[] = $val;
+      $sku[] = urldecode($val);
+      //$sku[] = $val;
     }
     $itemSku = implode("-",$sku);
+    $logger->write("WpItemSync sku(product_variation): ".$itemSku);
+
   }
 
   $parent_item_id = 0;
@@ -604,7 +610,7 @@ public static function WpItemSync($item){//wp->linet
 
       
       $linItem = WC_LI_Settings::sendAPI('search/MutexCategory', array('cat_id' => $cat_id));
-      $item_id = false;
+      //$item_id = false;
       if($linItem->errorCode == 1000){
         $MutexCategoryBody = array("cat_id" => $cat_id,	"template" => implode("-",$template),	"fields" => json_encode($fields) );
         $newLinItem = WC_LI_Settings::sendAPI('create/MutexCategory',$MutexCategoryBody);
@@ -617,7 +623,7 @@ public static function WpItemSync($item){//wp->linet
       
       
       $linItem = WC_LI_Settings::sendAPI('search/MutexCategory', array('cat_id' => $cat_id));
-      $item_id = false;
+      //$item_id = false;
       if($linItem->errorCode == 1000){
         $MutexCategoryBody = array("cat_id" => $cat_id,	"template" => implode("-",$template),	"fields" => json_encode($fields) );
         $newLinItem = WC_LI_Settings::sendAPI('create/MutexCategory',$MutexCategoryBody);
@@ -877,10 +883,10 @@ public static function singleCatSync($cat,$logger) {
 
       //$term_id=$term_id['term_id'];
       // echo $term_id->get_error_message();
-      $term_id=$term_id[0];
+      $term_id = $term_id[0];
 
     }else{
-      $term_id=$term_id['term_id'];
+      $term_id = $term_id['term_id'];
     }
 
     update_term_meta($term_id, 'order', '');
@@ -904,13 +910,18 @@ public static function singleCatSync($cat,$logger) {
     'thumbnail_id',
     'display_type',
     'order',
-    'jet_woo_builder_template'
+    'jet_woo_builder_template',
+
+    '_linet_last_update',
+    '_linet_cat',
+
+
   );
 
   $exclude_metas = apply_filters( 'woocommerce_linet_exclude_meta_save_on_sync', $exclude_metas );
   foreach($prev_metas as $meta_key => $meta_value) {
     if( substr( $meta_key, 0, 1 ) !== "_" && !in_array($meta_key, $exclude_metas) ) {
-      if(is_array($meta_value)&&isset($meta_value[0])){
+      if(is_array($meta_value) && isset($meta_value[0])){
         update_term_meta($term_id, $meta_key, $meta_value[0]);
       }else{
         update_term_meta($term_id, $meta_key, $meta_value);
@@ -1174,8 +1185,8 @@ public static function findByProdId($item_id){
       "LIMIT 1  ;";
 
     $product = $wpdb->get_results($wpdb->prepare($query,$post_id))[0];
-
-    $result = self::WpItemSync($product);
+    $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
+    $result = self::WpItemSync($product,$logger);
     if($result)
       echo json_encode(
         array(
@@ -1293,7 +1304,7 @@ public static function findByProdId($item_id){
 
     $ruler_id = self::saveRuler($ruler->name,$ruler->slug);
 
-    $logger->write("syncRuler  (slug,wp_id,name,id,) $rulerslug, $ruler_id, " . $ruler->name.", ".$ruler->id);
+    $logger->write("syncRuler (slug,wp_id,name,id,) $rulerslug, $ruler_id, " . $ruler->name.", ".$ruler->id);
 
     foreach($ruler->units as $unit){
 
