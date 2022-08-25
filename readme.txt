@@ -46,6 +46,12 @@ No answer to that question.
 
 == Changelog ==
 
+= 2022.08.25 - version 3.1.5 =
+
+* mutex imporoved
+* backorder custom field
+* stockmange no
+
 = 2022.07.13 - version 3.1.4 =
 
 * hide wp->line sync

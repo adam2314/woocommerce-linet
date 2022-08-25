@@ -53,20 +53,20 @@ class WC_LI_Linet_Elementor extends \ElementorPro\Modules\Forms\Classes\Action_B
 
 		$elementor_form_map = get_option('wc_linet_elementor_form');
 
-		$place=array_search ($settings['form_name'] , $elementor_form_map['form_name'] ) ;
-		$map_linet=array();
-		$map_elm=array();
+		$place = array_search ($settings['form_name'] , $elementor_form_map['form_name'] ) ;
+		$map_linet = array();
+		$map_elm = array();
 
 
-		if($place!==false){
-			$map_linet=$elementor_form_map['li_field'][$place];
-			$map_elm=$elementor_form_map['el_field'][$place];
+		if($place !== false){
+			$map_linet = $elementor_form_map['li_field'][$place];
+			$map_elm = $elementor_form_map['el_field'][$place];
 		}
 
 		foreach ( $raw_fields as $id => $field ) {
 			$has_map = array_search ($id , $map_elm ) ;
 
-			if($has_map!==false){
+			if($has_map !== false){
 				$fields[ $map_linet[$has_map] ] = $field['value'];
 			}else{
 				$fields[ $id ] = $field['value'];
@@ -75,6 +75,16 @@ class WC_LI_Linet_Elementor extends \ElementorPro\Modules\Forms\Classes\Action_B
 
 		//var_dump($fields);
 		//exit;
+    $obj = array(
+      'body' => $fields,
+      'raw_fields' => $raw_fields,
+      'map_linet' => $map_linet,
+      'map_elm' => $map_elm
+    );
+  
+    $obj = apply_filters( 'woocommerce_linet_elmentor_create_acc', $obj );
+    if(isset($obj["fields"]))
+      $fields = $obj["fields"];
 
     $newLinItem = WC_LI_Settings::sendAPI('create/account',$fields);
 
