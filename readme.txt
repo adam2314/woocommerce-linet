@@ -46,6 +46,12 @@ No answer to that question.
 
 == Changelog ==
 
+
+= 2022.08.28 - version 3.1.6 =
+
+* mutex ruler name update
+* mutex ruler error handle
+
 = 2022.08.25 - version 3.1.5 =
 
 * mutex imporoved

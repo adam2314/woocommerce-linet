@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 3.1.5
+  Version: 3.1.6
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -1304,6 +1304,12 @@ public static function findByProdId($item_id){
         'slug' => $slug,
         //'order_by' => 'name'
       ]); 
+
+
+      if ( is_wp_error($ruler_id) ) {
+        $logger->write("saveRuler create error ".$ruler_id->get_error_message() );
+        $ruler_id = 0;
+      }
       $logger->write("saveRuler create $ruler_id" );
 
 
@@ -1319,24 +1325,24 @@ public static function findByProdId($item_id){
 
     $ruler_id = self::saveRuler($ruler->name,$rulerslug,$logger);
 
-    $term_name = "pa_" . sanitize_title($rulerslug);
-    $term_name = "pa_" . $rulerslug;
+    $taxonomy = "pa_" . sanitize_title($rulerslug);
+    $taxonomy = "pa_" . $rulerslug;
 
 
-    $logger->write("syncRuler (term_name/slug,wp_id,name,linet_id,) $term_name, $ruler_id, " . $ruler->name.", ".$ruler->id);
+    $logger->write("syncRuler (taxonomy/slug,wp_id,name,linet_id,) $taxonomy, $ruler_id, " . $ruler->name.", ".$ruler->id);
 
     foreach($ruler->units as $unit){
 
       $unitslug = strtolower($unit->slug);
 
-
-
-      if (! $term = get_term_by( 'slug', $unitslug, $term_name )) {
-        $insert = wp_insert_term( $unit->name, $term_name,array('slug'=>$unitslug) );
+      if (! $term = get_term_by( 'slug', $unitslug, $taxonomy )) {
+        $insert = wp_insert_term( $unit->name, $taxonomy,array('slug'=>$unitslug) );
         $logger->write("syncRuler slug insert".json_encode($insert) );
 
-        $term = get_term_by( 'slug', $unitslug, $term_name );
+        $term = get_term_by( 'slug', $unitslug, $taxonomy );
 
+      }else{
+        wp_update_term( $term->term_id, $taxonomy, array('name'=>$unit->name) );
       }
 
       $term_id = 0;
@@ -1348,7 +1354,7 @@ public static function findByProdId($item_id){
 
       }
 
-      $logger->write("syncRuler slug $unitslug $term_id" );
+      $logger->write("syncRuler slug $unit->name $unitslug $term_id" );
 
     }
   }
