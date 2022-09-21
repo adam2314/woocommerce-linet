@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 3.1.6
+  Version: 3.1.7
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -1053,12 +1053,14 @@ public static function getImage($pic,$logger=false) {//unused ,$parent_id=''
 
     if (count($image_id) == 0) {
 
-      $mime_type='';
+      $mime_type = $content_type[0];
       if(function_exists ('mime_content_type')){
         $mime_type = mime_content_type($filePath);
       }else{
-         $finfo = new finfo(FILEINFO_MIME); //<5.3
-         $mime_type = $finfo->file($filePath);
+        if(class_exists("finfo")){
+          $finfo = new finfo(FILEINFO_MIME); //<5.3
+          $mime_type = $finfo->file($filePath);
+        }
       }
 
       if ( ! function_exists( 'wp_generate_attachment_metadata' ) ) {//rest api!
@@ -1473,23 +1475,23 @@ public static function singleProdSync( $item,$logger ) {
     if($not_product_attributes!="on"){
       $attributes = array();
       //var_dump($item);exit;
-      foreach($item->mutex as $in => $prop){
+      foreach($item->mutex as $mutexIndex => $fullRuler){
 
         $attribute = new WC_Product_Attribute();
         $attribute->set_position( 0 );
         $attribute->set_visible( 1 );
         $attribute->set_variation( 1 );
 
-        if($global_attr && isset($item->slugmutex[$in]) ){
-          $perp = $item->slugmutex[$in];
+        if($global_attr && isset($item->slugmutex[$mutexIndex]) ){
+          $cutRoler = $item->slugmutex[$mutexIndex];
 
-          $taxonomy = wc_attribute_taxonomy_name($perp->rulerSlug); 
+          $taxonomy = wc_attribute_taxonomy_name($cutRoler->rulerSlug); 
 
           $tmparray = array();
 
-          foreach($item->slugmutex[$in]->units as $mutexvalue){
-            $term_name = ucfirst($mutexvalue->name);
-            $term_slug = sanitize_title($mutexvalue->slug);
+          foreach($cutRoler->units as $rolerUnit){
+            $term_name = $rolerUnit->name;
+            $term_slug = sanitize_title($rolerUnit->slug);
 
             if( ! term_exists( $term_name, $taxonomy ) )
               wp_insert_term( $term_name, $taxonomy, array('slug' => $term_slug ) ); // Create the term
@@ -1509,8 +1511,8 @@ public static function singleProdSync( $item,$logger ) {
 
         }else{
           $attribute->set_id( 0 );
-          $attribute->set_name( $prop->name );
-          $attribute->set_options( $prop->unitnames );
+          $attribute->set_name( $fullRuler->name );
+          $attribute->set_options( $fullRuler->unitnames );
 
         }
 
@@ -1558,7 +1560,7 @@ public static function singleProdSync( $item,$logger ) {
 
             $taxonomy = strtolower(urlencode(wc_attribute_taxonomy_name($attr->rulerslug))); 
             $logger->write("singleProdSync mutex global ".$taxonomy." ".$attr->slug);
-            $attributes[$taxonomy] = $attr->slug;
+            $attributes[$taxonomy] = strtolower(urlencode($attr->slug));
 
 
           }else{

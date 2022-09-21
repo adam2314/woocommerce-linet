@@ -47,6 +47,11 @@ No answer to that question.
 == Changelog ==
 
 
+= 2022.09.21 - version 3.1.7 =
+
+* minor mutex attribute sync
+* finfo protect
+
 = 2022.08.28 - version 3.1.6 =
 
 * mutex ruler name update

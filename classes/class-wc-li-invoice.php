@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 3.1.6
+  Version: 3.1.7
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -503,7 +503,7 @@ class WC_LI_Invoice {
 
       $product_id = $wpdb->get_col($wpdb->prepare($query,$id));
 
-      if (count($product_id) == 1) {
+      if (count($product_id) == 1 && !is_null($product_id[0])) {
         return $product_id[0];
       }
     }
