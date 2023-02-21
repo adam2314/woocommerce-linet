@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 3.1.7
+  Version: 3.2.0
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -55,34 +55,38 @@ class WC_LI_Settings {
     //add_action('wp_logout', 'WC_LI_Settings::EndSession');
     //add_action('wp_login', 'WC_LI_Settings::EndSession');
 
-
-
     add_action('linetItemSync', 'WC_LI_Inventory::fullSync');
 
-    add_action('wp_ajax_LinetGetFile', 'WC_LI_Settings::LinetGetFile');
-    add_action('wp_ajax_LinetDeleteFile', 'WC_LI_Settings::LinetDeleteFile');
-    add_action('wp_ajax_LinetDeleteProd', 'WC_LI_Settings::LinetDeleteProd');
+    if (is_admin() && current_user_can('administrator')){
 
-    add_action('wp_ajax_LinetDeleteAttachment', 'WC_LI_Settings::LinetDeleteAttachment');
-    add_action('wp_ajax_LinetCalcAttachment', 'WC_LI_Settings::LinetCalcAttachment');
+      add_action('wp_ajax_LinetGetFile', 'WC_LI_Settings::LinetGetFile');
+      add_action('wp_ajax_LinetDeleteFile', 'WC_LI_Settings::LinetDeleteFile');
+      add_action('wp_ajax_LinetDeleteProd', 'WC_LI_Settings::LinetDeleteProd');
+  
+      add_action('wp_ajax_LinetDeleteAttachment', 'WC_LI_Settings::LinetDeleteAttachment');
+      add_action('wp_ajax_LinetCalcAttachment', 'WC_LI_Settings::LinetCalcAttachment');
+  
+  
+      add_action('wp_ajax_LinetTest', 'WC_LI_Settings::TestAjax');
+  
+      add_action('wp_ajax_RulerAjax', 'WC_LI_Settings::RulerAjax');
+  
+  
+  
+      add_action('wp_ajax_LinetItemSync', 'WC_LI_Inventory::catSyncAjax');//linet to wp all prod
+  
+      add_action('wp_ajax_LinetSingleItemSync', 'WC_LI_Inventory::singleSyncAjax');//linet to wp
+      add_action('wp_ajax_LinetSingleProdSync', 'WC_LI_Inventory::singleProdAjax');//wp to linet
+  
+  
+      add_action('wp_ajax_LinetCatList', 'WC_LI_Inventory::CatListAjax');
+  
+      add_action('wp_ajax_WpItemSync', 'WC_LI_Inventory::WpItemsSyncAjax');
+      add_action('wp_ajax_WpCatSync', 'WC_LI_Inventory::WpCatSyncAjax');
 
+    }
 
-    add_action('wp_ajax_LinetTest', 'WC_LI_Settings::TestAjax');
-
-    add_action('wp_ajax_RulerAjax', 'WC_LI_Settings::RulerAjax');
-
-
-
-    add_action('wp_ajax_LinetItemSync', 'WC_LI_Inventory::catSyncAjax');//linet to wp all prod
-
-    add_action('wp_ajax_LinetSingleItemSync', 'WC_LI_Inventory::singleSyncAjax');//linet to wp
-    add_action('wp_ajax_LinetSingleProdSync', 'WC_LI_Inventory::singleProdAjax');//wp to linet
-
-
-    add_action('wp_ajax_LinetCatList', 'WC_LI_Inventory::CatListAjax');
-
-    add_action('wp_ajax_WpItemSync', 'WC_LI_Inventory::WpItemsSyncAjax');
-    add_action('wp_ajax_WpCatSync', 'WC_LI_Inventory::WpCatSyncAjax');
+    
 
     //add_filter('woocommerce_get_settings_pages',array($this,'add_woocomerce_settings_tab'))
     if (!is_null($override)) {
@@ -452,44 +456,47 @@ public static function LinetDeleteFile($name){
 public static function LinetDeleteProd($id){
   global $wpdb;
 
+  $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
+
   $key = $_POST['key'];
   $value = $_POST['value'];
+  $logger->write("admin delete by $key: $value");
 
-  if($key ==="id"){
+  if($key === "id"){
     $post_id = $value;
-    $product=wc_get_product($post_id);
-
-    if(!empty($product))
-     echo $product->delete(true);
-
-    echo delete_post_meta($post_id,"_linet_id");
-    echo delete_post_meta($post_id,"_sku");
-    echo wc_delete_product_transients($post_id);
-
-    return true;
-
+    return self::DeleteProd($value, $logger);
   }
 
   $query = "SELECT post_id FROM $wpdb->postmeta where meta_key=%s AND meta_value=%s";
   $posts = $wpdb->get_col($wpdb->prepare($query,$key,$value));
 
-  $first=true;
+  $first = true;
   foreach ($posts as $key => $post_id) {
     if($first){
-      $first=false;
+      $first = false;
     }else{
-      $product=wc_get_product($post_id);
-      if(!empty($product))
-          echo $product->delete(true);
-
-      echo delete_post_meta($post_id,"_linet_id");
-      echo delete_post_meta($post_id,"_sku");
-      echo wc_delete_product_transients($post_id);
+      self::DeleteProd($post_id, $logger);
     }
 
   }
 
   wp_die();
+}
+
+public static function DeleteProd($post_id,$logger){
+
+  $product = wc_get_product($post_id);
+
+  if(!empty($product)){
+    $logger->write("found prod $post_id");
+
+    echo $product->delete(true);
+  }
+
+  echo delete_post_meta($post_id,"_linet_id");
+  echo delete_post_meta($post_id,"_sku");
+  echo wc_delete_product_transients($post_id);
+
 }
 
 
@@ -820,9 +827,9 @@ public function get_option($key) {
     return $this->override[$key];
   }
 
-  $default='';
+  $default = '';
   if(isset($this->settings[$key]) && isset($this->settings[$key]['default']))
-    $default=$this->settings[$key]['default'];
+    $default = $this->settings[$key]['default'];
   return get_option(self::OPTION_PREFIX . $key, $default);
 
 }
@@ -961,19 +968,18 @@ public function options_page() {
   $company = get_option('wc_linet_company');
 
 
-  if($autoSync=='on' && $login_id!=''&& $hash!=''&& $company!=''){
+  if($autoSync == 'on' && $login_id!=''&& $hash!=''&& $company!=''){
     if (!wp_next_scheduled('linetItemSync')) {
       wp_schedule_event(time(), 'hourly', 'linetItemSync');
     }
   }else{
     wp_clear_scheduled_hook( 'linetItemSync' );
   }
-  $status=wp_cache_get( 'linet_fullSync_status', 'linet' );
+  $status = wp_cache_get( 'linet_fullSync_status', 'linet' );
   //var_dump($status);exit;
   //adam:sync
   //wp_clear_scheduled_hook( 'linetItemSync' );
   //wp_schedule_event(time(), 'hourly', 'linetItemSync');
-  $income_acc_novat = get_option('wc_linet_income_acc_novat');
 
   $active_tab = "connection-options";
   if(isset($_GET["tab"])) {
@@ -1418,9 +1424,9 @@ public function input_pay_list($args) {
   }
 
   foreach ($args['option']['options'] as $key => $value) {
-    $selected='';
+    $selected = '';
     if(is_array($option) && in_array($key, $option)){
-      $selected='selected';
+      $selected = 'selected';
     }
     //$selected = selected($option, $key, false);
     $text = esc_html($value);
@@ -1501,27 +1507,55 @@ public static function TestAjax() {
 
 
 
-public static function RulerAjax() {
-  $res = self::sendAPI('rulers');
+  public static function RulerAjax() {
+    $res = self::sendAPI('rulers');
 
-  if(
-    $res &&
-    isset($res->body) &&
-    is_array($res->body)
-  ){
-    $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
+    if(
+      $res &&
+      isset($res->body) &&
+      is_array($res->body)
+    ){
+      $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
 
-    foreach($res->body as $ruler){
-      WC_LI_Inventory::syncRuler($ruler,$logger);
+      foreach($res->body as $ruler){
+        WC_LI_Inventory::syncRuler($ruler,$logger);
+      }
     }
+
+    delete_option("_transient_wc_attribute_taxonomies");
+    echo json_encode('ok');
+
+    wp_die();
   }
 
-  delete_option("_transient_wc_attribute_taxonomies");
-  echo json_encode('ok');
 
-  wp_die();
+  public static function income_acc(){
+    $income_acc = get_option('wc_linet_income_acc');
 
-}
+    if(!$income_acc)
+      return 100;
+    return $income_acc;
+  }
+
+  public static function income_acc_novat(){
+    $income_acc_novat = get_option('wc_linet_income_acc_novat');
+
+    if(!$income_acc_novat)
+      return 102;
+    return $income_acc_novat;
+  }
+
+  public static function genral_item(){
+    $genral_item = (string)get_option('wc_linet_genral_item');
+
+    if(!$genral_item)
+      return 1;
+    return $genral_item;
+  }
+
+
+
+
 
 
 

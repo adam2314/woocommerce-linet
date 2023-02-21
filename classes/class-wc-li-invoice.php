@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 3.1.7
+  Version: 3.2.0
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -86,19 +86,22 @@ class WC_LI_Invoice {
     //add_filter('woocommerce_linet_invoice_due_date', array($this, 'set_org_default_due_date'), 10, 2);
   }
 
-  public function do_request($doctype=null) {
+  public function do_request($doctype = null) {
     //update linetDocId
     //var_dump($this->to_array());exit;
     $body = $this->to_array($doctype);
+
     if(is_array($body)){
       $response = WC_LI_Settings::sendAPI('create/doc', $body);
       $obj = array(
         'doc' => $this->doc,
         'order' => $this->order,
-        'response'=>$response,
+        'response' => $response,
       );
 
       $obj = apply_filters( 'woocommerce_linet_do_request', $obj );
+
+
       return $response;
     }
 
@@ -106,18 +109,18 @@ class WC_LI_Invoice {
   }
 
   public function set_order($order,$doctype) {
-    $this->doc['doctype']=$doctype;
+    $this->doc['doctype'] = $doctype;
     $total = 0;
 
-    $genral_item = (string)get_option('wc_linet_genral_item');
-    $genral_item = ($genral_item=="")?"1":$genral_item;
+    $genral_item = WC_LI_Settings::genral_item();
+    $income_acc = WC_LI_Settings::income_acc();
+    $income_acc_novat = WC_LI_Settings::income_acc_novat();
+
 
     $warehouse = get_option('wc_linet_warehouse_id');
 
     $one_item_order = get_option('wc_linet_one_item_order');
 
-    $income_acc = get_option('wc_linet_income_acc');
-    $income_acc_novat = get_option('wc_linet_income_acc_novat');
     $j5Token = get_option('wc_linet_j5Token');
     $j5Number = get_option('wc_linet_j5Number');
 
@@ -127,14 +130,10 @@ class WC_LI_Invoice {
 
     //var_dump('aa');exit;
 
-    if(!$income_acc)
-      $income_acc = 100;
-    if(!$income_acc_novat)
-      $income_acc_novat = 102;
 
     $country_id = $order->get_billing_country();
     $currency_id = $order->get_currency();
-    if($country_id==""){
+    if($country_id == ""){
       $country_id = "IL";
     }
 
@@ -142,13 +141,12 @@ class WC_LI_Invoice {
 
       $product = wc_get_product( $item['product_id']);
 
-      $one_item = (double)$item["total"]+(double)$item["total_tax"];
-      $discount = (double)$item["subtotal"]-(double)$item["total"];
+      //$one_item = (double)$item["total"]+(double)$item["total_tax"];
+      $one_item = (double)$item["subtotal"]+(double)$item["subtotal_tax"];
 
 
       if($item['qty']!=0){
         $one_item = round($one_item/$item['qty'],2);
-        $discount = round($discount/$item['qty'],2);
       }
 
       if(isset($item['variation_id'])&&$item['variation_id']!=0){
@@ -198,7 +196,7 @@ class WC_LI_Invoice {
 
       $obj = apply_filters( 'woocommerce_linet_set_order_line',   $obj  		);
 
-
+      $one_item = $obj['detail']['iItem'];
       $this->doc['docDet'][] = $obj['detail'];
 
       $total += $one_item * $item['qty'];
@@ -223,6 +221,49 @@ class WC_LI_Invoice {
         ]
       ];
     }//*/
+
+
+
+
+		
+		if ($order->get_discount_total()) {
+      $names = array();
+      foreach( $order->get_coupons() as $coupon ) {
+        $names[] = $coupon->get_name();
+      }
+
+      $detail = [
+        "item_id" => $genral_item, //getLinetId $item['product_id']
+        "name" => "Coupon Codes: " . implode(", ",$names),
+        "description" => "",
+        "qty" => -1,
+        "currency_id" => $currency_id,
+        //"currency_rate" => "1",
+        "vat_cat_id" => ($country_id=="IL") ? 1 : 2,
+        "account_id" => ($country_id=="IL") ? $income_acc : $income_acc_novat,
+        "unit_id" => 0,
+        "iItem" => abs($order->get_discount_total()),
+        "iItemWithVat" => 1
+      ];
+
+      $obj = array(
+        'doc' => $this->doc,
+        'detail' => $detail,
+        'order' => $order
+      );
+
+      $obj = apply_filters( 'woocommerce_linet_set_order_discount',   $obj  		);
+
+      $this->doc = $obj['doc'];
+      $this->doc['docDet'][] = $obj['detail'];
+
+      $total += $obj['detail']['iItem']*$obj['detail']['qty'];
+
+		}
+
+
+
+
 
     foreach ($order->get_shipping_methods() as $method) {
       $shiping_price = (double)$method->get_total()+(double)$method->get_total_tax();
@@ -337,7 +378,8 @@ class WC_LI_Invoice {
 
         break;
 
-
+        
+      case 'zcredit_checkout':
       case 'zcredit_payment':
       case 'zcredit_checkout_payment':
 
@@ -350,6 +392,23 @@ class WC_LI_Invoice {
               $this->doc[$j5Token] = $zc_response['Token'];
             if($j5Number)
               $this->doc[$j5Number] = $zc_response['ReferenceNumber'];
+          }
+
+
+          
+          if(isset($zc_response['CardNum'])){
+            $rcpt['last_4_digtis']['value'] = $zc_response['CardNum'];
+          }
+          if(isset($zc_response['Card4Digits'])){
+            $rcpt['last_4_digtis']['value'] = $zc_response['Card4Digits'];
+          }
+          
+          if(isset($zc_response['CardBrandCode'])){
+            $rcpt['creditCompany']['value'] = $zc_response['CardBrandCode'];
+          }
+
+          if(isset($zc_response['ReferenceNumber'])){
+            $rcpt['auth_number']['value'] = $zc_response['ReferenceNumber'];
           }
           if(isset($zc_response['ID'])){
             $rcpt['auth_number']['value'] = $zc_response['ID'];
@@ -414,6 +473,27 @@ class WC_LI_Invoice {
           $rcpt['paymentsNo']['value'] = $metas['_numberOfPayments'][0];
         }
         break;
+      case 'cardcom':
+
+
+        $metas = get_post_meta( $order->get_id());
+
+        if(isset($metas['cardcom_Approval_Num'])&&isset($metas['cardcom_Approval_Num'][0])){
+          $rcpt['auth_number']['value'] = $metas['cardcom_Approval_Num'][0];
+        }
+        
+        if(
+          isset($metas['cardcom_NumOfPayments']) && isset($metas['cardcom_NumOfPayments'][0])
+          //&& isset($metas['_firstPayment']) && isset($metas['_firstPayment'][0])
+          //&& isset($metas['_periodicalPayment']) && isset($metas['_periodicalPayment'][0])
+        ){
+          $rcpt["type"] = 6;
+          $rcpt['paymentsNo']['value'] = $metas['cardcom_NumOfPayments'][0];
+        }
+        break;
+
+
+      
       case 'ppec_paypal':
       case 'paypal':
         $rcpt["type"] = 8;
@@ -427,7 +507,7 @@ class WC_LI_Invoice {
           $token = get_post_meta( $order->get_id(), 'tranzila_authnr', true);
           $token_index = get_post_meta( $order->get_id(), '_transaction_id', true);
 
-          if($token != '' && $j5Token!='' && $j5Number!='' ){
+          if($token != '' && $j5Token != '' && $j5Number != '' ){
             $rcpt['auth_number']['value'] = $token;
             $this->doc[$j5Token] = $token;
             $this->doc[$j5Number] = $token_index;
@@ -439,7 +519,7 @@ class WC_LI_Invoice {
         break;
     }
 
-    $this->doc["docCheq"] = [$rcpt];
+    $this->doc["docCheq"] = [ $rcpt ];
 
 
 

@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 3.1.7
+  Version: 3.2.0
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -322,7 +322,7 @@ public static function WpSmallItemsSyncAjax($offset,$logger){
 
 }
 
-public static function linetSaveRuler($attr,$item_id){
+public static function linetSaveRuler($attr,$item_id,$line){
   $typeBody = array('name' => str_replace("pa_","",$attr->get_taxonomy()));//name
 
                  
@@ -359,6 +359,7 @@ public static function linetSaveRuler($attr,$item_id){
     'item_id' => $item_id,
     'mutexType_id' => $typeId,
     'ruler_id' => $rulerId,
+    'line' => $line
   );
  
   $linItem = WC_LI_Settings::sendAPI('search/MutexTypeMap', $typeMapBody);
@@ -567,80 +568,25 @@ public static function WpItemSync($item,$logger){//wp->linet
      
       $attrs = $product->get_attributes();
       $maps = array();
-      $template = array('{{SKU}}');
-      $fields = array();
-      
+      //$template = array('{{SKU}}');
+      //$fields = array();
+      $line = 1;
       foreach($attrs as $attr){
         if($attr->get_variation()){
-          $typeId = self::linetSaveRuler($attr,$item_id);
-          $fields[] = $typeId;
-          $template[] = "{{".$typeId."}}";
+          $typeId = self::linetSaveRuler($attr,$item_id,$line);
+          $line++;
+          //$fields[] = $typeId;
+          //$template[] = "{{".$typeId."}}";
         }
       }
       
       
-      $catName = implode("-",$template);
       /**********************************************************************************************/
       //$catName
       //WpCatSync cat name?
-      
-      $linCat = WC_LI_Settings::sendAPI('search/itemcategory', array('name' => $catName));
-      $mutex_cat_id = 0;
-      if($linCat->errorCode==1000){
-        $catBody = array(
-          'name' => $catName,
-          'profit' => 1,
-        );
-        $linCat = WC_LI_Settings::sendAPI('create/itemcategory',$catBody);
-        if($linCat->errorCode==0 && $linCat->status==200 ){
-          $mutex_cat_id = $linCat->body->id;
-        }
-      }else{
-        $mutex_cat_id = $linCat->body[0]->id;
-        
-      }
+   
         
         
-      if ($cat_id != $mutex_cat_id){
-        
-        $cats_id[] = $cat_id;
-        
-        $body = array(
-         'category_id' => $mutex_cat_id,
-         'categories_ids' => $cats_id,//shoud be without main
-        
-        );
-        
-        $linItem = WC_LI_Settings::sendAPI('update/item?id='.$item_id, $body);
-        
-        $cat_id = $mutex_cat_id;
-        
-      }
-
-      
-      $linItem = WC_LI_Settings::sendAPI('search/MutexCategory', array('cat_id' => $cat_id));
-      //$item_id = false;
-      if($linItem->errorCode == 1000){
-        $MutexCategoryBody = array("cat_id" => $cat_id,	"template" => implode("-",$template),	"fields" => json_encode($fields) );
-        $newLinItem = WC_LI_Settings::sendAPI('create/MutexCategory',$MutexCategoryBody);
-        if($newLinItem->errorCode == 0){
-
-        }
-      }
-      
-      /**********************************************************************************************/
-      
-      
-      $linItem = WC_LI_Settings::sendAPI('search/MutexCategory', array('cat_id' => $cat_id));
-      //$item_id = false;
-      if($linItem->errorCode == 1000){
-        $MutexCategoryBody = array("cat_id" => $cat_id,	"template" => implode("-",$template),	"fields" => json_encode($fields) );
-        $newLinItem = WC_LI_Settings::sendAPI('create/MutexCategory',$MutexCategoryBody);
-        if($newLinItem->errorCode == 0){
-
-        }
-      }
-      
     }
   }
 
@@ -1284,6 +1230,8 @@ public static function findByProdId($item_id){
   public static function saveRuler($name,$slug,$logger){
     global $wpdb;
 
+    $ruler_wp_id = 0;
+
     $query = "SELECT attribute_id FROM {$wpdb->prefix}woocommerce_attribute_taxonomies ".
             //"LEFT JOIN $wpdb->postmeta ON $wpdb->postmeta.post_id=$wpdb->posts.ID AND $wpdb->postmeta.meta_key='_sku'".
             " WHERE attribute_name=%s AND attribute_label=%s".
@@ -1292,32 +1240,32 @@ public static function findByProdId($item_id){
 
     if (count($post) == 1) {
 
-      $ruler_id = $post[0];
-      $logger->write("saveRuler update $ruler_id" );
+      $ruler_wp_id = $post[0];
+      $logger->write("found ruler update $ruler_wp_id" );
 
-      wc_update_attribute( $ruler_id, array(
+      wc_update_attribute( $ruler_wp_id, array(
         'name' => $name,
         'slug' => $slug,
         //'order_by' => 'name'
       ));
     }else{
-      $ruler_id = wc_create_attribute([
+      $ruler_wp_id = wc_create_attribute([
         'name' => $name,
         'slug' => $slug,
         //'order_by' => 'name'
       ]); 
 
 
-      if ( is_wp_error($ruler_id) ) {
-        $logger->write("saveRuler create error ".$ruler_id->get_error_message() );
-        $ruler_id = 0;
+      if ( is_wp_error($ruler_wp_id) ) {
+        $logger->write("saveRuler create error ".$ruler_wp_id->get_error_message() );
+        $ruler_wp_id = 0;
       }
-      $logger->write("saveRuler create $ruler_id" );
+      $logger->write("saveRuler create $ruler_wp_id" );
 
 
     }
 
-    return $ruler_id;
+    return $ruler_wp_id;
   }
 
   public static function syncRuler($ruler,$logger){
@@ -1325,13 +1273,13 @@ public static function findByProdId($item_id){
 
     $rulerslug = $ruler->slug;
 
-    $ruler_id = self::saveRuler($ruler->name,$rulerslug,$logger);
+    $ruler_wp_id = self::saveRuler($ruler->name,$rulerslug,$logger);
 
     $taxonomy = "pa_" . sanitize_title($rulerslug);
     $taxonomy = "pa_" . $rulerslug;
 
 
-    $logger->write("syncRuler (taxonomy/slug,wp_id,name,linet_id,) $taxonomy, $ruler_id, " . $ruler->name.", ".$ruler->id);
+    $logger->write("syncRuler taxonomy: $taxonomy, slug: $ruler_wp_id (name,linet_id)  (" . $ruler->name.",".$ruler->id);
 
     foreach($ruler->units as $unit){
 
@@ -1376,7 +1324,9 @@ public static function singleProdSync( $item,$logger ) {
   $parent_id = false;
 
   if($onlyStockManage == 'on'){
-    $post_id = self::findByProdSku($item->item->sku);
+    $post_id = self::findByProdId($item->item->id);
+    if(!$post_id)
+      $post_id = self::findByProdSku($item->item->sku);
     $product = wc_get_product( $post_id);
 
     if($post_id && $product){
@@ -1491,13 +1441,17 @@ public static function singleProdSync( $item,$logger ) {
 
           foreach($cutRoler->units as $rolerUnit){
             $term_name = $rolerUnit->name;
-            $term_slug = sanitize_title($rolerUnit->slug);
+            $term_slug = sanitize_title(strtolower($rolerUnit->slug));
 
-            if( ! term_exists( $term_name, $taxonomy ) )
-              wp_insert_term( $term_name, $taxonomy, array('slug' => $term_slug ) ); // Create the term
+            if (! $term = get_term_by( 'slug', $term_slug, $taxonomy )) {
+              wp_insert_term( $term_name, $taxonomy, array('slug' => $term_slug ) );
+              $term = get_term_by( 'slug', $term_slug, $taxonomy );
+            }
 
-            $tmparray[] = $term_name;
-            $logger->write("singleProdSync tmparray ".$term_name);
+            
+
+            $tmparray[] = (int)$term->term_id;
+            $logger->write("singleProdSync tmparray ".$term->term_id);
 
           }          
           
@@ -1556,13 +1510,27 @@ public static function singleProdSync( $item,$logger ) {
       foreach($item->mutex as $type=>$attr){
         if($type!='SKU'){
           if ($global_attr){
-            $slug = strtolower(urlencode(str_replace(" ","-",$attr->slug)));
+            $slug = sanitize_title(strtolower($attr->slug));
 
-            $taxonomy = strtolower(urlencode(wc_attribute_taxonomy_name($attr->rulerslug))); 
-            $logger->write("singleProdSync mutex global ".$taxonomy." ".$attr->slug);
-            $attributes[$taxonomy] = strtolower(urlencode($attr->slug));
+            $taxonomy = wc_attribute_taxonomy_name($attr->rulerslug); 
+
+            $tax = strtolower(urlencode($taxonomy));
+
+            //$attributes[$taxonomy] = strtolower(urlencode($attr->slug));
+
+            if (! $term = get_term_by( 'slug', $slug, $taxonomy )) {
+              wp_insert_term( $attr->name, $taxonomy, array('slug' => $slug ) );
+              $term = get_term_by( 'slug', $slug, $taxonomy );
+            }
 
 
+
+            $logger->write("singleProdSync mutex global ".$tax." ".$term->term_id);
+
+
+            $attributes[$tax] = $slug;
+            //bad!! $attributes[$taxonomy] = $term->term_id;
+            
           }else{
             $attry = strtolower(urlencode(str_replace(" ","-",$type)));
             $attributes[$attry] = $attr->name;
@@ -1700,10 +1668,11 @@ public static function singleProdSync( $item,$logger ) {
     'wc_product' => $product,
   );
 
-  $obj= apply_filters( 'woocommerce_linet_item', $obj );
+  $obj = apply_filters( 'woocommerce_linet_item', $obj );
   if(isset($obj["wc_product"]))
     $product = $obj["wc_product"];
   $logger->write("singleProdSync product save: ".$product->save());
+  $logger->write("singleProdSync status: ".$product->get_status());
 
   $logger->write("singleProdSync: done");
 

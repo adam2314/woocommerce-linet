@@ -55,7 +55,6 @@ class WC_LI_Invoice_Manager {
 
         $doctype = get_option('wc_linet_linet_doc');
 
-        //$option = $this->settings->get_option('send_invoices');
         if ('none' !== $do_doc && '' !== $do_doc) {
           update_option("wc_linet_sync_orders_wc-$do_doc", $doctype);
 
@@ -69,7 +68,7 @@ class WC_LI_Invoice_Manager {
           $do_doc = get_option("wc_linet_sync_orders_$key");
           if ('none' !== $do_doc && '' !== $do_doc) {
 
-            $skey=str_replace("wc-","",$key);
+            $skey = str_replace("wc-","",$key);
             //var_dump($do_doc);
             //var_dump("woocommerce_order_status_$skey");
             add_action("woocommerce_order_status_$skey", array($this, 'send_invoice'));
@@ -159,14 +158,14 @@ class WC_LI_Invoice_Manager {
      *
      * @return bool
      */
-    public function send_invoice($order_id,$doctype=null) {
+    public function send_invoice($order_id, $doctype = null) {
       //var_dump('send_invoice');
       //exit;
       $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
 
       // Get the order
       $order = wc_get_order($order_id);
-      $supported_gateways=$this->settings->get_option('supported_gateways');
+      $supported_gateways = $this->settings->get_option('supported_gateways');
       if(!in_array($order->get_payment_method(), $supported_gateways)){
           $order->add_order_note(__("LINET: Will not create doc. unsupported gateway", 'wc-linet'));
           return false;
