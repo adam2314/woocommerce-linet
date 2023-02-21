@@ -57,7 +57,7 @@ class WC_LI_Settings {
 
     add_action('linetItemSync', 'WC_LI_Inventory::fullSync');
 
-    if (is_admin() && current_user_can('administrator')){
+    if (is_user_logged_in() && current_user_can('administrator')){
 
       add_action('wp_ajax_LinetGetFile', 'WC_LI_Settings::LinetGetFile');
       add_action('wp_ajax_LinetDeleteFile', 'WC_LI_Settings::LinetDeleteFile');
