@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 3.2.0
+  Version: 3.2.1
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -325,21 +325,9 @@ public static function WpSmallItemsSyncAjax($offset,$logger){
 public static function linetSaveRuler($attr,$item_id,$line){
   $typeBody = array('name' => str_replace("pa_","",$attr->get_taxonomy()));//name
 
-                 
-  $linItem = WC_LI_Settings::sendAPI('search/MutexType', $typeBody);
-  $typeId = false;
-  if($linItem->errorCode == 1000){
-    //create body pic?
-    $newLinItem = WC_LI_Settings::sendAPI('create/MutexType', $typeBody);
-    if($newLinItem->errorCode == 0){
-      $typeId = $newLinItem->body->id;
-    }
-  }else{
-    $typeId = $linItem->body[0]->id;
-   
-  }
+
   
-    $rulerBody = array('name' => $typeBody['name'],'slug' => $typeBody['name'],'type_id'=>$typeId);//name
+    $rulerBody = array('name' => $typeBody['name'],'slug' => $typeBody['name']);//name
   
   $linItem = WC_LI_Settings::sendAPI('search/MutexRuler', $rulerBody);
   $rulerId = false;
@@ -351,13 +339,10 @@ public static function linetSaveRuler($attr,$item_id,$line){
     }
   }else{
     $rulerId = $linItem->body[0]->id;
-  
   }
-  
   
   $typeMapBody = array(
     'item_id' => $item_id,
-    'mutexType_id' => $typeId,
     'ruler_id' => $rulerId,
     'line' => $line
   );
@@ -402,7 +387,7 @@ public static function linetSaveRuler($attr,$item_id,$line){
     }
   }
   
-  return $typeId;
+  return $rulerId;
   
 }
 
@@ -610,6 +595,9 @@ public static function WpItemSync($item,$logger){//wp->linet
       self::savePicToLinet($item_id,$images_id);
     }
   }
+
+
+  return true;
 }
 
 
@@ -1321,6 +1309,9 @@ public static function singleProdSync( $item,$logger ) {
 
   $global_attr = get_option('wc_linet_global_attr') == 'on';
 
+  $no_description = get_option('wc_linet_no_description') == 'on';
+
+
   $parent_id = false;
 
   if($onlyStockManage == 'on'){
@@ -1394,7 +1385,8 @@ public static function singleProdSync( $item,$logger ) {
     }
 
     $product->set_name((string)$item->item->name);
-    $product->set_description((string)$item->item->description);
+    if(!$no_description)
+      $product->set_description((string)$item->item->description);
     $product->set_sku($item->item->sku);
 
     $product->update_meta_data('_linet_id',$item->item->id);
@@ -1409,7 +1401,8 @@ public static function singleProdSync( $item,$logger ) {
     //$product = new $classname($post_id);
 
     $product->set_name((string)$item->item->name);
-    $product->set_description((string)$item->item->description);
+    if(!$no_description)
+      $product->set_description((string)$item->item->description);
   }
 
 

@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 3.2.0
+  Version: 3.2.1
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -33,51 +33,51 @@ if (!defined('ABSPATH')) {
 
 class WC_LI_Logger {
 
-    /**
-     * @var WC_LI_Settings
-     */
-    private $enabled;
+  /**
+   * @var WC_LI_Settings
+   */
+  private $enabled;
 
-    /**
-     * WC_LI_Logger constructor.
-     *
-     * @param WC_LI_Settings $settings
-     */
-    public function __construct($enabled) {
-        $this->enabled = $enabled;
+  /**
+   * WC_LI_Logger constructor.
+   *
+   * @param WC_LI_Settings $settings
+   */
+  public function __construct($enabled) {
+    $this->enabled = $enabled;
+  }
+
+  /**
+   * Check if logging is enabled
+   *
+   * @return bool
+   */
+  public function is_enabled() {
+
+    // Check if debug is on
+    if ('on' === $this->enabled) {
+      return true;
     }
 
-    /**
-     * Check if logging is enabled
-     *
-     * @return bool
-     */
-    public function is_enabled() {
+    return false;
+  }
 
-        // Check if debug is on
-        if ('on' === $this->enabled) {
-            return true;
-        }
+  /**
+   * Write the message to log
+   *
+   * @param String $message
+   */
+  public function write($message) {
 
-        return false;
+    // Check if enabled
+    if ($this->is_enabled()) {
+
+      // Logger object
+      $wc_logger = new WC_Logger();
+
+      // Add to logger
+      $wc_logger->add('linet', $message);
     }
-
-    /**
-     * Write the message to log
-     *
-     * @param String $message
-     */
-    public function write($message) {
-
-        // Check if enabled
-        if ($this->is_enabled()) {
-
-            // Logger object
-            $wc_logger = new WC_Logger();
-
-            // Add to logger
-            $wc_logger->add('linet', $message);
-        }
-    }
+  }
 
 }
