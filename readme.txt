@@ -46,6 +46,9 @@ No answer to that question.
 
 == Changelog ==
 
+= 2023.05.10 - version 3.3.0 =
+
+* shipping and billing address support
 
 = 2023.03.15 - version 3.2.1 =
 
