@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.3.0
+Version: 3.3.1
 Text Domain: wc-linet
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -328,8 +328,6 @@ class WC_LI_Inventory
   {
     $typeBody = array('name' => str_replace("pa_", "", $attr->get_taxonomy())); //name
 
-
-
     $rulerBody = array('name' => $typeBody['name'], 'slug' => $typeBody['name']); //name
 
     $linItem = WC_LI_Settings::sendAPI('search/MutexRuler', $rulerBody);
@@ -391,7 +389,6 @@ class WC_LI_Inventory
     }
 
     return $rulerId;
-
   }
 
   public static function getProdSku($post_id)
@@ -407,8 +404,6 @@ class WC_LI_Inventory
 
     return $post_id;
   }
-
-
 
   public static function WpItemSync($item, $logger)
   { //wp->linet
@@ -460,7 +455,6 @@ class WC_LI_Inventory
           $product->save();
 
         }
-
       }
     }
 
@@ -493,7 +487,8 @@ class WC_LI_Inventory
 
     $body = array(
       'category_id' => $cat_id,
-      'categories_ids' => $cats_id, //shoud be without main
+      'categories_ids' => $cats_id,
+      //shoud be without main
       'name' => $item->post_title,
       'description' => $item->post_content,
 
@@ -505,7 +500,7 @@ class WC_LI_Inventory
 
       'parent_item_id' => $parent_item_id,
 
-      'currency_id' => get_woocommerce_currency(),//'ILS'
+      'currency_id' => get_woocommerce_currency(), //'ILS'
       'active' => 1,
       'unit_id' => 0,
       'isProduct' => $isProduct,
@@ -535,7 +530,6 @@ class WC_LI_Inventory
       } else {
         $linItem = WC_LI_Settings::sendAPI('update/item?id=' . $item_id, $body);
         //no needself::smart_update_post_meta($item->ID, '_linet_id', $item_id);
-
       }
 
     }
@@ -559,8 +553,6 @@ class WC_LI_Inventory
       }
     }
 
-
-
     if ($item_id) {
       if ($isProduct == 3) {
 
@@ -578,12 +570,9 @@ class WC_LI_Inventory
           }
         }
 
-
         /**********************************************************************************************/
         //$catName
         //WpCatSync cat name?
-
-
 
       }
     }
@@ -608,7 +597,6 @@ class WC_LI_Inventory
         self::savePicToLinet($item_id, $images_id);
       }
     }
-
 
     return true;
   }
@@ -712,7 +700,6 @@ class WC_LI_Inventory
       }
     }
 
-
     return $arr;
   }
 
@@ -727,8 +714,6 @@ class WC_LI_Inventory
     if ($syncField != '' && $syncValue != '') {
       $arr[$syncField] = $syncValue;
     }
-
-
 
     return array('query' => $arr);
   }
@@ -797,8 +782,6 @@ class WC_LI_Inventory
       wp_die();
     }
 
-
-
     echo json_encode(array('status' => 'nothing'));
 
     wp_die();
@@ -861,8 +844,6 @@ class WC_LI_Inventory
 
     $prev_metas = get_term_meta($term_id);
 
-
-
     $update_term = wp_update_term($term_id, 'product_cat', $catParams);
     if (is_wp_error($update_term)) {
       $logger->write("Term update error: (term_id)$term_id " . $update_term->get_error_message());
@@ -878,7 +859,6 @@ class WC_LI_Inventory
       '_linet_last_update',
       '_linet_cat',
 
-
     );
 
     $exclude_metas = apply_filters('woocommerce_linet_exclude_meta_save_on_sync', $exclude_metas);
@@ -892,19 +872,7 @@ class WC_LI_Inventory
       }
     }
 
-
-
-
-
-
     update_term_meta($term_id, '_linet_cat', $cat->id);
-
-
-
-
-
-
-
 
     $picsync = get_option('wc_linet_picsync');
     if ($picsync == 'on') {
@@ -932,9 +900,22 @@ class WC_LI_Inventory
     $rect_img = get_option('wc_linet_rect_img');
 
     $basePath = wp_upload_dir()['basedir'] . '/';
-    $realtivePath = self::IMAGE_DIR . "/" . $pic;
-    $filePath = $basePath . $realtivePath;
 
+
+
+    if (strpos($pic, 'http') === 0) {
+      $url = $pic;
+
+      $realtivePath = self::IMAGE_DIR . "/" . uniqid('urlimg');
+
+    } else {
+
+      $realtivePath = self::IMAGE_DIR . "/" . $pic;
+
+      $url = $server . "/site/largethumbnail/" . $pic . (($rect_img == 'on') ? "?rect=true" : "");
+    }
+    
+    $filePath = $basePath . $realtivePath;
 
     /*only in admin not in cron!!!
     WP_Filesystem();
@@ -963,17 +944,21 @@ class WC_LI_Inventory
 
     if ($pic != '') {
       if (!is_file($filePath) || filesize($filePath) == 0) {
-        $url = $server . "/site/largethumbnail/" . $pic . (($rect_img == 'on') ? "?rect=true" : "");
+
+        
+
         $logger->write("get img: " . $url);
 
         $ch = curl_init();
-        curl_setopt_array($ch, array(
-          CURLOPT_URL => $url,
-          CURLOPT_RETURNTRANSFER => TRUE,
-          CURLOPT_HTTPHEADER => array('Content-Type: application/json'),
-          CURLOPT_SSL_VERIFYHOST => !$dev,
-          CURLOPT_SSL_VERIFYPEER => !$dev,
-        )
+        curl_setopt_array(
+          $ch,
+          array(
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => TRUE,
+            //CURLOPT_HTTPHEADER => array('Content-Type: application/json'),
+            CURLOPT_SSL_VERIFYHOST => !$dev,
+            CURLOPT_SSL_VERIFYPEER => !$dev,
+          )
         );
         $response = curl_exec($ch);
         $content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
@@ -1264,11 +1249,13 @@ class WC_LI_Inventory
       $ruler_wp_id = $post[0];
       $logger->write("found ruler update $ruler_wp_id");
 
-      wc_update_attribute($ruler_wp_id, array(
-        'name' => $name,
-        'slug' => $slug,
-        //'order_by' => 'name'
-      )
+      wc_update_attribute(
+        $ruler_wp_id,
+        array(
+          'name' => $name,
+          'slug' => $slug,
+          //'order_by' => 'name'
+        )
       );
     } else {
       $ruler_wp_id = wc_create_attribute([

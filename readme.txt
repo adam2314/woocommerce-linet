@@ -46,6 +46,10 @@ No answer to that question.
 
 == Changelog ==
 
+= 2023.06.05 - version 3.3.1 =
+
+* support for image as url
+
 = 2023.05.10 - version 3.3.0 =
 
 * shipping and billing address support
