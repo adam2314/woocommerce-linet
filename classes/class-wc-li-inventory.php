@@ -906,7 +906,7 @@ class WC_LI_Inventory
     if (strpos($pic, 'http') === 0) {
       $url = $pic;
 
-      $realtivePath = self::IMAGE_DIR . "/" . uniqid('urlimg');
+      $realtivePath = self::IMAGE_DIR . "/" . sha1($pic);
 
     } else {
 
