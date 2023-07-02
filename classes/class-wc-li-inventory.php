@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.3.2
+Version: 3.3.3
 Text Domain: wc-linet
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -914,7 +914,7 @@ class WC_LI_Inventory
         $url .= "?rect=true";
 
       if ($img_opt == 'nothumb')
-        $url = $server . "/site/downlload/" . $pic;
+        $url = $server . "/site/download/" . $pic;
 
     }
 
@@ -1024,6 +1024,9 @@ class WC_LI_Inventory
 
       } else {
         $post_id = $image_id[0];
+
+        //wp_update_attachment_metadata($post_id, wp_generate_attachment_metadata($post_id, $filePath));
+
       }
       //*   //save new post
       return $post_id; //*/
@@ -1402,13 +1405,18 @@ class WC_LI_Inventory
       //$classname = WC_Product_Factory::get_product_classname( $post_id, $product_type );
       //$product = new $classname();
 
-      if ($product_type == 'product_variation') {
+      /*if ($product_type == 'product_variation') {
         $product = new WC_Product_Variation();
       } elseif ($product_type == "variable") {
         $product = new WC_Product_Variable();
       } else {
         $product = new WC_Product();
-      }
+      }*/
+
+      $classname = WC_Product_Factory::get_product_classname($post_id, $product_type ? $product_type : 'simple');
+      $logger->write("singleProdSync: $classname");
+
+      $product = new $classname($post_id);
 
       $product->set_name((string) $item->item->name);
       if (!$no_description)
