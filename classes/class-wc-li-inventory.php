@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.3.1
+Version: 3.3.2
 Text Domain: wc-linet
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -500,7 +500,8 @@ class WC_LI_Inventory
 
       'parent_item_id' => $parent_item_id,
 
-      'currency_id' => get_woocommerce_currency(), //'ILS'
+      'currency_id' => get_woocommerce_currency(),
+      //'ILS'
       'active' => 1,
       'unit_id' => 0,
       'isProduct' => $isProduct,
@@ -816,13 +817,13 @@ class WC_LI_Inventory
         $logger->write("Term Insret error: (cat_name)$cat->name " . $term_id->get_error_message());
 
         $query = "SELECT * FROM $wpdb->terms
-      LEFT JOIN $wpdb->term_taxonomy ON $wpdb->term_taxonomy.term_id=$wpdb->terms.term_id
-
-      WHERE
-      $wpdb->terms.name=%s AND
-      $wpdb->term_taxonomy.taxonomy='product_cat'
-       LIMIT 1;
-      "; //$catParams['parent']
+          LEFT JOIN $wpdb->term_taxonomy ON $wpdb->term_taxonomy.term_id = $wpdb->terms.term_id
+          WHERE
+          $wpdb->terms.name=%s AND
+          $wpdb->term_taxonomy.taxonomy = 'product_cat'
+          LIMIT 1;
+          ";
+        //$catParams['parent']
         //_linet_cat
         $term_id = $wpdb->get_col($wpdb->prepare($query, $cat->name));
         //$logger->write("Term found " . $term_id->get_error_message());
@@ -897,24 +898,26 @@ class WC_LI_Inventory
       $server = WC_LI_Settings::DEV_SERVER;
     }
 
-    $rect_img = get_option('wc_linet_rect_img');
+    $img_opt = get_option('wc_linet_rect_img');
 
     $basePath = wp_upload_dir()['basedir'] . '/';
 
 
-
     if (strpos($pic, 'http') === 0) {
       $url = $pic;
-
       $realtivePath = self::IMAGE_DIR . "/" . sha1($pic);
-
     } else {
-
       $realtivePath = self::IMAGE_DIR . "/" . $pic;
+      $url = $server . "/site/largethumbnail/" . $pic;
 
-      $url = $server . "/site/largethumbnail/" . $pic . (($rect_img == 'on') ? "?rect=true" : "");
+      if ($img_opt == 'on')
+        $url .= "?rect=true";
+
+      if ($img_opt == 'nothumb')
+        $url = $server . "/site/downlload/" . $pic;
+
     }
-    
+
     $filePath = $basePath . $realtivePath;
 
     /*only in admin not in cron!!!
@@ -945,7 +948,7 @@ class WC_LI_Inventory
     if ($pic != '') {
       if (!is_file($filePath) || filesize($filePath) == 0) {
 
-        
+
 
         $logger->write("get img: " . $url);
 

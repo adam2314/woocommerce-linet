@@ -46,6 +46,10 @@ No answer to that question.
 
 == Changelog ==
 
+= 2023.07.02 - version 3.3.2 =
+
+* rename rect_img to pic opt and added org file
+
 = 2023.06.05 - version 3.3.1 =
 
 * support for image as url

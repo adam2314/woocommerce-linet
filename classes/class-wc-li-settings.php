@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.3.1
+Version: 3.3.2
 Text Domain: wc-linet
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -296,7 +296,8 @@ class WC_LI_Settings
         'type' => 'pay_list',
         'description' => __('Select Gateways to invoice', 'wc-linet'),
       ),
-      'stock_manage' => array( //out
+      'stock_manage' => array(
+        //out
         'title' => __('Stock Manage', 'wc-linet'),
         'default' => 'on',
         'type' => 'select',
@@ -393,12 +394,14 @@ class WC_LI_Settings
         'description' => __('Will sync Pictures', 'wc-linet'),
       ),
       'rect_img' => array(
-        'title' => __('Rectangular Picture', 'wc-linet'),
+        'title' => __('Picture Options', 'wc-linet'),
         'default' => 'off',
         'type' => 'select',
         'options' => array(
-          'off' => __('Off', 'wc-linet'),
-          'on' => __('On', 'wc-linet'),
+          'none' => __('None', 'wc-linet'),
+          'on' => __('Force Rect. Picture', 'wc-linet'),
+          'nothumb' => __('Original File', 'wc-linet'),
+
         ),
         'description' => __('Will force Rectangular Pictures', 'wc-linet'),
       ),
@@ -812,7 +815,8 @@ class WC_LI_Settings
       Linet Last Upate:
       <?= isset($metas['_linet_last_update']) && $metas['_linet_last_update']['0'] ? $metas['_linet_last_update']["0"] : "unkown" ?><br />
 
-      <a class="button" data-post_id="<?= $post->ID; ?>" onclick="linet.singleSync(<?= $post->ID; ?>);">Sync Item From Linet</a>
+      <a class="button" data-post_id="<?= $post->ID; ?>" onclick="linet.singleSync(<?= $post->ID; ?>);">Sync Item From
+        Linet</a>
       <?php
     }
   }
@@ -975,10 +979,16 @@ class WC_LI_Settings
    */
   public function add_menu_item()
   {
-    $sub_menu_page = add_submenu_page('woocommerce', __('Linet', 'wc-linet'), __('Linet', 'wc-linet'), 'manage_woocommerce', 'woocommerce_linet', array(
-      $this,
-      'options_page'
-    )
+    $sub_menu_page = add_submenu_page(
+      'woocommerce',
+      __('Linet', 'wc-linet'),
+      __('Linet', 'wc-linet'),
+      'manage_woocommerce',
+      'woocommerce_linet',
+      array(
+        $this,
+        'options_page'
+      )
     );
 
     add_action('load-' . $sub_menu_page, array($this, 'enqueue_style'));
@@ -1037,32 +1047,32 @@ class WC_LI_Settings
     ?>
     <div class="wrap woocommerce">
       <form method="post" id="mainform" action="options.php?tab=<?= $active_tab; ?>">
-        <div class="icon32 icon32-woocommerce-settings" id="icon-woocommerce"><br /></div>
-        <h2>
-          <?php _e('Linet for WooCommerce', 'wc-linet'); ?>
-        </h2>
+    <div class="icon32 icon32-woocommerce-settings" id="icon-woocommerce"><br /></div>
+    <h2>
+      <?php _e('Linet for WooCommerce', 'wc-linet'); ?>
+    </h2>
 
-        <?php
-        if (isset($_GET['settings-updated']) && ($_GET['settings-updated'] == 'true')) {
-          echo '<div id="message" class="updated fade"><p><strong>' . __('Your settings have been saved.', 'wc-linet') . '</strong></p></div>';
-        } else if (isset($_GET['settings-updated']) && ($_GET['settings-updated'] == 'false')) {
-          echo '<div id="message" class="error fade"><p><strong>' . __('There was an error saving your settings.', 'wc-linet') . '</strong></p></div>';
-        }
-        ?>
+    <?php
+    if (isset($_GET['settings-updated']) && ($_GET['settings-updated'] == 'true')) {
+      echo '<div id="message" class="updated fade"><p><strong>' . __('Your settings have been saved.', 'wc-linet') . '</strong></p></div>';
+    } else if (isset($_GET['settings-updated']) && ($_GET['settings-updated'] == 'false')) {
+      echo '<div id="message" class="error fade"><p><strong>' . __('There was an error saving your settings.', 'wc-linet') . '</strong></p></div>';
+    }
+    ?>
 
-        <?php
-        if (
-          $status &&
-          isset($status['running']) &&
-          $status['running'] &&
-          isset($status['start']) &&
-          isset($status['offset'])
+    <?php
+    if (
+      $status &&
+      isset($status['running']) &&
+      $status['running'] &&
+      isset($status['start']) &&
+      isset($status['offset'])
 
-        ) {
+    ) {
 
-          echo '<div id="backgroundSync" class="error fade"><p><strong>' . __('background sync is rununing started/syncd', 'wc-linet') . $status['start'] . "/" . $status['offset'] . '</strong></p></div>';
-        }
-        ?>
+      echo '<div id="backgroundSync" class="error fade"><p><strong>' . __('background sync is rununing started/syncd', 'wc-linet') . $status['start'] . "/" . $status['offset'] . '</strong></p></div>';
+    }
+    ?>
 
 
         <a href="#target1" class="button-primary" onclick="linet.doTest();">Test Connection</a> (You can Check The
@@ -1071,36 +1081,30 @@ class WC_LI_Settings
 
         <h2 class="nav-tab-wrapper">
           <!-- when tab buttons are clicked we jump back to the same page but with a new parameter that represents the clicked tab. accordingly we make it active -->
-          <a href="?page=woocommerce_linet&tab=connection-options"
-            class="nav-tab <?php if ($active_tab == 'connection-options') {
-              echo 'nav-tab-active';
-            } ?> "><?php _e('Connection Options', 'sandbox'); ?></a>
-          <a href="?page=woocommerce_linet&tab=order-options"
-            class="nav-tab <?php if ($active_tab == 'order-options') {
-              echo 'nav-tab-active';
-            } ?>"><?php _e('Order Options', 'sandbox'); ?></a>
-          <a href="?page=woocommerce_linet&tab=line-options"
-            class="nav-tab <?php if ($active_tab == 'line-options') {
-              echo 'nav-tab-active';
-            } ?>"><?php _e('Line Options', 'sandbox'); ?></a>
-          <a href="?page=woocommerce_linet&tab=sync-options"
-            class="nav-tab <?php if ($active_tab == 'sync-options') {
-              echo 'nav-tab-active';
-            } ?>"><?php _e('Sync Options', 'sandbox'); ?></a>
-          <a href="?page=woocommerce_linet&tab=maintenance"
-            class="nav-tab <?php if ($active_tab == 'maintenance') {
-              echo 'nav-tab-active';
-            } ?>"><?php _e('Maintenance', 'sandbox'); ?></a>
-          <a href="?page=woocommerce_linet&tab=form"
-            class="nav-tab <?php if ($active_tab == 'form') {
-              echo 'nav-tab-active';
-            } ?>"><?php _e('Form', 'sandbox'); ?></a>
+          <a href="?page=woocommerce_linet&tab=connection-options" class="nav-tab <?php if ($active_tab == 'connection-options') {
+            echo 'nav-tab-active';
+          } ?> "><?php _e('Connection Options', 'sandbox'); ?></a>
+      <a href="?page=woocommerce_linet&tab=order-options" class="nav-tab <?php if ($active_tab == 'order-options') {
+        echo 'nav-tab-active';
+      } ?>"><?php _e('Order Options', 'sandbox'); ?></a>
+      <a href="?page=woocommerce_linet&tab=line-options" class="nav-tab <?php if ($active_tab == 'line-options') {
+        echo 'nav-tab-active';
+      } ?>"><?php _e('Line Options', 'sandbox'); ?></a>
+      <a href="?page=woocommerce_linet&tab=sync-options" class="nav-tab <?php if ($active_tab == 'sync-options') {
+        echo 'nav-tab-active';
+      } ?>"><?php _e('Sync Options', 'sandbox'); ?></a>
+      <a href="?page=woocommerce_linet&tab=maintenance" class="nav-tab <?php if ($active_tab == 'maintenance') {
+        echo 'nav-tab-active';
+      } ?>"><?php _e('Maintenance', 'sandbox'); ?></a>
+      <a href="?page=woocommerce_linet&tab=form" class="nav-tab <?php if ($active_tab == 'form') {
+        echo 'nav-tab-active';
+      } ?>"><?php _e('Form', 'sandbox'); ?></a>
 
 
         </h2>
 
-        <?php settings_fields('woocommerce_linet'); ?>
-        <?php do_settings_sections('woocommerce_linet'); ?>
+    <?php settings_fields('woocommerce_linet'); ?>
+    <?php do_settings_sections('woocommerce_linet'); ?>
 
         <p class="submit"><input type="submit" class="button-primary" value="Save" /></p>
         <script>
@@ -1396,7 +1400,7 @@ class WC_LI_Settings
 
       </form>
     </div>
-    <?php
+<?php
   }
 
   /**
@@ -1533,19 +1537,21 @@ class WC_LI_Settings
     $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
     $ch = curl_init();
     $logger->write('OWER REQUEST(' . $server . "/api/" . $req . ")\n" . json_encode($body));
-    curl_setopt_array($ch, array(
-      CURLOPT_URL => $server . "/api/" . $req,
-      CURLOPT_POST => TRUE,
-      CURLOPT_RETURNTRANSFER => TRUE,
-      CURLOPT_SSL_VERIFYHOST => $dev ? 0 : 2,
-      CURLOPT_SSL_VERIFYPEER => !$dev,
-      CURLOPT_HTTPHEADER => array(
-        'Content-Type: application/json',
-        'Wordpress-Site: ' . str_replace("http://", "", str_replace("https://", "", get_site_url())),
-        'Wordpress-Plugin: ' . WC_Linet::VERSION
-      ),
-      CURLOPT_POSTFIELDS => json_encode($body)
-    )
+    curl_setopt_array(
+      $ch,
+      array(
+        CURLOPT_URL => $server . "/api/" . $req,
+        CURLOPT_POST => TRUE,
+        CURLOPT_RETURNTRANSFER => TRUE,
+        CURLOPT_SSL_VERIFYHOST => $dev ? 0 : 2,
+        CURLOPT_SSL_VERIFYPEER => !$dev,
+        CURLOPT_HTTPHEADER => array(
+          'Content-Type: application/json',
+          'Wordpress-Site: ' . str_replace("http://", "", str_replace("https://", "", get_site_url())),
+          'Wordpress-Plugin: ' . WC_Linet::VERSION
+        ),
+        CURLOPT_POSTFIELDS => json_encode($body)
+      )
     );
 
     $response = curl_exec($ch);
