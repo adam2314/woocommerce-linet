@@ -46,14 +46,18 @@ No answer to that question.
 
 == Changelog ==
 
+- 2023.07,06 - version 3.3.4 =
+
+* singleProdSync improve items
+
+
 - 2023.07,03 - version 3.3.3 =
 
 * typo in the url
+* invoice class run over
 
-* invoice class run ovwr
 
-
-= 2023.07.02 - version 3.3.3 =
+= 2023.07.02 - version 3.3.2 =
 
 * rename rect_img to pic opt and added org file
 
