@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.3.4
+Version: 3.4.0
 Text Domain: wc-linet
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -485,6 +485,10 @@ class WC_LI_Inventory
       $cat_id = array_shift($cats_id);
 
 
+
+      
+
+
     $body = array(
       'category_id' => $cat_id,
       'categories_ids' => $cats_id,
@@ -494,7 +498,6 @@ class WC_LI_Inventory
 
       'sku' => $itemSku,
       'stockType' => $stockType,
-      'ammount' => $ammount,
       'saleprice' => $saleprice,
       'vatIn' => 1,
 
@@ -506,6 +509,12 @@ class WC_LI_Inventory
       'unit_id' => 0,
       'isProduct' => $isProduct,
       'itemVatCat_id' => 1,
+      
+
+
+      'qty' => $ammount,
+      'warehouse' => get_option('wc_linet_warehouse_id'),
+      'stockSet'=> true
 
       //_price
       //_linet_id
@@ -578,6 +587,8 @@ class WC_LI_Inventory
       }
     }
 
+    //var_dump($metas);exit;
+
 
     //sync images?
     if ($item_id) {
@@ -595,7 +606,8 @@ class WC_LI_Inventory
         $metas['_product_image_gallery'][0] != ""
       ) {
         $images_id = explode(",", $metas['_product_image_gallery'][0]);
-        self::savePicToLinet($item_id, $images_id);
+        foreach($images_id as $img_id)
+          self::savePicToLinet($item_id, $img_id,false);
       }
     }
 
@@ -623,7 +635,7 @@ class WC_LI_Inventory
         "name" => $filename,
         "path" => "pics/",
         "public" => 1,
-        "filetype" => $thumb ? 5 : 15,
+        "filetype" => $thumb ? 10 : 15,
         "parent_id" => $linet_item_id,
         "nparent_type" => 5,
       ];
@@ -1315,6 +1327,9 @@ class WC_LI_Inventory
 
       if ($term) {
         $term_id = $term->term_id;
+
+        update_term_meta( $term_id, 'order', $unit->uValue );
+
       } else {
         $logger->write("syncRuler bed term " . json_encode($term));
 

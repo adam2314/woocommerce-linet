@@ -46,6 +46,14 @@ No answer to that question.
 
 == Changelog ==
 
+
+- 2023.08.23 - version 3.4.0 =
+
+* attribute options sort support
+* sync from site stock set
+* sync from site gallery pics
+
+
 - 2023.07,06 - version 3.3.4 =
 
 * singleProdSync improve items

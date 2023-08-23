@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.3.4
+Version: 3.4.0
 Text Domain: wc-linet
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -807,6 +807,16 @@ class WC_LI_Settings
               alert(response.status);
               location.reload();
             }, 'json');
+          },
+          singleToSync: function (post_id) {
+            jQuery.post(ajaxurl, {
+              'action': 'LinetSingleProdSync',
+              'post_id': post_id
+              //'post_id': jQuery(this).data("post_id")
+            }, function (response) {
+              alert(response.status);
+              location.reload();
+            }, 'json');
           }
         }
       </script>
@@ -816,6 +826,10 @@ class WC_LI_Settings
       <?= isset($metas['_linet_last_update']) && $metas['_linet_last_update']['0'] ? $metas['_linet_last_update']["0"] : "unkown" ?><br />
 
       <a class="button" data-post_id="<?= $post->ID; ?>" onclick="linet.singleSync(<?= $post->ID; ?>);">Sync Item From
+        Linet</a>
+
+
+        <a class="button hidden" data-post_id="<?= $post->ID; ?>" onclick="linet.singleToSync(<?= $post->ID; ?>);">Sync Item To
         Linet</a>
       <?php
     }
