@@ -45,9 +45,12 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+- 2024.01.29 - version 3.4.1 =
 
+* better error handling
+* new logic on manul send doc 2 linet
 
-- 2023.08.23 - version 3.4.0 =
+- 2023.08.23 - version 3.4.01 =
 
 * attribute options sort support
 * sync from site stock set

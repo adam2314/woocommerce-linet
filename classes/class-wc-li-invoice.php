@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.4.0
+Version: 3.4.1
 Text Domain: wc-linet
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -228,6 +228,16 @@ class WC_LI_Invoice
 
     if ($order->get_discount_total()) {
       $names = array();
+
+      $discount_total = 0;
+      foreach ($order->get_coupon_codes() as $coupon_code) {
+        // Get the WC_Coupon object
+        $coupon = new WC_Coupon($coupon_code);
+
+        $discount_type = $coupon->get_discount_type(); // Get coupon discount type
+        $discount_total += $coupon->get_amount(); // Get coupon amount
+
+      }
       foreach ($order->get_coupons() as $coupon) {
         $names[] = $coupon->get_name();
       }
@@ -243,7 +253,7 @@ class WC_LI_Invoice
         "vat_cat_id" => ($country_id == "IL") ? 1 : 2,
         "account_id" => ($country_id == "IL") ? $income_acc : $income_acc_novat,
         "unit_id" => 0,
-        "iItem" => abs($order->get_discount_total()),
+        "iItem" => abs($discount_total),
         "iItemWithVat" => 1
       ];
 
@@ -628,7 +638,7 @@ class WC_LI_Invoice
 
 
     $address = $this->order->get_address($type);
-    $linAddress = $type=='shipping'?'ShipAddress':'BillAddress';
+    $linAddress = $type == 'shipping' ? 'ShipAddress' : 'BillAddress';
     $this->doc[$linAddress] = array(
 
       "firstname" => $address['first_name'],

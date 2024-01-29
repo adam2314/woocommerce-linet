@@ -69,11 +69,11 @@ class WC_LI_Invoice_Manager
         $skey = str_replace("wc-", "", $key);
         //var_dump($do_doc);
         //var_dump("woocommerce_order_status_$skey");
-        add_action("woocommerce_order_status_$skey", array($this, 'send_invoice'));
+        add_action("woocommerce_order_status_$skey", array($this, 'auto_send_invoice'));
       }
     }
 
-    //add_action("woocommerce_order_status_wc-on-hold", array($this, 'send_invoice'));
+    //add_action("woocommerce_order_status_wc-on-hold", array($this, 'auto_send_invoice'));
     //exit;
 
     add_action('manage_edit-shop_order_columns', array($this, 'order_download_column_header'), 20);
@@ -168,11 +168,7 @@ class WC_LI_Invoice_Manager
 
     // Get the order
     $order = wc_get_order($order_id);
-    $supported_gateways = $this->settings->get_option('supported_gateways');
-    if (!in_array($order->get_payment_method(), $supported_gateways)) {
-      $order->add_order_note(__("LINET: Will not create doc. unsupported gateway", 'wc-linet'));
-      return false;
-    }
+
 
     if (is_null($doctype)) {
       $doctype = (int) get_option("wc_linet_sync_orders_wc-" . $order->get_status());
@@ -229,7 +225,7 @@ class WC_LI_Invoice_Manager
       }
 
       // Check response status
-      if ('200' == $json_response->status) {
+      if ('200' == $json_response->status && '0' == $json_response->errorCode) {
 
         // Add order meta data
         update_post_meta($order->get_id(), '_linet_doc_id', (string) $json_response->body->id);
@@ -254,9 +250,11 @@ class WC_LI_Invoice_Manager
           __(' ErrorType: ', 'wc-linet') . $json_response->errorCode .
           __(' Message: ', 'wc-linet') . $json_response->text;
 
-        $message = __(' Order: ', 'wc-linet') . $order->get_id() . __(' Detail: ', 'wc-linet') . $json_response->body;
+        $message = __(' Order: ', 'wc-linet') . $order->get_id() . __(' Detail: ', 'wc-linet') . json_encode($json_response->body);
 
         wp_mail($to, $subject, $message);
+        wp_mail('ops@linet.org.il', get_site_url()." - ". $subject, $message);
+
 
         // Format error message
         //$error_message = $xml_response->Elements->DataContractBase->ValidationErrors->ValidationError->Message ? $xml_response->Elements->DataContractBase->ValidationErrors->ValidationError->Message : __('None', 'wc-linet');
@@ -266,7 +264,7 @@ class WC_LI_Invoice_Manager
           __(' ErrorNumber: ', 'wc-linet') . $json_response->status .
           __(' ErrorType: ', 'wc-linet') . $json_response->errorCode .
           __(' Message: ', 'wc-linet') . $json_response->text .
-          __(' Detail: ', 'wc-linet') . $json_response->body);
+          __(' Detail: ', 'wc-linet') . json_encode($json_response->body));
       }
     } catch (Exception $e) {
       // Add Exception as order note
@@ -280,6 +278,22 @@ class WC_LI_Invoice_Manager
     $logger->write('END LINET NEW doc.');
 
     return true;
+  }
+
+  public function auto_send_invoice($order_id, $doctype = null)
+  {
+
+    // Get the order
+    $order = wc_get_order($order_id);
+    $supported_gateways = $this->settings->get_option('supported_gateways');
+    if (!in_array($order->get_payment_method(), $supported_gateways)) {
+      $order->add_order_note(__("LINET: Will not create doc. unsupported gateway", 'wc-linet'));
+      return false;
+    }
+
+
+    return self::send_invoice($order_id, $doctype);
+ 
   }
 
   /**
