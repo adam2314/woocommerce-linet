@@ -45,7 +45,12 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
-- 2024.01.29 - version 3.4.2 =
+
+- 2024.02.21 - version 3.4.3 =
+
+- total discount fallback
+
+- 2024.02.08 - version 3.4.2 =
 
 - percent coupon code support
 

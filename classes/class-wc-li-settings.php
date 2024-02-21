@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.4.2
+Version: 3.4.3
 Text Domain: wc-linet
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -40,10 +40,6 @@ class WC_LI_Settings
   // Settings defaults
   private $settings = array();
   private $override = array();
-
-
-
-
 
   public function __construct($override = null)
   {
@@ -401,7 +397,6 @@ class WC_LI_Settings
           'none' => __('None', 'wc-linet'),
           'on' => __('Force Rect. Picture', 'wc-linet'),
           'nothumb' => __('Original File', 'wc-linet'),
-
         ),
         'description' => __('Will force Rectangular Pictures', 'wc-linet'),
       ),
