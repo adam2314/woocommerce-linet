@@ -46,6 +46,10 @@ No answer to that question.
 
 == Changelog ==
 
+- 2024.02.22 - version 3.4.4 =
+
+- bad var name
+
 - 2024.02.21 - version 3.4.3 =
 
 - total discount fallback
