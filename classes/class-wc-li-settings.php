@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.4.4
+Version: 3.4.5
 Text Domain: wc-linet
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -240,6 +240,7 @@ class WC_LI_Settings
           '1' => __('Proforma', 'wc-linet'),
           '2' => __('Delivery Doc.', 'wc-linet'),
           '3' => __('Invoice', 'wc-linet'),
+          '6' => __('Quote', 'wc-linet'),
 
           '7' => __('Sales Order', 'wc-linet'),
           '8' => __('Receipt', 'wc-linet'),

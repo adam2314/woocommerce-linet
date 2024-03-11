@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.4.4
+Version: 3.4.5
 Text Domain: wc-linet
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -77,7 +77,7 @@ class WC_LI_Order_Actions
     $data = get_post_meta($post->ID, '_linet_invoice_id');
     $doctype = get_option('wc_linet_manual_linet_doc');
 
-    if ($doctype != 0)
+    if ((int)$doctype != 0)
       $actions['linet_manual_invoice'] = __('Send Doc. to Linet', 'wc-linet');
 
     return $actions;
