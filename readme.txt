@@ -46,6 +46,23 @@ No answer to that question.
 
 == Changelog ==
 
+- 2024.06.27 - version 3.4.9 =
+
+- item mapper now supports not only eavs!
+
+
+- 2024.06.18 - version 3.4.8 =
+
+- vatIn,discount price fix v2
+
+- 2024.06.17 - version 3.4.7 =
+
+- vatIn,discount price fix
+
+- 2024.06.16 - version 3.4.6 =
+
+- vatIn price support
+
 - 2024.03.11 - version 3.4.5 =
 
 - add new doc type opt: Quote

@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.4.5
+Version: 3.4.9
 Text Domain: wc-linet
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -486,7 +486,7 @@ class WC_LI_Inventory
 
 
 
-      
+
 
 
     $body = array(
@@ -509,12 +509,12 @@ class WC_LI_Inventory
       'unit_id' => 0,
       'isProduct' => $isProduct,
       'itemVatCat_id' => 1,
-      
+
 
 
       'qty' => $ammount,
       'warehouse' => get_option('wc_linet_warehouse_id'),
-      'stockSet'=> true
+      'stockSet' => true
 
       //_price
       //_linet_id
@@ -606,8 +606,8 @@ class WC_LI_Inventory
         $metas['_product_image_gallery'][0] != ""
       ) {
         $images_id = explode(",", $metas['_product_image_gallery'][0]);
-        foreach($images_id as $img_id)
-          self::savePicToLinet($item_id, $img_id,false);
+        foreach ($images_id as $img_id)
+          self::savePicToLinet($item_id, $img_id, false);
       }
     }
 
@@ -1020,7 +1020,7 @@ class WC_LI_Inventory
         }
 
         if (!function_exists('wp_generate_attachment_metadata')) { //rest api!
-          include(ABSPATH . 'wp-admin/includes/image.php');
+          include (ABSPATH . 'wp-admin/includes/image.php');
         }
 
         $attachment = array(
@@ -1328,7 +1328,7 @@ class WC_LI_Inventory
       if ($term) {
         $term_id = $term->term_id;
 
-        update_term_meta( $term_id, 'order', $unit->uValue );
+        update_term_meta($term_id, 'order', $unit->uValue);
 
       } else {
         $logger->write("syncRuler bed term " . json_encode($term));
@@ -1420,7 +1420,7 @@ class WC_LI_Inventory
       //$classname = WC_Product_Factory::get_product_classname( $post_id, $product_type );
       //$product = new $classname();
 
-    
+
       if ($product_type == 'product_variation') {//do not use product factory
         $product = new WC_Product_Variation();
       } elseif ($product_type == "variable") {
@@ -1589,10 +1589,23 @@ class WC_LI_Inventory
 
     $product->update_meta_data('_linet_last_update', date('Y-m-d H:i:s'));
 
-    $product->set_regular_price($item->item->saleprice);
-    $product->set_price($item->item->saleprice);
+    $saleprice = $item->item->saleprice;
+    if (!$item->item->vatIn) {
+      $saleprice *= 1 + $item->vat_rate / 100;
+      $saleprice = round($saleprice, 2);
+    }
+
+    $product->set_regular_price($saleprice);
+    $product->set_price($saleprice);
     if ($item->item->discount != 0) { //discount for all
-      $product->set_sale_price($item->item->saleprice - $item->item->discount);
+      //if (!$item->item->vatIn) {
+      //  $discount = $saleprice - $item->item->discount * (1 + $item->vat_rate / 100);
+      //} else {
+        $discount = $saleprice - $item->item->discount;
+      //}
+      $discount = round($discount, 2);
+
+      $product->set_sale_price($discount);
     } else {
       $product->set_sale_price("");
     }
@@ -1658,8 +1671,10 @@ class WC_LI_Inventory
 
     if (is_array($itemFields) && isset($itemFields["linet_field"])) {
       foreach ($itemFields["linet_field"] as $index_key => $key_field_linet) {
-        //mybe if number add eav
-        $linet_field = 'eav' . $key_field_linet;
+        $linet_field = $key_field_linet;
+        if(is_numeric($key_field_linet))
+          $linet_field = 'eav' . $key_field_linet;
+
         $wc_field = $itemFields["wc_field"][$index_key];
 
         $post_fields = array();
