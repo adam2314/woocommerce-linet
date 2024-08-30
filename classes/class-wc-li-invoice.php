@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.4.9
+Version: 3.5.0
 Text Domain: wc-linet
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -148,12 +148,12 @@ class WC_LI_Invoice
       }
 
       if (isset($item['variation_id']) && $item['variation_id'] != 0) {
-        $item_id = self::getLinetItemId($item['variation_id']);
         $product = wc_get_product($item['variation_id']);
+        $item_id = self::getLinetItemId($product);
 
         $name = $item['name'] . " - " . $product->get_description();
       } else {
-        $item_id = self::getLinetItemId($item['product_id']);
+        $item_id = self::getLinetItemId($product);
         $name = $item['name'];
       }
 
@@ -365,9 +365,6 @@ class WC_LI_Invoice
       "line" => 1
     ];
 
-    //var_dump($order->get_payment_method());
-
-    //var_dump(get_post_meta( $order->get_id()));
 
 
     switch ($order->get_payment_method()) {
@@ -377,7 +374,6 @@ class WC_LI_Invoice
         break;
       /*case 'bitpay-payment':
       $rcpt["type"] = 4;
-      $metas = get_post_meta( $order->get_id());
       if(isset($metas['bit_transaction_asmatcha'])&&isset($metas['bit_transaction_asmatcha'][0])){
       $rcpt['refnum']['value'] = $metas['bit_transaction_asmatcha'][0];
       }
@@ -385,10 +381,10 @@ class WC_LI_Invoice
       case 'meshulam-payment':
         $rcpt["type"] = 3;
 
-        $metas = get_post_meta($order->get_id());
+        $payment_transaction_id = $order->get_meta('payment_transaction_id');
 
-        if (isset($metas['payment_transaction_id']) && isset($metas['payment_transaction_id'][0])) {
-          $rcpt['auth_number']['value'] = $metas['payment_transaction_id'][0];
+        if ($payment_transaction_id) {
+          $rcpt['auth_number']['value'] = $payment_transaction_id;
         }
 
         break;
@@ -398,7 +394,8 @@ class WC_LI_Invoice
       case 'zcredit_payment':
       case 'zcredit_checkout_payment':
 
-        $zc_response = get_post_meta($order->get_id(), 'zc_response', true);
+        $zc_response = $order->get_meta("zc_response", true);
+
         $zc_response = $zc_response ? json_decode(unserialize(base64_decode($zc_response)), true) : array();
 
         if (isset($zc_response['Token'])) {
@@ -438,31 +435,40 @@ class WC_LI_Invoice
 
       case 'payplus-payment-gateway':
 
-        $metas = get_post_meta($order->get_id());
 
-        if (isset($metas['payplus_four_digits']) && isset($metas['payplus_four_digits'][0])) {
-          $rcpt['last_4_digits']['value'] = $metas['payplus_four_digits'][0];
+        $payplus_four_digits = $order->get_meta('payplus_four_digits');
+
+
+
+        if ($payplus_four_digits) {
+          $rcpt['last_4_digits']['value'] = $payplus_four_digits;
         }
 
+        $payplus_number_of_payments = $order->get_meta('payplus_number_of_payments');
 
-        if (isset($metas['payplus_number_of_payments']) && isset($metas['payplus_number_of_payments'][0])) {
+
+
+        if ($payplus_number_of_payments) {
           $rcpt["type"] = 6;
-          $rcpt['paymentsNo']['value'] = $metas['payplus_number_of_payments'][0];
+          $rcpt['paymentsNo']['value'] = $payplus_number_of_payments;
         }
 
-        if (isset($metas['payplus_approval_num']) && isset($metas['payplus_approval_num'][0])) {
-          $rcpt['auth_number']['value'] = $metas['payplus_approval_num'][0];
+        $payplus_approval_num = $order->get_meta('payplus_approval_num');
+
+        if ($payplus_approval_num) {
+          $rcpt['auth_number']['value'] = $payplus_approval_num;
           if ($j5Number)
-            $this->doc[$j5Number] = $metas['payplus_approval_num'][0];
+            $this->doc[$j5Number] = $payplus_approval_num;
         }
 
 
+        $payplus_token_uid = $order->get_meta('payplus_token_uid');
 
 
-        if (isset($metas['payplus_token_uid']) && isset($metas['payplus_token_uid'][0])) {
-          $rcpt['card_no']['value'] = $metas['payplus_token_uid'][0];
+        if ($payplus_token_uid) {
+          $rcpt['card_no']['value'] = $payplus_token_uid;
           if ($j5Token)
-            $this->doc[$j5Token] = $metas['payplus_token_uid'][0];
+            $this->doc[$j5Token] = $payplus_token_uid;
 
         }
 
@@ -471,39 +477,39 @@ class WC_LI_Invoice
         break;
 
       case 'creditguard':
-        $metas = get_post_meta($order->get_id());
 
-        if (isset($metas['_cardMask']) && isset($metas['_cardMask'][0])) {
-          $rcpt['last_4_digits']['value'] = $metas['_cardMask'][0];
+        $cardMask = $order->get_meta('_cardMask');
+
+        if ($cardMask) {
+          $rcpt['last_4_digits']['value'] = $cardMask;
         }
-        if (isset($metas['_authNumber']) && isset($metas['_authNumber'][0])) {
-          $rcpt['auth_number']['value'] = $metas['_authNumber'][0];
+        $authNumber = $order->get_meta('_authNumber');
+
+        if ($authNumber) {
+          $rcpt['auth_number']['value'] = $authNumber;
         }
-        if (
-          isset($metas['_numberOfPayments']) && isset($metas['_numberOfPayments'][0])
-          //&& isset($metas['_firstPayment']) && isset($metas['_firstPayment'][0])
-          //&& isset($metas['_periodicalPayment']) && isset($metas['_periodicalPayment'][0])
-        ) {
+        $numberOfPayments = $order->get_meta('_numberOfPayments');
+
+        if ($numberOfPayments) {
           $rcpt["type"] = 6;
-          $rcpt['paymentsNo']['value'] = $metas['_numberOfPayments'][0];
+          $rcpt['paymentsNo']['value'] = $numberOfPayments;
         }
         break;
       case 'cardcom':
 
 
-        $metas = get_post_meta($order->get_id());
+        $metas = $order->get_meta_data();
 
-        if (isset($metas['cardcom_Approval_Num']) && isset($metas['cardcom_Approval_Num'][0])) {
-          $rcpt['auth_number']['value'] = $metas['cardcom_Approval_Num'][0];
+        $cardcom_Approval_Num = $order->get_meta('cardcom_Approval_Num');
+
+        if ($cardcom_Approval_Num) {
+          $rcpt['auth_number']['value'] = $cardcom_Approval_Num;
         }
+        $cardcom_NumOfPayments = $order->get_meta('cardcom_NumOfPayments');
 
-        if (
-          isset($metas['cardcom_NumOfPayments']) && isset($metas['cardcom_NumOfPayments'][0])
-          //&& isset($metas['_firstPayment']) && isset($metas['_firstPayment'][0])
-          //&& isset($metas['_periodicalPayment']) && isset($metas['_periodicalPayment'][0])
-        ) {
+        if ($cardcom_NumOfPayments) {
           $rcpt["type"] = 6;
-          $rcpt['paymentsNo']['value'] = $metas['cardcom_NumOfPayments'][0];
+          $rcpt['paymentsNo']['value'] = $cardcom_NumOfPayments;
         }
         break;
 
@@ -517,10 +523,38 @@ class WC_LI_Invoice
         break;
       case 'pelacard':
         break;
+      case 'tranzila':
+        $token = $order->get_meta("cc_company_approval_num", true);
+        $token_index = $order->get_meta("transaction_id", true);
+
+        $cred_type = $order->get_meta("w2t_cred_type", true);
+        $fpay = $order->get_meta("w2t_fpay", true);
+        $spay = $order->get_meta("w2t_spay", true);
+        $npay = $order->get_meta("w2t_npay", true);
+
+
+        $rcpt["type"] = 3;
+        if ($cred_type == 8) {
+          $rcpt["type"] = 6;
+
+          $rcpt['npay']['value'] = $npay;
+          $rcpt['spay']['value'] = $spay;
+          $rcpt['fpay']['value'] = $fpay;
+        }
+
+
+        if ($token != '' && $j5Token != '' && $j5Number != '') {
+          $rcpt['auth_number']['value'] = $token;
+          $this->doc[$j5Token] = $token;
+          $this->doc[$j5Number] = $token_index;
+        }
+
+        break;
+
       case 'gobitpaymentgateway':
         //$rcpt["type"] = 3;
-        $token = get_post_meta($order->get_id(), 'tranzila_authnr', true);
-        $token_index = get_post_meta($order->get_id(), '_transaction_id', true);
+        $token = $order->get_meta("tranzila_authnr", true);
+        $token_index = $order->get_meta("_transaction_id", true);
 
         if ($token != '' && $j5Token != '' && $j5Number != '') {
           $rcpt['auth_number']['value'] = $token;
@@ -568,25 +602,16 @@ class WC_LI_Invoice
     return $this->total;
   }
 
-  private function getLinetItemId($id)
+  private function getLinetItemId($product)
   {
-    global $wpdb;
 
-    $itemId = $wpdb->_real_escape($id);
     $linetSkuFind = get_option('wc_linet_sku_find');
 
     if ($linetSkuFind == 'on') {
-      // " WHERE ($wpdb->posts.post_type='product' OR $wpdb->posts.post_type='product_variation') AND ".
+      $product_data = $product->get_meta('_sku');
 
-      $query = "SELECT $wpdb->postmeta.meta_value FROM $wpdb->posts " . //bad
-        "LEFT JOIN $wpdb->postmeta ON  $wpdb->postmeta.post_id=$wpdb->posts.ID AND $wpdb->postmeta.meta_key='_sku'" .
-        "WHERE ($wpdb->posts.post_type='product' OR $wpdb->posts.post_type='product_variation') " .
-        "AND $wpdb->posts.id=%s LIMIT 1;";
-
-      $product_id = $wpdb->get_col($wpdb->prepare($query, $id));
-
-      if (count($product_id) == 1) {
-        $res = WC_LI_Settings::sendAPI('search/item', ['sku' => $product_id[0]]);
+      if (count($product_data) == 1) {
+        $res = WC_LI_Settings::sendAPI('search/item', ['sku' => $product_data[0]]);
         if (is_array($res->body)) {
           //echo "id(by sku):" . $res->body[0]->id;exit;
           return $res->body[0]->id;
@@ -594,14 +619,10 @@ class WC_LI_Invoice
       }
     } else {
 
-      $query = "SELECT $wpdb->postmeta.meta_value FROM $wpdb->posts " .
-        "LEFT JOIN $wpdb->postmeta ON $wpdb->postmeta.post_id=$wpdb->posts.ID AND $wpdb->postmeta.meta_key='_linet_id' " .
-        "WHERE $wpdb->posts.id=%s LIMIT 1;";
+      $product_data = $product->get_meta('_linet_id');
 
-      $product_id = $wpdb->get_col($wpdb->prepare($query, $id));
-
-      if (count($product_id) == 1 && !is_null($product_id[0])) {
-        return $product_id[0];
+      if (count($product_data) == 1 && !is_null($product_data[0])) {
+        return $product_data[0];
       }
     }
     //echo "id not found:". $itemId;  exit;

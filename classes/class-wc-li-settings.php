@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.4.9
+Version: 3.5.0
 Text Domain: wc-linet
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -221,7 +221,7 @@ class WC_LI_Settings
           'on' => __('On', 'wc-linet'),
         ),
         'description' => __('use global attributes for variable products', 'wc-linet')
-        . '<a style="" href="#target1" class="button-primary" onclick="linet.doRuler();">Write Global Rulers</a> '
+          . '<a style="" href="#target1" class="button-primary" onclick="linet.doRuler();">Write Global Rulers</a> '
         ,
       )
     );
@@ -345,15 +345,15 @@ class WC_LI_Settings
         ),
 
         'description' => __('Manual Items Sync:', 'wc-linet') .
-        ' <br /><button type="button" id="linwc-btn" class="button-primary" onclick="linet.fullItemsSync();">Linet->WC</button>' .
-        ' <br /><button type="button" id="wclin-btn" class="button" style="display:none;" onclick="linet.fullProdSync();">WC->Linet</button>' .
-        "<div id='mItems' class='hidden'>" .
-        '
+          ' <br /><button type="button" id="linwc-btn" class="button-primary" onclick="linet.fullItemsSync();">Linet->WC</button>' .
+          ' <br /><button type="button" id="wclin-btn" class="button" style="display:none;" onclick="linet.fullProdSync();">WC->Linet</button>' .
+          "<div id='mItems' class='hidden'>" .
+          '
       <div id="target"></div>
       <progress id="targetBar" max="100" value="0"></progress>
       <div id="subTarget"></div>
       <input text="hidden" id="subTargetBar" value="0" />' .
-        "</div>"
+          "</div>"
         ,
       ),
       'syncField' => array(
@@ -467,7 +467,6 @@ class WC_LI_Settings
 
   public static function LinetDeleteProd($id)
   {
-    global $wpdb;
 
     $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
 
@@ -476,19 +475,31 @@ class WC_LI_Settings
     $logger->write("admin delete by $key: $value");
 
     if ($key === "id") {
-      $post_id = $value;
-      return self::DeleteProd($value, $logger);
+      $post_id = (int) $value;
+      return self::DeleteProd(wc_get_product($post_id), $logger);
     }
 
-    $query = "SELECT post_id FROM $wpdb->postmeta where meta_key=%s AND meta_value=%s";
-    $posts = $wpdb->get_col($wpdb->prepare($query, $key, $value));
+    $products = wc_get_products(
+      [
+        'limit' => 10,
+
+        //'type' => array('simple', 'variable'),
+
+        //'post_type' => 'product',
+        'meta_key' => $key,
+        'meta_value' => $value, //'meta_value' => array('yes'),
+        //'meta_compare' => '=' //'meta_compare' => 'NOT IN'
+      ]
+
+    );
+
 
     $first = true;
-    foreach ($posts as $key => $post_id) {
+    foreach ($products as $product) {
       if ($first) {
         $first = false;
       } else {
-        self::DeleteProd($post_id, $logger);
+        self::DeleteProd($product, $logger);
       }
 
     }
@@ -496,20 +507,23 @@ class WC_LI_Settings
     wp_die();
   }
 
-  public static function DeleteProd($post_id, $logger)
+  public static function DeleteProd($product, $logger)
   {
 
-    $product = wc_get_product($post_id);
-
     if (!empty($product)) {
+      $post_id = $product->get_id();
+
       $logger->write("found prod $post_id");
 
       echo $product->delete(true);
-    }
 
-    echo delete_post_meta($post_id, "_linet_id");
-    echo delete_post_meta($post_id, "_sku");
-    echo wc_delete_product_transients($post_id);
+
+      echo wc_delete_product_transients($post_id);
+
+    } else {
+      $logger->write("not found prod");
+
+    }
 
   }
 
@@ -538,8 +552,6 @@ class WC_LI_Settings
 
   public function form()
   {
-    global $wpdb;
-
     $arr = array();
 
     $args = array('post_type' => 'wpcf7_contact_form', 'posts_per_page' => -1);
@@ -584,6 +596,7 @@ class WC_LI_Settings
 
     $query = "SELECT post_id,meta_value ,count(meta_value) as num FROM $wpdb->postmeta where meta_key='_sku' GROUP by meta_value HAVING num>1";
     $products = $wpdb->get_results($query);
+
     foreach ($products as $index => $product) {
       $arr['sku' . $index] = array(
         'title' => __('duplicate sku', 'wc-linet') . " <br /><a data-key='_sku' data-value='$product->meta_value' onclick=\"linet.deleteProd(event,this);\" href=''>Delete</a>",
@@ -595,6 +608,8 @@ class WC_LI_Settings
 
     $query = "SELECT post_id,meta_value ,count(meta_value) as num FROM $wpdb->postmeta where meta_key='_linet_id' GROUP by meta_value HAVING num>1";
     $products = $wpdb->get_results($query);
+
+
     foreach ($products as $index => $product) {
       $arr['linet_id' . $index] = array(
         'title' => __('duplicate linet_id', 'wc-linet') . " <br /><a data-key='_linet_id' data-value='$product->meta_value' onclick=\"linet.deleteProd(event,this);\" href=''>Delete</a>",
@@ -788,6 +803,7 @@ class WC_LI_Settings
 
   function custom_button($post)
   {
+
     $types = ['product'];
     if (in_array(get_post_type($post), $types)) {
       $metas = get_post_meta($post->ID);
@@ -825,7 +841,7 @@ class WC_LI_Settings
         Linet</a>
 
 
-        <a class="button hidden" data-post_id="<?= $post->ID; ?>" onclick="linet.singleToSync(<?= $post->ID; ?>);">Sync Item To
+      <a class="button hidden" data-post_id="<?= $post->ID; ?>" onclick="linet.singleToSync(<?= $post->ID; ?>);">Sync Item To
         Linet</a>
       <?php
     }
@@ -835,7 +851,6 @@ class WC_LI_Settings
   {
     $types = ['product'];
     if (in_array(get_post_type($post), $types)) {
-      //$metas = get_post_meta($post->ID);
       ?>
       <script>
         var wlinet = {
@@ -1057,32 +1072,32 @@ class WC_LI_Settings
     ?>
     <div class="wrap woocommerce">
       <form method="post" id="mainform" action="options.php?tab=<?= $active_tab; ?>">
-    <div class="icon32 icon32-woocommerce-settings" id="icon-woocommerce"><br /></div>
-    <h2>
-      <?php _e('Linet for WooCommerce', 'wc-linet'); ?>
-    </h2>
+        <div class="icon32 icon32-woocommerce-settings" id="icon-woocommerce"><br /></div>
+        <h2>
+          <?php _e('Linet for WooCommerce', 'wc-linet'); ?>
+        </h2>
 
-    <?php
-    if (isset($_GET['settings-updated']) && ($_GET['settings-updated'] == 'true')) {
-      echo '<div id="message" class="updated fade"><p><strong>' . __('Your settings have been saved.', 'wc-linet') . '</strong></p></div>';
-    } else if (isset($_GET['settings-updated']) && ($_GET['settings-updated'] == 'false')) {
-      echo '<div id="message" class="error fade"><p><strong>' . __('There was an error saving your settings.', 'wc-linet') . '</strong></p></div>';
-    }
-    ?>
+        <?php
+        if (isset($_GET['settings-updated']) && ($_GET['settings-updated'] == 'true')) {
+          echo '<div id="message" class="updated fade"><p><strong>' . __('Your settings have been saved.', 'wc-linet') . '</strong></p></div>';
+        } else if (isset($_GET['settings-updated']) && ($_GET['settings-updated'] == 'false')) {
+          echo '<div id="message" class="error fade"><p><strong>' . __('There was an error saving your settings.', 'wc-linet') . '</strong></p></div>';
+        }
+        ?>
 
-    <?php
-    if (
-      $status &&
-      isset($status['running']) &&
-      $status['running'] &&
-      isset($status['start']) &&
-      isset($status['offset'])
+        <?php
+        if (
+          $status &&
+          isset($status['running']) &&
+          $status['running'] &&
+          isset($status['start']) &&
+          isset($status['offset'])
 
-    ) {
+        ) {
 
-      echo '<div id="backgroundSync" class="error fade"><p><strong>' . __('background sync is rununing started/syncd', 'wc-linet') . $status['start'] . "/" . $status['offset'] . '</strong></p></div>';
-    }
-    ?>
+          echo '<div id="backgroundSync" class="error fade"><p><strong>' . __('background sync is rununing started/syncd', 'wc-linet') . $status['start'] . "/" . $status['offset'] . '</strong></p></div>';
+        }
+        ?>
 
 
         <a href="#target1" class="button-primary" onclick="linet.doTest();">Test Connection</a> (You can Check The
@@ -1094,27 +1109,27 @@ class WC_LI_Settings
           <a href="?page=woocommerce_linet&tab=connection-options" class="nav-tab <?php if ($active_tab == 'connection-options') {
             echo 'nav-tab-active';
           } ?> "><?php _e('Connection Options', 'sandbox'); ?></a>
-      <a href="?page=woocommerce_linet&tab=order-options" class="nav-tab <?php if ($active_tab == 'order-options') {
-        echo 'nav-tab-active';
-      } ?>"><?php _e('Order Options', 'sandbox'); ?></a>
-      <a href="?page=woocommerce_linet&tab=line-options" class="nav-tab <?php if ($active_tab == 'line-options') {
-        echo 'nav-tab-active';
-      } ?>"><?php _e('Line Options', 'sandbox'); ?></a>
-      <a href="?page=woocommerce_linet&tab=sync-options" class="nav-tab <?php if ($active_tab == 'sync-options') {
-        echo 'nav-tab-active';
-      } ?>"><?php _e('Sync Options', 'sandbox'); ?></a>
-      <a href="?page=woocommerce_linet&tab=maintenance" class="nav-tab <?php if ($active_tab == 'maintenance') {
-        echo 'nav-tab-active';
-      } ?>"><?php _e('Maintenance', 'sandbox'); ?></a>
-      <a href="?page=woocommerce_linet&tab=form" class="nav-tab <?php if ($active_tab == 'form') {
-        echo 'nav-tab-active';
-      } ?>"><?php _e('Form', 'sandbox'); ?></a>
+          <a href="?page=woocommerce_linet&tab=order-options" class="nav-tab <?php if ($active_tab == 'order-options') {
+            echo 'nav-tab-active';
+          } ?>"><?php _e('Order Options', 'sandbox'); ?></a>
+          <a href="?page=woocommerce_linet&tab=line-options" class="nav-tab <?php if ($active_tab == 'line-options') {
+            echo 'nav-tab-active';
+          } ?>"><?php _e('Line Options', 'sandbox'); ?></a>
+          <a href="?page=woocommerce_linet&tab=sync-options" class="nav-tab <?php if ($active_tab == 'sync-options') {
+            echo 'nav-tab-active';
+          } ?>"><?php _e('Sync Options', 'sandbox'); ?></a>
+          <a href="?page=woocommerce_linet&tab=maintenance" class="nav-tab <?php if ($active_tab == 'maintenance') {
+            echo 'nav-tab-active';
+          } ?>"><?php _e('Maintenance', 'sandbox'); ?></a>
+          <a href="?page=woocommerce_linet&tab=form" class="nav-tab <?php if ($active_tab == 'form') {
+            echo 'nav-tab-active';
+          } ?>"><?php _e('Form', 'sandbox'); ?></a>
 
 
         </h2>
 
-    <?php settings_fields('woocommerce_linet'); ?>
-    <?php do_settings_sections('woocommerce_linet'); ?>
+        <?php settings_fields('woocommerce_linet'); ?>
+        <?php do_settings_sections('woocommerce_linet'); ?>
 
         <p class="submit"><input type="submit" class="button-primary" value="Save" /></p>
         <script>
@@ -1410,7 +1425,7 @@ class WC_LI_Settings
 
       </form>
     </div>
-<?php
+    <?php
   }
 
   /**
@@ -1550,6 +1565,8 @@ class WC_LI_Settings
     curl_setopt_array(
       $ch,
       array(
+
+        CURLOPT_TIMEOUT => 20,
         CURLOPT_URL => $server . "/api/" . $req,
         CURLOPT_POST => TRUE,
         CURLOPT_RETURNTRANSFER => TRUE,

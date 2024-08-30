@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.4.9
+Version: 3.5.0
 Text Domain: wc-linet
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -51,7 +51,7 @@ class WC_LI_Order_Actions
   {
     // Add order actions
 
-    add_action('woocommerce_order_actions', array($this, 'add_order_actions'));
+    add_action('woocommerce_order_actions', 'WC_LI_Order_Actions::add_order_actions');
 
     //if $order->hasLinetDocId()
     // Catch order actions
@@ -65,16 +65,14 @@ class WC_LI_Order_Actions
    *
    * @return array
    */
-  public function add_order_actions($actions)
+  public static function add_order_actions($actions)
   {
 
     // This should never happen but yeah let's check it anyway
     if (!is_array($actions)) {
       $actions = array();
     }
-    global $post;
 
-    $data = get_post_meta($post->ID, '_linet_invoice_id');
     $doctype = get_option('wc_linet_manual_linet_doc');
 
     if ((int)$doctype != 0)

@@ -85,12 +85,14 @@ class WC_LI_Invoice_Manager
 
   public static function order_download_column_header($clmns)
   {
+
     foreach ($clmns as $name => $info) {
       $next_clmns[$name] = $info;
-      if ('order_total' === $name) {
+      if ('wc_actions' === $name) {
         $next_clmns['linet_link_column'] = __('Linet Document', 'wc-linet');
       }
     }
+    //var_dump($clmns);exit;
     return $next_clmns;
 
   }
@@ -105,19 +107,24 @@ class WC_LI_Invoice_Manager
       if (!$post_id)
         return;
 
-      $doc_id = get_post_meta($post_id, '_linet_invoice_id', true);
+      $order = wc_get_order($post_id);
+
+
+      $doc_id = $order->get_meta("_linet_invoice_id", true);
+
 
       if (!$doc_id)
         return;
+      $doc_url = $order->get_meta("_linet_doc_url", true);
 
-      $doc_url = get_post_meta($post_id, '_linet_doc_url', true);
-      $docnum = get_post_meta($post_id, '_linet_docnum', true);
+      $docnum = $order->get_meta("_linet_docnum", true);
+
 
       if ($doc_url) {
         return self::create_pdf_link_html_tag($doc_url, $docnum);
       }
 
-      $doc_url = self::get_doc_url($doc_id, $post_id);
+      $doc_url = self::get_doc_url($doc_id, $order);
       if (!$doc_url)
         return;
 
@@ -125,7 +132,7 @@ class WC_LI_Invoice_Manager
     }
   }
 
-  public static function get_doc_url($doc_id, $post_id)
+  public static function get_doc_url($doc_id, $order)
   {
     $doc_url = false;
 
@@ -136,7 +143,9 @@ class WC_LI_Invoice_Manager
 
     if ($res->status == 200 && $res->text == 'OK' && $res->errorCode == 0) {
       $doc_url = (string) $res->body;
-      update_post_meta($post_id, '_linet_doc_url', (string) $doc_url);
+      $order->update_meta_data( '_linet_doc_url',  (string) $doc_url );
+      $order->save();
+
     }
     return $doc_url;
 
@@ -228,11 +237,13 @@ class WC_LI_Invoice_Manager
       if ('200' == $json_response->status && '0' == $json_response->errorCode) {
 
         // Add order meta data
-        update_post_meta($order->get_id(), '_linet_doc_id', (string) $json_response->body->id);
-        update_post_meta($order->get_id(), '_linet_docnum', (string) $json_response->body->docnum);
 
-        update_post_meta($order->get_id(), '_linet_invoice_id', (string) $json_response->body->id);
-        update_post_meta($order->get_id(), '_linet_currency_rate', (string) $json_response->body->currency_rate);
+        $order->update_meta_data( '_linet_doc_id',  (string)  $json_response->body->id );
+        $order->update_meta_data( '_linet_docnum',  (string) $json_response->body->docnum );
+
+        $order->update_meta_data( '_linet_invoice_id',  (string) $json_response->body->id );
+        $order->update_meta_data( '_linet_currency_rate',  (string) $json_response->body->currency_rate );
+        $order->save();
 
         // Log response
         //$logger->write('LINET RESPONSE:' . "\n" .print_r($json_response,true));
@@ -253,7 +264,7 @@ class WC_LI_Invoice_Manager
         $message = __(' Order: ', 'wc-linet') . $order->get_id() . __(' Detail: ', 'wc-linet') . json_encode($json_response->body);
 
         wp_mail($to, $subject, $message);
-        wp_mail('ops@linet.org.il', get_site_url()." - ". $subject, $message);
+        wp_mail('ops@linet.org.il', get_site_url() . " - " . $subject, $message);
 
 
         // Format error message
@@ -293,7 +304,7 @@ class WC_LI_Invoice_Manager
 
 
     return self::send_invoice($order_id, $doctype);
- 
+
   }
 
   /**

@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.4.9
+Version: 3.5.0
 Text Domain: wc-linet
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -768,14 +768,13 @@ class WC_LI_Inventory
 
       $runtime = microtime(true);
       $sync_count = 0;
-
-      foreach ($products as $prod) {
-
-        if (microtime(true) - $runtime < WC_LI_Settings::RUNTIME_LIMIT) {
-          self::singleProdSync($prod, $logger);
-          $sync_count++;
+      if (is_array($products))
+        foreach ($products as $prod) {
+          if (microtime(true) - $runtime < WC_LI_Settings::RUNTIME_LIMIT) {
+            self::singleProdSync($prod, $logger);
+            $sync_count++;
+          }
         }
-      }
 
       echo json_encode(
         array(
@@ -1020,7 +1019,7 @@ class WC_LI_Inventory
         }
 
         if (!function_exists('wp_generate_attachment_metadata')) { //rest api!
-          include (ABSPATH . 'wp-admin/includes/image.php');
+          include(ABSPATH . 'wp-admin/includes/image.php');
         }
 
         $attachment = array(
@@ -1098,32 +1097,37 @@ class WC_LI_Inventory
 
   public static function findByProdId($item_id)
   {
-    global $wpdb;
-    $query = "SELECT * FROM $wpdb->posts LEFT JOIN $wpdb->postmeta ON $wpdb->postmeta.post_id=$wpdb->posts.ID " .
-      "WHERE " .
-      //"($wpdb->posts.post_type='product' OR $wpdb->posts.post_type='product_variation') AND " .
-      "$wpdb->postmeta.meta_key='_linet_id' AND $wpdb->postmeta.meta_value=%s LIMIT 1;";
-    $post = $wpdb->get_col($wpdb->prepare($query, array($item_id)));
 
-    if (count($post) == 1) {
-      return $post[0];
+    $products = wc_get_products(
+      [
+        'limit' => 1,
+        'meta_key' => '_linet_id',
+        'meta_value' => $item_id,
+      ]
+
+    );
+
+
+    if (count($products) == 1) {
+      return $products[0];
     }
     return false;
   }
 
   public static function findByProdSku($item_sku)
   {
-    global $wpdb;
 
-    $query = "SELECT ID FROM $wpdb->posts " .
-      "LEFT JOIN $wpdb->postmeta ON $wpdb->postmeta.post_id=$wpdb->posts.ID AND $wpdb->postmeta.meta_key='_sku'" .
-      " WHERE " .
-      "($wpdb->posts.post_type='product' OR $wpdb->posts.post_type='product_variation') AND " .
-      "$wpdb->postmeta.meta_value=%s LIMIT 1;";
-    $post = $wpdb->get_col($wpdb->prepare($query, array($item_sku)));
+    $products = wc_get_products(
+      [
+        'limit' => 1,
+        'meta_key' => '_sku',
+        'meta_value' => $item_sku,
+      ]
 
-    if (count($post) == 1) {
-      return $post[0];
+    );
+
+    if (count($products) == 1) {
+      return $products[0];
     }
     return false;
   }
@@ -1153,16 +1157,11 @@ class WC_LI_Inventory
   { //wp to linet
     $post_id = intval($_POST['post_id']);
 
-    global $wpdb;
-    $query = "SELECT * FROM $wpdb->posts " .
-      "WHERE " .
-      "($wpdb->posts.post_type='product' OR $wpdb->posts.post_type='product_variation') AND " .
 
-      " $wpdb->posts.post_status = 'publish' " .
-      "AND $wpdb->posts.ID=%d " .
-      "LIMIT 1  ;";
-
-    $product = $wpdb->get_results($wpdb->prepare($query, $post_id))[0];
+    $product = get_products(array(
+      'limit' => 1,
+      'include' => array($post_id),
+    ));
     $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
     $result = self::WpItemSync($product, $logger);
     if ($result)
@@ -1601,7 +1600,7 @@ class WC_LI_Inventory
       //if (!$item->item->vatIn) {
       //  $discount = $saleprice - $item->item->discount * (1 + $item->vat_rate / 100);
       //} else {
-        $discount = $saleprice - $item->item->discount;
+      $discount = $saleprice - $item->item->discount;
       //}
       $discount = round($discount, 2);
 
@@ -1672,7 +1671,7 @@ class WC_LI_Inventory
     if (is_array($itemFields) && isset($itemFields["linet_field"])) {
       foreach ($itemFields["linet_field"] as $index_key => $key_field_linet) {
         $linet_field = $key_field_linet;
-        if(is_numeric($key_field_linet))
+        if (is_numeric($key_field_linet))
           $linet_field = 'eav' . $key_field_linet;
 
         $wc_field = $itemFields["wc_field"][$index_key];

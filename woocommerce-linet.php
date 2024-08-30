@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 3.4.9
+  Version: 3.5.0
   Text Domain: wc-linet
   Domain Path: /languages/
   WC requires at least: 2.2
@@ -43,12 +43,15 @@ require_once 'woo-includes/woo-functions.php';
  * Main plugin class
  */
 class WC_Linet {
-  const VERSION = '3.4.9';
+  const VERSION = '3.5.0';
   /**
    * The constructor
    */
   public function __construct() {
     if (is_woocommerce_active() && version_compare(WC()->version, '2.5.0', '>=')) {
+
+
+
       $this->setup();
     }
 
@@ -202,3 +205,9 @@ function __woocommerce_linet_main() {
 
 // Initialize plugin when plugins are loaded
 add_action('plugins_loaded', '__woocommerce_linet_main');
+
+add_action( 'before_woocommerce_init', function() {
+	if ( class_exists( \Automattic\WooCommerce\Utilities\FeaturesUtil::class ) ) {
+		\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
+	}
+} );
