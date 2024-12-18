@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.5.0
+Version: 3.5.5
 Text Domain: wc-linet
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -166,7 +166,6 @@ class WC_LI_Invoice
 
       $detail = array(
         "item_id" => $item_id,
-        //getLinetId $item['product_id']
         "name" => html_entity_decode($name),
         "description" => "",
         "qty" => $item['qty'],
@@ -207,7 +206,6 @@ class WC_LI_Invoice
       $this->doc['docDet'] = [
         [
           "item_id" => $genral_item,
-          //getLinetId $item['product_id']
           "name" => __('Online Order', 'wc-linet') . " #" . $order->get_id(),
           "description" => "",
           "qty" => 1,
@@ -249,7 +247,6 @@ class WC_LI_Invoice
 
       $detail = [
         "item_id" => $genral_item,
-        //getLinetId $item['product_id']
         "name" => "Coupon Codes: " . implode(", ", $names),
         "description" => "",
         "qty" => -1,
@@ -288,7 +285,6 @@ class WC_LI_Invoice
 
       $detail = [
         "item_id" => $genral_item,
-        //getLinetId $item['product_id']
         "name" => html_entity_decode($method->get_method_title()),
         "description" => "",
         "qty" => $qty,
@@ -322,7 +318,6 @@ class WC_LI_Invoice
 
       $detail = [
         "item_id" => $genral_item,
-        //getLinetId $item['product_id']
         "name" => html_entity_decode($fee['name']),
         "description" => "",
         "qty" => ($fee['total'] < 0) ? -1 : 1,
@@ -608,10 +603,10 @@ class WC_LI_Invoice
     $linetSkuFind = get_option('wc_linet_sku_find');
 
     if ($linetSkuFind == 'on') {
-      $product_data = $product->get_meta('_sku');
+      $sku = $product->get_meta('_sku');
 
-      if (count($product_data) == 1) {
-        $res = WC_LI_Settings::sendAPI('search/item', ['sku' => $product_data[0]]);
+      if ($sku != "") {
+        $res = WC_LI_Settings::sendAPI('search/item', ['sku' => $sku]);
         if (is_array($res->body)) {
           //echo "id(by sku):" . $res->body[0]->id;exit;
           return $res->body[0]->id;
@@ -619,10 +614,10 @@ class WC_LI_Invoice
       }
     } else {
 
-      $product_data = $product->get_meta('_linet_id');
+      $linet_id = $product->get_meta('_linet_id');
 
-      if (count($product_data) == 1 && !is_null($product_data[0])) {
-        return $product_data[0];
+      if ($linet_id!="") {
+        return $linet_id;
       }
     }
     //echo "id not found:". $itemId;  exit;

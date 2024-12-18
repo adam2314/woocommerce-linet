@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.5.0
+Version: 3.5.8
 Text Domain: wc-linet
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -54,6 +54,8 @@ class WC_LI_Sns
     unset($params['limit']);
 
     $params['id'] = $item_id;
+    $logger->write("updateItem: " . $item_id);
+
 
     $products = WC_LI_Settings::sendAPI(WC_LI_Inventory::syncStockURL(), $params);
     foreach ($products->body as $item) {

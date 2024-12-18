@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.5.0
+Version: 3.5.2
 Text Domain: wc-linet
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -407,8 +407,9 @@ class WC_LI_Inventory
 
   public static function WpItemSync($item, $logger)
   { //wp->linet
-    $product = wc_get_product($item->ID);
-    $logger->write("WpItemSync (post_id): " . $item->ID);
+    $pf = new WC_Product_Factory();
+    $product = $pf->get_product($item->ID);
+    $logger->write("WpItemSync (post_id): $product->ID" . $item->ID);
 
 
     $metas = get_post_meta($item->ID);
@@ -734,6 +735,11 @@ class WC_LI_Inventory
 
   public static function catSyncAjax()
   {
+    if(!is_admin()){
+      echo "Go Away!";
+      wp_die();
+
+    }
     $mode = $_POST['mode'];
     $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
 
@@ -1019,7 +1025,7 @@ class WC_LI_Inventory
         }
 
         if (!function_exists('wp_generate_attachment_metadata')) { //rest api!
-          include(ABSPATH . 'wp-admin/includes/image.php');
+          include (ABSPATH . 'wp-admin/includes/image.php');
         }
 
         $attachment = array(
@@ -1084,7 +1090,7 @@ class WC_LI_Inventory
     global $wpdb;
     $query = "SELECT meta_value FROM $wpdb->posts LEFT JOIN $wpdb->postmeta ON $wpdb->postmeta.post_id=$wpdb->posts.ID " .
       "WHERE " .
-      //"($wpdb->posts.post_type='product' OR $wpdb->posts.post_type='product_variation') AND " .
+      "($wpdb->posts.post_type='product' OR $wpdb->posts.post_type='product_variation') AND " .
       "$wpdb->postmeta.meta_key='_linet_id' AND $wpdb->posts.ID=%d LIMIT 1;";
     $post = $wpdb->get_col($wpdb->prepare($query, array($post_id)));
 
@@ -1103,9 +1109,12 @@ class WC_LI_Inventory
         'limit' => 1,
         'meta_key' => '_linet_id',
         'meta_value' => $item_id,
+        'type' => array('variation', 'simple', 'variable'),
+
       ]
 
     );
+    //var_dump($products);exit;
 
 
     if (count($products) == 1) {
@@ -1122,6 +1131,8 @@ class WC_LI_Inventory
         'limit' => 1,
         'meta_key' => '_sku',
         'meta_value' => $item_sku,
+        'type' => array('variation', 'simple', 'variable'),
+
       ]
 
     );
@@ -1143,13 +1154,18 @@ class WC_LI_Inventory
     return false;
   }
 
-  public static function updateTaxonomy($item, $post_id)
+  public static function updateTaxonomy($item, $product)
   {
     $terms = array(self::findByCatId($item->item->category_id));
     foreach ($item->categories_ids as $cat) {
       $terms[] = self::findByCatId($cat);
     }
-    $res = wp_set_post_terms($post_id, $terms, 'product_cat');
+
+    $product->set_category_ids($terms);
+
+    //$res = wp_set_post_terms($post_id, $terms, 'product_cat');
+
+
   }
 
 
@@ -1158,10 +1174,12 @@ class WC_LI_Inventory
     $post_id = intval($_POST['post_id']);
 
 
-    $product = get_products(array(
-      'limit' => 1,
-      'include' => array($post_id),
-    ));
+    $product = get_products(
+      array(
+        'limit' => 1,
+        'include' => array($post_id),
+      )
+    );
     $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
     $result = self::WpItemSync($product, $logger);
     if ($result)
@@ -1206,6 +1224,9 @@ class WC_LI_Inventory
 
   public static function singleSync($post_id)
   {
+    $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
+    $logger->write("singleSync: " . $post_id);
+
     $metas = get_post_meta($post_id);
     $item = null;
     $found = false;
@@ -1231,7 +1252,6 @@ class WC_LI_Inventory
     }
 
     if (!is_null($item)) {
-      $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
 
       $result = self::singleProdSync($item, $logger);
 
@@ -1353,63 +1373,92 @@ class WC_LI_Inventory
     $global_attr = get_option('wc_linet_global_attr') == 'on';
 
     $no_description = get_option('wc_linet_no_description') == 'on';
+    $logger->write("singleProdSync start: " . $item->item->id);
 
 
     $parent_id = false;
+    $post_id = false;
+
+    $product = self::findByProdId($item->item->id);
 
     if ($onlyStockManage == 'on') {
-      $post_id = self::findByProdId($item->item->id);
-      if (!$post_id)
-        $post_id = self::findByProdSku($item->item->sku);
-      $product = wc_get_product($post_id);
 
-      if ($post_id && $product) {
+      if (!$product)
+        $product = self::findByProdSku($item->item->sku);
+
+      if ($product) {
         //date('Y-m-d H:i:s')
         $product->update_meta_data('_linet_last_update', date('Y-m-d H:i:s'));
         $product = self::updateStock($product, $item, $logger);
+        $logger->write("singleProdSync only stock: (post_id,linet_id){$product->get_id()}," . $item->item->id);
+
       }
 
-      $logger->write("singleProdSync only stock: (post_id,linet_id)$post_id," . $item->item->id);
 
       return 0;
     }
 
-    $post_id = self::findByProdId($item->item->id);
-
+    //$post_id = self::findByProdId($item->item->id);
     $product_type = "product";
-    if ($item->item->isProduct == 0 && $item->item->parent_item_id != 0)
-      $product_type = "product_variation";
-    if ($item->item->isProduct == 3)
+    $product_update_type = "product";
+
+    
+    if ($product)
+      $post_id = $product->get_id();
+
+      if ($item->item->isProduct == 0 && $item->item->parent_item_id != 0){
+        $product_type = "product_variation";
+        $product_fc_type = "variation";
+
+
+      }
+    if ($item->item->isProduct == 3){
       $product_type = "variable";
+      $product_fc_type = "variable";
+
+
+    }
 
     $logger->write("singleProdSync: $product_type(post_id,linet_id)$post_id," . $item->item->id);
-    $product = false;
+
+    //$product = false;
 
     if (!$post_id) {
 
-      $post_id = self::findByProdSku($item->item->sku);
-      $logger->write("singleProdSync by sku: $product_type(post_id,linet_id)$post_id," . $item->item->id);
+      $product = self::findByProdSku($item->item->sku);
+      $logger->write("singleProdSync by sku: $product_type(linet_id)," . $item->item->id);
 
     }
 
 
 
-    if ($post_id) {
-      $logger->write("singleProdSync update");
+    if ($product && is_object($product)&& $product_type!=$product->get_type()) {
+      $post_id = $product->get_id();
+      $logger->write("singleProdSyncType  $product_type(linet_id)," . $product->get_type());
+
+      $logger->write("singleProdSyncType update");
       $update_product_type = $product_type;
 
       if ($update_product_type == "variable") {
         wp_set_object_terms($post_id, 'variable', 'product_type');
         $update_product_type = "product";
-      } else {
+        
+      } else if ($update_product_type == "product_variation"){
+        wp_set_object_terms($post_id, '', 'product_type');
+
+      }else{
         wp_set_object_terms($post_id, 'simple', 'product_type');
+
       }
 
       wp_update_post(array("ID" => $post_id, "post_type" => $update_product_type));
 
-      $logger->write("singleProdSync: $post_id");
+      $logger->write("singleProdSyncType: $post_id");
 
-      $product = wc_get_product($post_id);
+
+      $classname = WC_Product_Factory::get_product_classname( $post_id, $product_fc_type );
+      $product   = new $classname( $post_id );
+      //$product = wc_get_product($post_id);
 
     }
 
@@ -1452,7 +1501,7 @@ class WC_LI_Inventory
 
     if ($item->item->isProduct == 3) {
 
-      self::updateTaxonomy($item, $post_id);
+      self::updateTaxonomy($item, $product);
 
       $logger->write("singleProdSync updateTaxonomy mutex parent");
 
@@ -1532,12 +1581,12 @@ class WC_LI_Inventory
     } else {
       if ($item->item->isProduct == 0 && $item->item->parent_item_id != 0) {
 
-        $parent_id = self::findByProdId($item->item->parent_item_id);
+        $parent_product = self::findByProdId($item->item->parent_item_id);
 
-        $logger->write("parent_id wp,linet: " . $parent_id . "," . $item->item->parent_item_id);
+        $logger->write("parent_id wp,linet: " . $parent_product->get_id() . "," . $item->item->parent_item_id);
 
         $product->set_name($item->item->sku);
-        $product->set_parent_id($parent_id);
+        $product->set_parent_id($parent_product->get_id());
 
         $attributes = array();
 
@@ -1581,7 +1630,7 @@ class WC_LI_Inventory
         //maybe? WC_Product_Variable::sync( $parent_id );
 
       } else {
-        self::updateTaxonomy($item, $post_id);
+        self::updateTaxonomy($item, $product);
         $logger->write("singleProdSync updateTaxonomy simple");
       }
     }
@@ -1615,9 +1664,9 @@ class WC_LI_Inventory
 
     } catch (Exception $e) {
 
-      $tmp = self::findByProdId($item->item->id);
+      $product = self::findByProdId($item->item->id);
 
-      if ($tmp !== false) {
+      if ($product !== false) {
         $logger->write("singleProdSync: found linet id assuming double fast call, cancel update");
         $product->delete(true);
         return 0;

@@ -46,11 +46,25 @@ No answer to that question.
 
 == Changelog ==
 
+- 2024.12.18 - version 3.5.8 =
 
-- 2024.08.30 - version 3.5.0 =
+- added nonce support for csrf protction
+
+- 2024.12.03 - version 3.5.7 =
+
+- vari change
+
+- 2024.09.19 - version 3.5.6 =
+
+- sku change
+
+- linet find- 2024.09.2 - version 3.5.5 =
 
 - woocommerce hpos support
 - tranzila native plugin support
+- var prod error
+- sku find
+- linet find
 
 - 2024.06.27 - version 3.4.9 =
 

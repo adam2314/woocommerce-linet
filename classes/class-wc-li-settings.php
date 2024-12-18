@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.5.0
+Version: 3.5.5
 Text Domain: wc-linet
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -50,32 +50,60 @@ class WC_LI_Settings
 
     add_action('linetItemSync', 'WC_LI_Inventory::fullSync');
 
+    //if (is_user_logged_in() && current_user_can('administrator') && wp_verify_nonce(get_header('x-wp-nonce'), 'action')) {
+    //
+
+    function getRequestHeaders()
+    {
+      $headers = array();
+      foreach ($_SERVER as $key => $value) {
+        if (substr($key, 0, 5) <> 'HTTP_') {
+          continue;
+        }
+        $header = str_replace(' ', '-', ucwords(str_replace('_', ' ', strtolower(substr($key, 5)))));
+        $headers[$header] = $value;
+      }
+      return $headers;
+    }
+    $headers = getRequestHeaders();
+
+
+
+    //var_dump($headers);
     if (is_user_logged_in() && current_user_can('administrator')) {
 
-      add_action('wp_ajax_LinetGetFile', 'WC_LI_Settings::LinetGetFile');
-      add_action('wp_ajax_LinetDeleteFile', 'WC_LI_Settings::LinetDeleteFile');
-      add_action('wp_ajax_LinetDeleteProd', 'WC_LI_Settings::LinetDeleteProd');
 
-      add_action('wp_ajax_LinetDeleteAttachment', 'WC_LI_Settings::LinetDeleteAttachment');
-      add_action('wp_ajax_LinetCalcAttachment', 'WC_LI_Settings::LinetCalcAttachment');
+      if (isset($headers['X-Wp-Nonce']) && wp_verify_nonce($headers['X-Wp-Nonce'], 'wp_rest')) {
 
+        add_action('wp_ajax_LinetGetFile', 'WC_LI_Settings::LinetGetFile');
+        add_action('wp_ajax_LinetDeleteFile', 'WC_LI_Settings::LinetDeleteFile');
+        add_action('wp_ajax_LinetDeleteProd', 'WC_LI_Settings::LinetDeleteProd');
 
-      add_action('wp_ajax_LinetTest', 'WC_LI_Settings::TestAjax');
-
-      add_action('wp_ajax_RulerAjax', 'WC_LI_Settings::RulerAjax');
+        add_action('wp_ajax_LinetDeleteAttachment', 'WC_LI_Settings::LinetDeleteAttachment');
+        add_action('wp_ajax_LinetCalcAttachment', 'WC_LI_Settings::LinetCalcAttachment');
 
 
 
-      add_action('wp_ajax_LinetItemSync', 'WC_LI_Inventory::catSyncAjax'); //linet to wp all prod
+        add_action('wp_ajax_LinetTest', 'WC_LI_Settings::TestAjax');
+
+        add_action('wp_ajax_RulerAjax', 'WC_LI_Settings::RulerAjax');
+
+
+
+        add_action('wp_ajax_LinetItemSync', 'WC_LI_Inventory::catSyncAjax'); //linet to wp all prod
+
+
+        add_action('wp_ajax_LinetCatList', 'WC_LI_Inventory::CatListAjax');
+
+        add_action('wp_ajax_WpItemSync', 'WC_LI_Inventory::WpItemsSyncAjax');
+        add_action('wp_ajax_WpCatSync', 'WC_LI_Inventory::WpCatSyncAjax');
+
+      }
+
 
       add_action('wp_ajax_LinetSingleItemSync', 'WC_LI_Inventory::singleSyncAjax'); //linet to wp
       add_action('wp_ajax_LinetSingleProdSync', 'WC_LI_Inventory::singleProdAjax'); //wp to linet
 
-
-      add_action('wp_ajax_LinetCatList', 'WC_LI_Inventory::CatListAjax');
-
-      add_action('wp_ajax_WpItemSync', 'WC_LI_Inventory::WpItemsSyncAjax');
-      add_action('wp_ajax_WpCatSync', 'WC_LI_Inventory::WpCatSyncAjax');
 
     }
 
@@ -465,7 +493,7 @@ class WC_LI_Settings
     wp_die();
   }
 
-  public static function LinetDeleteProd($id)
+  public static function LinetDeleteProd()
   {
 
     $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
@@ -777,7 +805,6 @@ class WC_LI_Settings
     add_action('admin_menu', array($this, 'add_menu_item'));
 
     add_action('post_submitbox_start', array($this, 'custom_button'));
-    //add_action('post_submitbox_start', array($this, 'custom_button_wp'));
 
 
     add_action('product_cat_edit_form_fields', array($this, 'custom_term_button'));
@@ -806,29 +833,53 @@ class WC_LI_Settings
 
     $types = ['product'];
     if (in_array(get_post_type($post), $types)) {
+      wp_localize_script('wp-api', 'wpApiSettings', array(
+        'root' => esc_url_raw(rest_url()),
+        'nonce' => wp_create_nonce('wp_rest')
+      ));
       $metas = get_post_meta($post->ID);
       ?>
       <script>
         var linet = {
           singleSync: function (post_id) {
-            jQuery.post(ajaxurl, {
+            var data = {
               'action': 'LinetSingleItemSync',
               'post_id': post_id
-              //'post_id': jQuery(this).data("post_id")
-            }, function (response) {
+            };
+            jQuery.ajax({
+              url: ajaxurl,
+              method: 'POST',
+              dataType: "json",
+
+              beforeSend: function (xhr) {
+                xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+              },
+              data: data
+            }).done(function (response) {
               alert(response.status);
               location.reload();
-            }, 'json');
+            });
+
+
           },
           singleToSync: function (post_id) {
-            jQuery.post(ajaxurl, {
+            var data = {
               'action': 'LinetSingleProdSync',
               'post_id': post_id
-              //'post_id': jQuery(this).data("post_id")
-            }, function (response) {
+            };
+            jQuery.ajax({
+              url: ajaxurl,
+              method: 'POST',
+              dataType: "json",
+
+              beforeSend: function (xhr) {
+                xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+              },
+              data: data
+            }).done(function (response) {
               alert(response.status);
               location.reload();
-            }, 'json');
+            });
           }
         }
       </script>
@@ -836,39 +887,10 @@ class WC_LI_Settings
       <?= isset($metas['_linet_id']) && $metas['_linet_id']['0'] ? $metas['_linet_id']["0"] : "No Linet ID" ?><br />
       Linet Last Upate:
       <?= isset($metas['_linet_last_update']) && $metas['_linet_last_update']['0'] ? $metas['_linet_last_update']["0"] : "unkown" ?><br />
-
       <a class="button" data-post_id="<?= $post->ID; ?>" onclick="linet.singleSync(<?= $post->ID; ?>);">Sync Item From
         Linet</a>
-
-
       <a class="button hidden" data-post_id="<?= $post->ID; ?>" onclick="linet.singleToSync(<?= $post->ID; ?>);">Sync Item To
         Linet</a>
-      <?php
-    }
-  }
-
-  function custom_button_wp($post)
-  {
-    $types = ['product'];
-    if (in_array(get_post_type($post), $types)) {
-      ?>
-      <script>
-        var wlinet = {
-          singleProdSync: function (post_id) {
-            jQuery.post(ajaxurl, {
-              'action': 'LinetSingleProdSync',
-              'post_id': post_id
-              //'post_id': jQuery(this).data("post_id")
-            }, function (response) {
-              alert(response.status);
-              location.reload();
-            }, 'json');
-          }
-        }
-      </script>
-      <a class="button" data-post_id="<?= $post->ID; ?>" onclick="wlinet.singleProdSync(<?= $post->ID; ?>);">
-        Sync Item To Linet
-      </a>
       <?php
     }
   }
@@ -1129,7 +1151,15 @@ class WC_LI_Settings
         </h2>
 
         <?php settings_fields('woocommerce_linet'); ?>
-        <?php do_settings_sections('woocommerce_linet'); ?>
+        <?php do_settings_sections('woocommerce_linet');
+
+        wp_localize_script('wp-api', 'wpApiSettings', array(
+          'root' => esc_url_raw(rest_url()),
+          'nonce' => wp_create_nonce('wp_rest')
+        ));
+
+        ?>
+
 
         <p class="submit"><input type="submit" class="button-primary" value="Save" /></p>
         <script>
@@ -1147,9 +1177,19 @@ class WC_LI_Settings
                 'action': 'LinetDeleteAttachment',
                 'id': id
               };
-              jQuery.post(ajaxurl, data, function (response) {
 
+              jQuery.ajax({
+                url: ajaxurl,
+                method: 'POST',
+                beforeSend: function (xhr) {
+                  xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                },
+                data: data
+              }).done(function (response) {
+                console.log(response);
               });
+
+
               return false;
             },
             calcAttachment: function (obj) {
@@ -1163,14 +1203,27 @@ class WC_LI_Settings
                 'file': file,
                 'id': id
               };
-              jQuery.post(ajaxurl, data, function (response) {
 
+
+
+              jQuery.ajax({
+                url: ajaxurl,
+                method: 'POST',
+                beforeSend: function (xhr) {
+                  xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                },
+                data: data
+              }).done(function (response) {
+                console.log(response);
               });
+
+
+
               return false;
             },
 
             deleteProd: function (e, obj) {
-              console.log(obj); console.log(jQuery(obj).data());
+
               e.preventDefault();
 
 
@@ -1184,9 +1237,18 @@ class WC_LI_Settings
                 'value': value
               };
 
-              jQuery.post(ajaxurl, data, function (response) {
+              jQuery.ajax({
+                url: ajaxurl,
+                method: 'POST',
+                beforeSend: function (xhr) {
+                  xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
 
+                },
+                data: data
+              }).done(function (response) {
+                console.log(response);
               });
+
               return false;
             },
             deleteFile: function (e, obj) {
@@ -1198,9 +1260,19 @@ class WC_LI_Settings
                 'action': 'LinetDeleteFile',
                 'name': name
               };
-              jQuery.post(ajaxurl, data, function (response) {
 
+              jQuery.ajax({
+                url: ajaxurl,
+                method: 'POST',
+                beforeSend: function (xhr) {
+                  xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+
+                },
+                data: data
+              }).done(function (response) {
+                console.log(response);
               });
+
               return false;
             },
             getFile: function (name) {
@@ -1208,13 +1280,24 @@ class WC_LI_Settings
                 'action': 'LinetGetFile',
                 'name': name
               };
-              jQuery.post(ajaxurl, data, function (response) {
+              jQuery.ajax({
+                url: ajaxurl,
+                method: 'POST',
+                beforeSend: function (xhr) {
+                  xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                  xhr.setRequestHeader('X-WP-AA', wpApiSettings.nonce);
+
+                },
+                data: data
+              }).done(function (response) {
+                console.log(response);
                 var blob = new Blob([response]);
                 var link = document.createElement('a');
                 link.href = window.URL.createObjectURL(blob);
                 link.download = name;
                 link.click();
               });
+
               return false;
             },
 
@@ -1226,13 +1309,19 @@ class WC_LI_Settings
               };
 
 
-              jQuery.post(ajaxurl, data, function (response) {
-                //console.log(response);
-                //console.log(response);
-                alert(response.text);
-                //count
+              jQuery.ajax({
+                url: ajaxurl,
+                method: 'POST',
+                dataType: "json",
 
-              }, 'json');
+                beforeSend: function (xhr) {
+                  xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                },
+                data: data
+              }).done(function (response) {
+                alert(response.text);
+              });
+
 
 
             },
@@ -1245,13 +1334,18 @@ class WC_LI_Settings
               };
 
 
-              jQuery.post(ajaxurl, data, function (response) {
-                //console.log(response);
-                //console.log(response);
+              jQuery.ajax({
+                url: ajaxurl,
+                method: 'POST',
+                beforeSend: function (xhr) {
+                  xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                },
+                data: data
+              }).done(function (response) {
                 alert(response);
-                //count
+              });
 
-              }, 'json');
+
 
 
             },
@@ -1263,7 +1357,17 @@ class WC_LI_Settings
                 'mode': 0
               };
               jQuery('#mItems').removeClass('hidden');
-              jQuery.post(ajaxurl, data, function (response) {
+
+
+
+              jQuery.ajax({
+                url: ajaxurl,
+                method: 'POST',
+                beforeSend: function (xhr) {
+                  xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                },
+                data: data
+              }).done(function (response) {
                 jQuery('#target').html("Items:  0/" + response);
                 jQuery('#targetBar').prop('max', response);
                 linet.timeoutErrorCount = 0;
@@ -1272,6 +1376,9 @@ class WC_LI_Settings
 
                 }
               });
+
+
+
               return false
             },
 
@@ -1282,7 +1389,6 @@ class WC_LI_Settings
                 'offset': offset,
                 'mode': 1
               };
-              //max = jQuery('#targetBar').attr("max");
 
               clearTimeout(linet.resumeTimeOut);
 
@@ -1295,22 +1401,28 @@ class WC_LI_Settings
 
               num = jQuery('#targetBar').prop('max');
 
+              jQuery.ajax({
+                url: ajaxurl,
+                method: 'POST',
+                beforeSend: function (xhr) {
+                  xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                },
+                data: data
+              }).done(function (response) {
 
-
-              jQuery.post(ajaxurl, data, function (response) {
                 //console.log(response);
                 bar = offset + response * 1;
 
                 jQuery('#target').html("Items:  " + bar + "/" + num);
                 jQuery('#targetBar').val(bar);
-                //jQuery('#subTarget').html("Items: 0" );
 
                 if (num - bar > 0)
                   linet.prodSync(bar);
-                //jQuery('#subTargetBar').attr("max", 1 * response);
                 //linet.subCall(num - 1, 1);
                 //count
               });
+
+
             },
 
 
@@ -1324,46 +1436,72 @@ class WC_LI_Settings
                 //'mode': 1
               };
 
-              jQuery.post(ajaxurl, data, function (response) {
+
+              jQuery.ajax({
+                url: ajaxurl,
+                method: 'POST',
+                dataType: "json",
+
+                beforeSend: function (xhr) {
+                  xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                },
+                data: data
+              }).done(function (response) {
                 jQuery('#catList').html("");
                 for (i = 0; i < response.body.length; i++) {
                   jQuery('#catList').append("<li>" + response.body[i].name + " <span id='catValue" + response.body[i].id + "'></span></li>");
-
-                  jQuery.post(ajaxurl, {
+                  var data = {
                     'action': 'WpCatSync',
                     'id': response.body[i].id,
                     'catName': response.body[i].name
-                  }, function (response) {
+                  };
+
+                  jQuery.ajax({
+                    url: ajaxurl,
+                    method: 'POST',
+                    beforeSend: function (xhr) {
+                      xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                    },
+                    data: data
+                  }).done(function (response) {
                     linet.catDet(response);
 
-                  }, 'json');
+                  });
+
+
 
                 }
 
-              }, 'json');
+              });
+
 
             },
 
             fullItemsSync: function () {
               //event.preventDefault();
+              jQuery('#mItems').show();
 
               var data = {
                 'action': 'LinetItemSync',
                 'mode': 'CatSync'
               };
 
-              jQuery('#wclin-btn').prop('disabled', true);
-              jQuery('#linwc-btn').prop('disabled', true);
+              jQuery.ajax({
+                url: ajaxurl,
+                method: 'POST',
+                dataType: "json",
 
-              jQuery('#mItems').removeClass('hidden');
-              jQuery.post(ajaxurl, data, function (response) {
-                //console.log(response);
+                beforeSend: function (xhr) {
+                  xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                },
+                data: data
+              }).done(function (response) {
+                console.log(response)
                 jQuery('#target').html("Categories:  " + response.cats + "");
-                //jQuery('#targetBar').attr("max", response);
                 linet.timeoutErrorCount = 0;
 
                 linet.itemSync(0);
-              }, 'json');
+              });
               return false
             },
 
@@ -1387,7 +1525,16 @@ class WC_LI_Settings
               )
 
               var items = jQuery('#subTargetBar').val() * 1;
-              jQuery.post(ajaxurl, data, function (response) {
+              jQuery.ajax({
+                url: ajaxurl,
+                method: 'POST',
+                dataType: "json",
+
+                beforeSend: function (xhr) {
+                  xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                },
+                data: data
+              }).done(function (response) {
 
                 jQuery('#subTarget').html("Items: " + (offset + response.items));
                 jQuery('#subTargetBar').val(offset + response.items);
@@ -1399,7 +1546,7 @@ class WC_LI_Settings
                   linet.lastCall();
 
                 }
-              }, 'json');
+              });
 
               //next cat
             },
@@ -1409,8 +1556,16 @@ class WC_LI_Settings
                 'action': 'LinetItemSync',
                 'mode': 3
               };
-              jQuery.post(ajaxurl, data, function (response) {
-                //done!
+              jQuery.ajax({
+                url: ajaxurl,
+                method: 'POST',
+                //dataType: "json",
+
+                beforeSend: function (xhr) {
+                  xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                },
+                data: data
+              }).done(function (response) {                //done!
                 jQuery('#wclin-btn').prop('disabled', false);
                 jQuery('#linwc-btn').prop('disabled', false);
               })
