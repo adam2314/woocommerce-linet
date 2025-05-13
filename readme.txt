@@ -46,6 +46,33 @@ No answer to that question.
 
 == Changelog ==
 
+- 2025.05.13 - version 3.6.0 =
+
+- minor security fix
+
+- revert back for find function
+
+
+
+- 2025.03.27 - version 3.5.12 =
+
+- revert sku and linet id find
+
+- better product handler
+
+
+- 2025.02.25 - version 3.5.11 =
+
+- add option to disable nonce
+
+- 2025.01.14 - version 3.5.10 =
+
+- woo comerce no product id to linet gen item
+
+- 2024.12.25 - version 3.5.9 =
+
+- added send SMS
+
 - 2024.12.18 - version 3.5.8 =
 
 - added nonce support for csrf protction

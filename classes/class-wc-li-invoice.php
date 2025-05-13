@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.5.5
+Version: 3.6.0
 Text Domain: wc-linet
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -599,27 +599,30 @@ class WC_LI_Invoice
 
   private function getLinetItemId($product)
   {
+    if ($product !== false) {
 
-    $linetSkuFind = get_option('wc_linet_sku_find');
+      $linetSkuFind = get_option('wc_linet_sku_find');
 
-    if ($linetSkuFind == 'on') {
-      $sku = $product->get_meta('_sku');
+      if ($linetSkuFind == 'on') {
+        $sku = $product->get_meta('_sku');
 
-      if ($sku != "") {
-        $res = WC_LI_Settings::sendAPI('search/item', ['sku' => $sku]);
-        if (is_array($res->body)) {
-          //echo "id(by sku):" . $res->body[0]->id;exit;
-          return $res->body[0]->id;
+        if ($sku != "") {
+          $res = WC_LI_Settings::sendAPI('search/item', ['sku' => $sku]);
+          if (is_array($res->body)) {
+            //echo "id(by sku):" . $res->body[0]->id;exit;
+            return $res->body[0]->id;
+          }
+        }
+      } else {
+
+        $linet_id = $product->get_meta('_linet_id');
+
+        if ($linet_id != "") {
+          return $linet_id;
         }
       }
-    } else {
-
-      $linet_id = $product->get_meta('_linet_id');
-
-      if ($linet_id!="") {
-        return $linet_id;
-      }
     }
+
     //echo "id not found:". $itemId;  exit;
     $genral_item = (string) get_option('wc_linet_genral_item');
     $genral_item = ($genral_item == "") ? "1" : $genral_item;
@@ -820,6 +823,7 @@ class WC_LI_Invoice
     //$this->doc["currency_rate"] = "1";
 
     $this->doc["sendmail"] = (get_option('wc_linet_autosend') == 'off') ? 0 : 1;
+    $this->doc["sendsms"] = (get_option('wc_linet_autosendsms') == 'on') ? 1 : 0;
 
     $this->doc = WC_LI_Settings_Map::metaMapOrder($this->doc, $this->order, "orderFields");
 
