@@ -33,7 +33,7 @@ class WC_LI_Linet_Elementor extends \ElementorPro\Modules\Forms\Classes\Action_B
    */
   public function get_label()
   {
-    return __('Linet', 'wc-linet');
+    return __('Linet', 'linet-erp-woocommerce-integration');
   }
 
   /**
@@ -108,56 +108,12 @@ class WC_LI_Linet_Elementor extends \ElementorPro\Modules\Forms\Classes\Action_B
     $widget->start_controls_section(
       'section_linet',
       [
-        'label' => __('linet', 'wc-linet'),
+        'label' => __('linet', 'linet-erp-woocommerce-integration'),
         'condition' => [
           'submit_actions' => $this->get_name(),
         ],
       ]
     );
-
-
-    /*$widget->add_control(
-    'linet_list',
-    [
-    'label' => __( 'Active', 'linet' ),
-    'type' => \Elementor\Controls_Manager::SELECT,
-    'options' => array("0"=>"inactive","1"=>"active"),
-    ]
-    );*/
-
-    $html = sprintf(__('Please make sure the form fields (inputs) are with the correct name on your linet account <a href="%1$s" target="_blank">Full Guide</a>.', 'wc-linet'), get_admin_url() . "admin.php?page=flashy");
-
-    $content_classes = 'elementor-panel-alert elementor-panel-alert-warning';
-    $widget->add_control(
-      '_linet_api_msg',
-      [
-        'type' => \Elementor\Controls_Manager::RAW_HTML,
-        'raw' => $html,
-        'content_classes' => $content_classes,
-      ]
-    );
-
-    /*
-    if(isset($formdata["settings"])&&is_array($formdata["settings"]["form_fields"])&& false)
-    foreach ($formdata["settings"]["form_fields"] as $nextfield) {
-    $widget->add_control(
-    $nextfield['custom_id'],
-    [
-    'label' => $nextfield['field_label'],
-    'type' => \Elementor\Controls_Manager::SELECT,
-    'type' => \Elementor\Controls_Manager::RAW_HTML,
-    'options' => $lists,
-    ]
-    );
-    // code...
-    }
-    //*/
-
-
-    //var_dump($formdata["settings"]["form_fields"]) ;exit;
-
-
-
     $widget->end_controls_section();
   }
 

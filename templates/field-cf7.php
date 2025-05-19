@@ -7,8 +7,8 @@ if(isset($options["sync"])&&$options["sync"]=="on"){
 
  ?>
 
-<input type='checkbox' name='<?=self::OPTION_PREFIX.$args['key'];?>[sync]' <?=$linet_sync;?> id='<?=self::OPTION_PREFIX.$args['key'];?>_sync' />
-<label for="<?=self::OPTION_PREFIX.$args['key'];?>_sync"> <?=__('Sync', 'wc-linet');?></label>
+<input type='checkbox' name='<?php echo esc_attr((self::OPTION_PREFIX.$args['key']));?>[sync]' <?php echo esc_attr($linet_sync);?> id='<?php echo esc_attr(self::OPTION_PREFIX.$args['key']);?>_sync' />
+<label for="<?php echo esc_attr(self::OPTION_PREFIX.$args['key']);?>_sync"> <?php echo esc_html__('Sync', 'linet-erp-woocommerce-integration');?></label>
 
 <table style="border-collapse: collapse;">
 	<thead>
@@ -22,9 +22,9 @@ if(isset($options["sync"])&&$options["sync"]=="on"){
 <?php //var_dump($args);
 
 $contact_fields=array(
-	""=>__("None", 'wp-linet'),
-	//"value"=>__("Value", 'wp-linet'),
-	"map"=>__("Map", 'wp-linet')
+	""=>__("None", 'linet-erp-woocommerce-integration'),
+	//"value"=>__("Value", 'linet-erp-woocommerce-integration'),
+	"map"=>__("Map", 'linet-erp-woocommerce-integration')
 );
 
 $ContactForm = WPCF7_ContactForm::get_instance( $args["option"]["payload"]["form_id"]);
@@ -45,21 +45,21 @@ foreach ($fields as $field) {
 
 	?>
 			<tr>
-				<td><?= $field->name; ?></td>
+				<td><?php echo  esc_html($field->name); ?></td>
 			<td>
-				<select name='<?=self::OPTION_PREFIX.$args['key'];?>[<?= $field->name; ?>][value_type]'>
+				<select name='<?php echo esc_attr(self::OPTION_PREFIX.$args['key']);?>[<?php echo  esc_attr($field->name); ?>][value_type]'>
 				 <?php
 				 foreach ($contact_fields as $field_key => $cfield) {
 					 if($field_key==$value_type)
-					 echo "<option selected='selected' value='$field_key'> $cfield</option>";
+					 echo "<option selected='selected' value='".esc_attr($field_key)."'>".esc_html($cfield)."</option>";
 					 else
-						echo "<option value='$field_key'> $cfield</option>";
+						echo "<option value='".esc_attr($field_key)."'>".esc_html($cfield)."</option>";
 					}
 				?>
 			</select>
 		</td>
 		<td>
-		<input type='text' name='<?=self::OPTION_PREFIX.$args['key'];?>[<?= $field->name; ?>][linet_value]' value='<?=$linet_value;?>' placeholder=' <?=__('Linet Value', 'wc-linet');?>' />
+		<input type='text' name='<?php echo esc_attr(self::OPTION_PREFIX.$args['key']);?>[<?php echo  esc_attr($field->name); ?>][linet_value]' value='<?php echo esc_attr($linet_value);?>' placeholder=' <?php echo esc_html__('Linet Value', 'linet-erp-woocommerce-integration');?>' />
 		</td>
 		</tr>
 <?php

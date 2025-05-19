@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Text Domain: wc-linet
+Text Domain: linet-erp-woocommerce-integration
 Domain Path: /languages/
 WC requires at least: 2.2
 WC tested up to: 6.0
@@ -89,7 +89,7 @@ class WC_LI_Invoice_Manager
     foreach ($clmns as $name => $info) {
       $next_clmns[$name] = $info;
       if ('wc_actions' === $name) {
-        $next_clmns['linet_link_column'] = __('Linet Document', 'wc-linet');
+        $next_clmns['linet_link_column'] = __('Linet Document', 'linet-erp-woocommerce-integration');
       }
     }
     //var_dump($clmns);exit;
@@ -100,10 +100,6 @@ class WC_LI_Invoice_Manager
   public static function order_pdf_column_content($column, $post_id)
   {
     if ('linet_link_column' === $column) {
-
-      //global $post;
-      //$post_id = $post->ID;
-
       if (!$post_id)
         return;
 
@@ -143,7 +139,7 @@ class WC_LI_Invoice_Manager
 
     if ($res->status == 200 && $res->text == 'OK' && $res->errorCode == 0) {
       $doc_url = (string) $res->body;
-      $order->update_meta_data( '_linet_doc_url',  (string) $doc_url );
+      $order->update_meta_data('_linet_doc_url', (string) $doc_url);
       $order->save();
 
     }
@@ -153,13 +149,21 @@ class WC_LI_Invoice_Manager
 
   public static function create_pdf_link_html_tag($doc_url = "#hash", $docnum = '')
   {
-    $alt = __('Download Document', 'wc-linet');
+    $alt = __('Download Document', 'linet-erp-woocommerce-integration');
 
-    $base = plugin_dir_url("") . "linet-erp-woocommerce-integration";
-    echo "<a href='$doc_url' title='$alt ($docnum)' target='_blank'>
-    	       <img src='$base/assets/pdf.png' alt='$alt' style='width: 30px; height: 30px;'>
-            </a>
-            ";
+    $path = plugins_url( 'assets/pdf.png', __DIR__ );
+
+    printf(
+      '<a href="%s" title="%s (%s)" target="_blank">
+        <img src="%s" alt="%s" style="width: 30px; height: 30px;">
+    </a>',
+      esc_url($doc_url),
+      esc_attr($alt),
+      esc_attr($docnum),
+      esc_url($path ),
+      esc_attr($alt)
+    );
+
   }
 
   /**
@@ -184,18 +188,15 @@ class WC_LI_Invoice_Manager
       if ($doctype === 0) {
 
         $order->add_order_note(
-          __('wont create Linet doc: ', 'wc-linet') .
-          __(' status: ', 'wc-linet') . $order->get_status() .
-          __(' not mapped to doctype', 'wc-linet')
+          __('wont create Linet doc: ', 'linet-erp-woocommerce-integration') .
+          __(' status: ', 'linet-erp-woocommerce-integration') . $order->get_status() .
+          __(' not mapped to doctype', 'linet-erp-woocommerce-integration')
 
         );
 
         return false;
       }
     }
-
-
-
 
     try {
       // Do the request
@@ -205,15 +206,12 @@ class WC_LI_Invoice_Manager
       // Get the invoice
       $invoice = $this->get_invoice_by_order($order, $doctype);
 
-
-
-
       // Check if the order total is 0 and if we need to send 0 total invoices to Linet
       /*
       if (0 == $invoice->get_total() && 'on' !== $this->settings->get_option('export_zero_amount')) {
       //if ( 0 == $invoice->get_total() && 'on' !== $this->settings->get_option( 'export_zero_amount' ) ) {
       $logger->write('INVOICE HAS TOTAL OF 0, NOT SENDING ORDER WITH ID ' . $order->get_id());
-      $order->add_order_note(__("LINET: Didn't create doc. because total is 0 and send order with zero total is set to off.", 'wc-linet'));
+      $order->add_order_note(__("LINET: Didn't create doc. because total is 0 and send order with zero total is set to off.", 'linet-erp-woocommerce-integration'));
       return false;
       }
       */
@@ -223,11 +221,9 @@ class WC_LI_Invoice_Manager
       // Logging
       $logger->write('START LINET NEW doc. order_id=' . $order->get_id() . " To " . $doctype);
 
-
       // Try to do the request
 
       $json_response = $invoice->do_request($doctype);
-
 
       if ($json_response === false) {
         return false;
@@ -238,44 +234,44 @@ class WC_LI_Invoice_Manager
 
         // Add order meta data
 
-        $order->update_meta_data( '_linet_doc_id',  (string)  $json_response->body->id );
-        $order->update_meta_data( '_linet_docnum',  (string) $json_response->body->docnum );
+        $order->update_meta_data('_linet_doc_id', (string) $json_response->body->id);
+        $order->update_meta_data('_linet_docnum', (string) $json_response->body->docnum);
 
-        $order->update_meta_data( '_linet_invoice_id',  (string) $json_response->body->id );
-        $order->update_meta_data( '_linet_currency_rate',  (string) $json_response->body->currency_rate );
+        $order->update_meta_data('_linet_invoice_id', (string) $json_response->body->id);
+        $order->update_meta_data('_linet_currency_rate', (string) $json_response->body->currency_rate);
         $order->save();
 
         // Log response
         //$logger->write('LINET RESPONSE:' . "\n" .print_r($json_response,true));
 
         // Add Order Note
-        $order->add_order_note(__('Linet Doc. created.  ', 'wc-linet') . ' Doc. num: ' . (string) $json_response->body->docnum);
+        $order->add_order_note(__('Linet Doc. created.  ', 'linet-erp-woocommerce-integration') . ' Doc. num: ' . (string) $json_response->body->docnum);
       } else { // XML reponse is not OK
         // Log reponse
-        $logger->write('LINET ERROR RESPONSE:' . "\n" . print_r($json_response, true));
+        $logger->write('LINET ERROR RESPONSE:' . "\n" . json_encode($json_response, true));
 
         $to = get_option('admin_email');
 
-        $subject = __('ERROR creating Linet doc: ', 'wc-linet') .
-          __(' ErrorNumber: ', 'wc-linet') . $json_response->status .
-          __(' ErrorType: ', 'wc-linet') . $json_response->errorCode .
-          __(' Message: ', 'wc-linet') . $json_response->text;
+        $subject = __('ERROR creating Linet doc: ', 'linet-erp-woocommerce-integration') .
+          __(' ErrorNumber: ', 'linet-erp-woocommerce-integration') . $json_response->status .
+          __(' ErrorType: ', 'linet-erp-woocommerce-integration') . $json_response->errorCode .
+          __(' Message: ', 'linet-erp-woocommerce-integration') . $json_response->text;
 
-        $message = __(' Order: ', 'wc-linet') . $order->get_id() . __(' Detail: ', 'wc-linet') . json_encode($json_response->body);
+        $message = __(' Order: ', 'linet-erp-woocommerce-integration') . $order->get_id() . __(' Detail: ', 'linet-erp-woocommerce-integration') . json_encode($json_response->body);
 
         wp_mail($to, $subject, $message);
         wp_mail('ops@linet.org.il', get_site_url() . " - " . $subject, $message);
 
 
         // Format error message
-        //$error_message = $xml_response->Elements->DataContractBase->ValidationErrors->ValidationError->Message ? $xml_response->Elements->DataContractBase->ValidationErrors->ValidationError->Message : __('None', 'wc-linet');
+        //$error_message = $xml_response->Elements->DataContractBase->ValidationErrors->ValidationError->Message ? $xml_response->Elements->DataContractBase->ValidationErrors->ValidationError->Message : __('None', 'linet-erp-woocommerce-integration');
 
         // Add order note
-        $order->add_order_note(__('ERROR creating Linet doc: ', 'wc-linet') .
-          __(' ErrorNumber: ', 'wc-linet') . $json_response->status .
-          __(' ErrorType: ', 'wc-linet') . $json_response->errorCode .
-          __(' Message: ', 'wc-linet') . $json_response->text .
-          __(' Detail: ', 'wc-linet') . json_encode($json_response->body));
+        $order->add_order_note(__('ERROR creating Linet doc: ', 'linet-erp-woocommerce-integration') .
+          __(' ErrorNumber: ', 'linet-erp-woocommerce-integration') . $json_response->status .
+          __(' ErrorType: ', 'linet-erp-woocommerce-integration') . $json_response->errorCode .
+          __(' Message: ', 'linet-erp-woocommerce-integration') . $json_response->text .
+          __(' Detail: ', 'linet-erp-woocommerce-integration') . json_encode($json_response->body));
       }
     } catch (Exception $e) {
       // Add Exception as order note
@@ -298,7 +294,7 @@ class WC_LI_Invoice_Manager
     $order = wc_get_order($order_id);
     $supported_gateways = $this->settings->get_option('supported_gateways');
     if (!in_array($order->get_payment_method(), $supported_gateways)) {
-      $order->add_order_note(__("LINET: Will not create doc. unsupported gateway", 'wc-linet'));
+      $order->add_order_note(__("LINET: Will not create doc. unsupported gateway", 'linet-erp-woocommerce-integration'));
       return false;
     }
 

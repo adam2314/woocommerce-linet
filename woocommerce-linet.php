@@ -1,15 +1,16 @@
 <?php
 /*
-  Plugin Name: WooCommerce Linet Integration
+  Plugin Name: Linet ERP Integration For Woocommerce
   Plugin URI: https://github.com/adam2314/woocommerce-linet
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 3.6.0
-  Text Domain: wc-linet
+  Version: 3.6.1
+  License: GPLv2 or later
+  Text Domain: linet-erp-woocommerce-integration
   Domain Path: /languages/
   WC requires at least: 2.2
-  WC tested up to: 6.0
+  WC tested up to: 6.8.1
 
 
   Copyright 2020  Adam Ben Hour
@@ -43,7 +44,36 @@ require_once 'woo-includes/woo-functions.php';
  * Main plugin class
  */
 class WC_Linet {
-  const VERSION = '3.6.0';
+  const VERSION = '3.6.1';
+
+
+
+  const ALLOWD_TAGS = array(
+    'input' => array(
+        'type' => true,
+        'name' => true,
+        'id' => true,
+        'value' => true,
+        'placeholder' => true,
+        'class' => true,
+    ),
+    'button' => array(
+        'type' => true,
+        'class' => true,
+    ),
+    'table' => array(
+        'class' => true,
+        'style' => true,
+    ),
+    'label' => array(),
+  
+    'tr' => array(),
+    'td' => array('class' => true),
+    'th' => array(),
+    'thead' => array(),
+    'tbody' => array(),
+    'label' => array(),
+  );
   /**
    * The constructor
    */
@@ -74,7 +104,7 @@ class WC_Linet {
     // Setup the autoloader
     $this->setup_autoloader();
     // Load textdomain
-    load_plugin_textdomain('wc-linet', false, dirname(plugin_basename(self::get_plugin_file())) . '/languages');
+    load_plugin_textdomain('linet-erp-woocommerce-integration', false, dirname(plugin_basename(self::get_plugin_file())) . '/languages');
     // Setup Settings
     $settings = new WC_LI_Settings();
     $settings->setup_hooks();
@@ -172,7 +202,7 @@ class WC_Linet {
   public function notice_wc_required() {
     ?>
     <div class="error">
-        <p><?php _e('WooCommerce Linet Integration requires WooCommerce 2.5.0 or higher to be installed and activated!', 'wc-linet'); ?></p>
+        <p><?php esc_html_e('WooCommerce Linet Integration requires WooCommerce 2.5.0 or higher to be installed and activated!', 'linet-erp-woocommerce-integration'); ?></p>
     </div>
     <?php
   }
@@ -186,9 +216,9 @@ class WC_Linet {
    */
   public function plugin_links($links) {
     $plugin_links = array(
-      '<a href="' . admin_url('admin.php?page=woocommerce_linet') . '">' . __('Settings', 'wc-linet') . '</a>',
-      '<a href="http://www.linet.org.il/support/">' . __('Support', 'wc-linet') . '</a>',
-      //'<a href="http://docs.linet.org.il/document/linet/">' . __('Documentation', 'wc-linet') . '</a>',
+      '<a href="' . admin_url('admin.php?page=woocommerce_linet') . '">' . __('Settings', 'linet-erp-woocommerce-integration') . '</a>',
+      '<a href="http://www.linet.org.il/support/">' . __('Support', 'linet-erp-woocommerce-integration') . '</a>',
+      //'<a href="http://docs.linet.org.il/document/linet/">' . __('Documentation', 'linet-erp-woocommerce-integration') . '</a>',
     );
 
     return array_merge($plugin_links, $links);

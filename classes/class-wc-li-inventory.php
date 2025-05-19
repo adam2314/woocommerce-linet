@@ -6,7 +6,7 @@ Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_
 Author: Speedcomp
 Author URI: http://www.linet.org.il
 Version: 3.5.2
-Text Domain: wc-linet
+Text Domain: linet-erp-woocommerce-integration
 Domain Path: /languages/
 WC requires at least: 2.2
 WC tested up to: 6.0
@@ -54,7 +54,7 @@ class WC_LI_Inventory
 
   public function category_columns_head($columns)
   {
-    $columns['linet_id'] = __('Linet ID', 'wc-linet');
+    $columns['linet_id'] = __('Linet ID', 'linet-erp-woocommerce-integration');
     //$columns['linet_actions'] = 'Linet Actions';
     return $columns;
   }
@@ -86,18 +86,18 @@ class WC_LI_Inventory
 
     if ($column == 'linet_id') {
       $linet_id = get_post_meta($post_id, '_linet_id', true);
-      echo "<a target='_blank' href='https://app.linet.org.il/item/update?id=$linet_id'>$linet_id</a>";
+      echo "<a target='_blank' href='https://app.linet.org.il/item/update?id=" . esc_attr($linet_id) . "'>" . esc_html($linet_id) . "</a>";
     }
     if ($column == 'linet_last_update') {
-      echo get_post_meta($post_id, '_linet_last_update', true);
+      echo esc_html(get_post_meta($post_id, '_linet_last_update', true));
     }
 
   }
 
   function product_columns_head($clmns)
   {
-    $clmns['linet_id'] = __('Linet ID', 'wc-linet');
-    $clmns['linet_last_update'] = __('Linet Update', 'wc-linet');
+    $clmns['linet_id'] = __('Linet ID', 'linet-erp-woocommerce-integration');
+    $clmns['linet_last_update'] = __('Linet Update', 'linet-erp-woocommerce-integration');
     return $clmns;
   }
 
@@ -131,8 +131,8 @@ class WC_LI_Inventory
 
   public static function DeleteAjax()
   {
-    global $wpdb;
-    $wpdb->query();
+    //global $wpdb;
+    //$wpdb->query();
     /*
     DELETE relations.*, taxes.*, terms.*
     FROM wp_term_relationships AS relations
@@ -155,16 +155,16 @@ class WC_LI_Inventory
     LEFT JOIN wp_term_relationships AS b ON b.term_taxonomy_id = c.term_taxonomy_id
     WHERE c.taxonomy = 'product_cat';
     */
-    echo json_encode("Success");
-    wp_die();
+    //echo json_encode("Success");
+    //wp_die();
 
   }
 
 
   public static function CleanOrphAjax()
   {
-    global $wpdb;
-    $wpdb->query();
+    //global $wpdb;
+    //$wpdb->query();
     /*
     DELETE pm
     FROM wp_postmeta pm
@@ -183,24 +183,28 @@ class WC_LI_Inventory
     wp_die();
   }
 
-  public static function WpCatSyncAjax()
+  public static function WpCatSyncAjax()//adam 2025 needs fix
   {
     //$genral_item = get_option('wc_linet_genral_item');
     $cat_id = intval($_POST['id']);
+    $catName = sanitize_text_field($_POST['catName']);
 
     $products = WC_LI_Settings::sendAPI('search/item', array('category_id' => $cat_id));
 
     global $wpdb;
-    $catName = $_POST['catName'];
-
-    $query = "SELECT * FROM $wpdb->term_taxonomy " .
-      " LEFT JOIN $wpdb->postmeta ON $wpdb->postmeta.post_id=" .
-      "$wpdb->posts.ID WHERE $wpdb->posts.post_type='product' AND $wpdb->posts.post_status = 'publish' AND " .
-      "$wpdb->postmeta.meta_key='_linet_id' and $wpdb->postmeta.meta_value='" . $cat_id . "';" .
-      "LEFT JOIN $wpdb->term_taxonomy ON $wpdb->term_taxonomy.term_id=$wpdb->terms.term_id " .
-      "WHERE " .
-      "$wpdb->term_taxonomy.taxonomy='product_cat' AND $wpdb->terms.name=%s;";
-    $product_id = $wpdb->get_col($wpdb->prepare($query, $catName));
+    $term_ids = $wpdb->get_col($wpdb->prepare("SELECT DISTINCT t.term_id
+    FROM {$wpdb->posts} AS p
+    INNER JOIN {$wpdb->postmeta} AS pm ON p.ID = pm.post_id
+    INNER JOIN {$wpdb->term_relationships} AS tr ON p.ID = tr.object_id
+    INNER JOIN {$wpdb->term_taxonomy} AS tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
+    INNER JOIN {$wpdb->terms} AS t ON tt.term_id = t.term_id
+    WHERE p.post_type = 'product'
+      AND p.post_status = 'publish'
+      AND pm.meta_key = '_linet_id'
+      AND pm.meta_value = %d
+      AND tt.taxonomy = 'product_cat'
+      AND t.name = %s
+    ", $cat_id, $catName));
 
     $arr = array(
       'id' => $cat_id,
@@ -208,8 +212,8 @@ class WC_LI_Inventory
       'wc_count' => 'na'
     );
 
-    if (count($product_id) != 0) {
-      $term_id = $product_id[0]->term_id;
+    if (count($term_ids) != 0) {
+      $term_id = $term_ids[0]->term_id;
       $arr['wc_count'] = get_term_meta($term_id, 'product_count_product_cat');
     }
 
@@ -226,13 +230,10 @@ class WC_LI_Inventory
 
     if ($mode == 0) {
       //count items to sync
-      $query = "SELECT count(ID) FROM $wpdb->posts " .
+      $counts = $wpdb->get_col($wpdb->prepare("SELECT count(ID) FROM {$wpdb->posts} as p " .
         "WHERE " .
-        "($wpdb->posts.post_type='product' OR $wpdb->posts.post_type='product_variation') AND " .
-
-        "$wpdb->posts.post_status = 'publish' AND %d"; //or variation
-
-      $counts = $wpdb->get_col($wpdb->prepare($query, array(1)));
+        "(p.post_type='product' OR p.post_type='product_variation') AND " .
+        "p.post_status = 'publish'"));
       //var_dump($counts);
       $count = 0;
 
@@ -254,11 +255,14 @@ class WC_LI_Inventory
     wp_die();
   }
 
-  public static function WpCatSync($item)
+  public static function WpCatSync($product,$logger = null)
   { //wp->linet
     //$cat_id=0;
+    $terms = get_the_terms( $product->get_id(), 'product_cat' );
 
-    $terms = wp_get_post_terms($item->ID, 'product_cat');
+    //$terms = wp_get_post_terms($product->get_id(), 'product_cat');
+    $logger->write("WpCatSync: $terms");
+
     $cats = array();
     if (is_array($terms) && count($terms) > 0) {
 
@@ -300,14 +304,13 @@ class WC_LI_Inventory
   public static function WpSmallItemsSyncAjax($offset, $logger)
   {
     global $wpdb;
-    $query = "SELECT * FROM $wpdb->posts " .
+    //$parent_id=$item->item->parent_item_id;
+    $products = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$wpdb->posts} as p " .
       //"INNER JOIN $wpdb->postmeta ON $wpdb->postmeta.post_id=" . "$wpdb->posts.ID ".
       "WHERE " .
-      "($wpdb->posts.post_type='product' OR $wpdb->posts.post_type='product_variation') AND " .
-      "$wpdb->posts.post_status = 'publish' " .
-      "LIMIT " . WC_LI_Settings::STOCK_LIMIT . " OFFSET %d;";
-    //$parent_id=$item->item->parent_item_id;
-    $products = $wpdb->get_results($wpdb->prepare($query, $offset));
+      "(p.post_type='product' OR p.post_type='product_variation') AND " .
+      "p.post_status = 'publish' " .
+      "LIMIT %d OFFSET %d;", WC_LI_Settings::STOCK_LIMIT, $offset));
     $sync_count = 0;
     $runtime = microtime(true);
 
@@ -416,7 +419,7 @@ class WC_LI_Inventory
 
     $metas = get_post_meta($product->get_id());
 
-    $cats_id = self::WpCatSync($product);
+    $cats_id = self::WpCatSync($product, $logger);
     //get term meta?
 
     $itemSku = $product->get_sku();
@@ -531,7 +534,6 @@ class WC_LI_Inventory
         $item_id = false;
       } else {
         $linItem = WC_LI_Settings::sendAPI('update/item?id=' . $item_id, $body);
-        //no needself::smart_update_post_meta($item->ID, '_linet_id', $item_id);
       }
 
     }
@@ -784,7 +786,7 @@ class WC_LI_Inventory
     }
 
     if ($mode == 3) { //doUpdateCall
-      update_option('wc_linet_last_update', date('Y-m-d') . " 00:00:00"); //date('Y-m-d H:i:s')
+      update_option('wc_linet_last_update', gmdate('Y-m-d') . " 00:00:00"); //date('Y-m-d H:i:s')
 
       echo json_encode("done");
 
@@ -824,16 +826,14 @@ class WC_LI_Inventory
       if (is_wp_error($term_id)) {
         $logger->write("Term Insret error: (cat_name)$cat->name " . $term_id->get_error_message());
 
-        $query = "SELECT * FROM $wpdb->terms
-          LEFT JOIN $wpdb->term_taxonomy ON $wpdb->term_taxonomy.term_id = $wpdb->terms.term_id
+
+        $term_id = $wpdb->get_col($wpdb->prepare("SELECT * FROM {$wpdb->terms} as t
+          LEFT JOIN {$wpdb->term_taxonomy} as tt ON tt.term_id = t.term_id
           WHERE
-          $wpdb->terms.name=%s AND
-          $wpdb->term_taxonomy.taxonomy = 'product_cat'
+          t.name=%s AND
+          tt.taxonomy = 'product_cat'
           LIMIT 1;
-          ";
-        //$catParams['parent']
-        //_linet_cat
-        $term_id = $wpdb->get_col($wpdb->prepare($query, $cat->name));
+          ", $cat->name));
         //$logger->write("Term found " . $term_id->get_error_message());
 
         //$term_id=$term_id['term_id'];
@@ -891,7 +891,7 @@ class WC_LI_Inventory
       }
     }
 
-    update_term_meta($term_id, '_linet_last_update', date('Y-m-d H:i:s'));
+    update_term_meta($term_id, '_linet_last_update', gmdate('Y-m-d H:i:s'));
     $logger->write("Term done: (term_id)$term_id ");
 
     return $term_id;
@@ -926,31 +926,21 @@ class WC_LI_Inventory
 
     }
 
-    $filePath = $basePath . $realtivePath;
-
-    /*only in admin not in cron!!!
-    WP_Filesystem();
-    global $wp_filesystem;
-    if(!$wp_filesystem->is_dir($basePath)) {
-    $wp_filesystem->mkdir($basePath);
-    }
-    if($pic!='' ){
-    if(!$wp_filesystem->is_file($filePath)){
-    $ch = curl_init();
-    curl_setopt_array($ch, array(
-    CURLOPT_URL => $server . "/site/download/" . $pic,CURLOPT_RETURNTRANSFER => TRUE,CURLOPT_HTTPHEADER => array('Content-Type: application/json'),
-    ));
-    $response = curl_exec($ch);
-    $wp_filesystem->put_contents($filePath,$response,FS_CHMOD_FILE);
-    }*/
 
 
+    $filePath = wp_normalize_path($basePath . $realtivePath);
+
+    $basePath = wp_normalize_path($basePath);
+    $imageDir = wp_normalize_path($basePath . self::IMAGE_DIR);
+
+    // Ensure base directory exists
     if (!is_dir($basePath)) {
-      mkdir($basePath);
+      wp_mkdir_p($basePath);
     }
 
-    if (!is_dir($basePath . self::IMAGE_DIR)) {
-      mkdir($basePath . self::IMAGE_DIR);
+    // Ensure image directory exists
+    if (!is_dir($imageDir)) {
+      wp_mkdir_p($imageDir);
     }
 
     if ($pic != '') {
@@ -960,48 +950,73 @@ class WC_LI_Inventory
 
         $logger->write("get img: " . $url);
 
-        $ch = curl_init();
-        curl_setopt_array(
-          $ch,
-          array(
-            CURLOPT_URL => $url,
-            CURLOPT_RETURNTRANSFER => TRUE,
-            //CURLOPT_HTTPHEADER => array('Content-Type: application/json'),
-            CURLOPT_SSL_VERIFYHOST => !$dev,
-            CURLOPT_SSL_VERIFYPEER => !$dev,
-          )
+
+
+        $args = array(
+          'method' => 'POST',
+          'sslverify' => !$dev,
+          'headers' => array(
+            'Content-Type' => 'application/json',
+            'Wordpress-Site' => str_replace("http://", "", str_replace("https://", "", get_site_url())),
+            'Wordpress-Plugin' => WC_Linet::VERSION,
+          ),
+          //'body' => json_encode($body),
         );
-        $response = curl_exec($ch);
-        $content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+
+        $response = wp_remote_post($url, $args);
+
+        if (is_wp_error($response)) {
+          $error_message = $response->get_error_message();
+          $logger->write('Request failed:' . " $error_message\n");
+        }
+
+        $body = wp_remote_retrieve_body($response);
+        $headers = wp_remote_retrieve_headers($response);
+
+        $content_type = isset($headers['content-type']) ? $headers['content-type'] : 'application/octet-stream';
+
+
+
+
+
+
+
+
+        function get_image_extension_from_mime($mime_type)
+        {
+          $map = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp',
+            'image/bmp' => 'bmp',
+            'image/svg+xml' => 'svg',
+            'image/tiff' => 'tiff',
+            'image/x-icon' => 'ico',
+          ];
+
+          return isset($map[$mime_type]) ? $map[$mime_type] : false;
+        }
+
+
         //var_dump($url);
         //var_dump($content_type);exit;
-        //$logger->write("curl_getinfo: ".$content_type]);
 
-        $content_type = explode("; ", $content_type);
-        $logger->write("mimetype img: " . $content_type[0]);
 
-        if (
-          !isset($content_type[0]) ||
-          (substr($content_type[0], 0, 6) !== "image/")
-        ) {
+        $logger->write("mimetype img: " . $content_type);
+        $ext = get_image_extension_from_mime($content_type);
+        if (!$ext) {
 
           return false;
         }
 
+        $filePath .= '.' . $ext;
 
-
-        $ext = substr($content_type[0], 6);
-
-        if (isset($ext) && !empty($ext)) {
-          $filePath .= '.' . $ext;
-        }
-
-        file_put_contents($filePath, $response);
+        file_put_contents($filePath, $body);
       }
 
       global $wpdb;
-      $query = "SELECT ID FROM $wpdb->posts WHERE post_name = '%s' AND post_type = 'attachment' LIMIT 1";
-      $image_id = $wpdb->get_col($wpdb->prepare($query, $pic));
+      $image_id = $wpdb->get_col($wpdb->prepare("SELECT ID FROM {$wpdb->posts} WHERE post_name = %s AND post_type = 'attachment' LIMIT 1", $pic));
 
       if (count($image_id) == 0) {
 
@@ -1081,11 +1096,9 @@ class WC_LI_Inventory
     return get_post_meta($post_id, '_linet_id', true);
 
     global $wpdb;
-    $query = "SELECT meta_value FROM $wpdb->posts LEFT JOIN $wpdb->postmeta ON $wpdb->postmeta.post_id=$wpdb->posts.ID " .
-      "WHERE " .
-      "($wpdb->posts.post_type='product' OR $wpdb->posts.post_type='product_variation') AND " .
-      "$wpdb->postmeta.meta_key='_linet_id' AND $wpdb->posts.ID=%d LIMIT 1;";
-    $post = $wpdb->get_col($wpdb->prepare($query, array($post_id)));
+    $post = $wpdb->get_col($wpdb->prepare("SELECT meta_value FROM {$wpdb->posts} as p LEFT JOIN {$wpdb->postmeta} as pm ON pm.post_id=p.ID WHERE " .
+      "(p.post_type='product' OR p.post_type='product_variation') AND " .
+      "pm.meta_key='_linet_id' AND p.ID=%d LIMIT 1;", $post_id));
 
     if (count($post) == 1) {
       return $post[0];
@@ -1120,15 +1133,10 @@ class WC_LI_Inventory
     }
     return false;*/
 
-
-
-
     global $wpdb;
-    $query = "SELECT ID FROM $wpdb->posts LEFT JOIN $wpdb->postmeta ON $wpdb->postmeta.post_id = $wpdb->posts.ID " .
-      "WHERE " .
-      "$wpdb->posts.post_type in ('product','product_variation') AND " .
-      "$wpdb->postmeta.meta_key = '$meta' AND $wpdb->postmeta.meta_value = %s LIMIT 1;";
-    $post = $wpdb->get_col($wpdb->prepare($query, array($value)));
+    $post = $wpdb->get_col($wpdb->prepare("SELECT ID FROM {$wpdb->posts} as p LEFT JOIN {$wpdb->postmeta} as pm ON pm.post_id = p.ID WHERE " .
+      "p.post_type in ('product','product_variation') AND " .
+      "pm.meta_key = %s AND pm.meta_value = %s LIMIT 1;", $meta,$value));
 
     if (count($post) == 1) {
       return wc_get_product($post[0]);
@@ -1277,11 +1285,10 @@ class WC_LI_Inventory
 
     $ruler_wp_id = 0;
 
-    $query = "SELECT attribute_id FROM {$wpdb->prefix}woocommerce_attribute_taxonomies " .
+    $post = $wpdb->get_col($wpdb->prepare("SELECT attribute_id FROM {$wpdb->prefix}woocommerce_attribute_taxonomies " .
       //"LEFT JOIN $wpdb->postmeta ON $wpdb->postmeta.post_id=$wpdb->posts.ID AND $wpdb->postmeta.meta_key='_sku'".
       " WHERE attribute_name=%s AND attribute_label=%s" .
-      " LIMIT 1;";
-    $post = $wpdb->get_col($wpdb->prepare($query, array($slug, $name)));
+      " LIMIT 1;", $slug, $name));
 
     if (count($post) == 1) {
 
@@ -1390,7 +1397,7 @@ class WC_LI_Inventory
 
       if ($product) {
         //date('Y-m-d H:i:s')
-        $product->update_meta_data('_linet_last_update', date('Y-m-d H:i:s'));
+        $product->update_meta_data('_linet_last_update', gmdate('Y-m-d H:i:s'));
         $product = self::updateStock($product, $item, $logger);
         $logger->write("singleProdSync only stock: (post_id,linet_id){$product->get_id()}," . $item->item->id);
 
@@ -1639,7 +1646,7 @@ class WC_LI_Inventory
       }
     }
 
-    $product->update_meta_data('_linet_last_update', date('Y-m-d H:i:s'));
+    $product->update_meta_data('_linet_last_update', gmdate('Y-m-d H:i:s'));
 
     $saleprice = $item->item->saleprice;
     if (!$item->item->vatIn) {
@@ -1765,7 +1772,7 @@ class WC_LI_Inventory
         // code...
       }
     }
-    $product->update_meta_data('_linet_last_update', date('Y-m-d H:i:s'));
+    $product->update_meta_data('_linet_last_update', gmdate('Y-m-d H:i:s'));
 
     $obj = array(
       'item_id' => $post_id,
@@ -1872,7 +1879,7 @@ class WC_LI_Inventory
   { //shuld use single?
     $status = array(
       'running' => true,
-      'start' => date('Y-m-d'),
+      'start' => gmdate('Y-m-d'),
       'offset' => 0
     );
     $login_id = get_option('wc_linet_consumer_id');
@@ -1910,7 +1917,7 @@ class WC_LI_Inventory
     wp_cache_set('linet_fullSync_status', $status);
 
     //update_option('wc_linet_last_update', "2018-06-01 00:00:00");
-    update_option('wc_linet_last_update', date('Y-m-d') . " 00:00:00"); //date('Y-m-d H:m:i')
+    update_option('wc_linet_last_update', gmdate('Y-m-d') . " 00:00:00"); //date('Y-m-d H:m:i')
     $logger->write("End Linet Cat Sync");
   } //end func
 }

@@ -5,8 +5,8 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.6.0
-Text Domain: wc-linet
+Version: 3.6.1
+Text Domain: linet-erp-woocommerce-integration
 Domain Path: /languages/
 WC requires at least: 2.2
 WC tested up to: 6.0
@@ -206,7 +206,7 @@ class WC_LI_Invoice
       $this->doc['docDet'] = [
         [
           "item_id" => $genral_item,
-          "name" => __('Online Order', 'wc-linet') . " #" . $order->get_id(),
+          "name" => __('Online Order', 'linet-erp-woocommerce-integration') . " #" . $order->get_id(),
           "description" => "",
           "qty" => 1,
           "currency_id" => $currency_id,
@@ -792,7 +792,7 @@ class WC_LI_Invoice
     $this->doc["status"] = $status;
     $this->doc["account_id"] = $accId;
     //billing_country
-    $this->doc["refnum_ext"] = __('Online Order', 'wc-linet') . " #" . $this->order->get_id();
+    $this->doc["refnum_ext"] = __('Online Order', 'linet-erp-woocommerce-integration') . " #" . $this->order->get_id();
     $this->doc["phone"] = $acc_phone;
     $this->doc["address"] = $acc_address;
     $this->doc["city"] = $acc_city;

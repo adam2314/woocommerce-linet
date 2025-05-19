@@ -1,7 +1,7 @@
 <?php //var_dump($options); ?>
 
 <div class="repeater_text">
-	<p class="description"><?php echo $args['option']['description']; ?></p>
+	<p class="description"><?php echo esc_html($args['option']['description']); ?></p>
 	<table style="border-collapse: collapse;">
 		<thead>
 			<tr>
@@ -12,28 +12,39 @@
 			</tr>
 		</thead>
 		<tbody>
-		<?php
-		function row($key,$fieldName,$value,$wc_value){
-			return 	"<tr class='repeat'>
-				<td class='id'>$key</td>
-				<td><label>
-					<input type='text' name='{$fieldName}[linet_field][]' id='{$fieldName}{$key}_linet' value='$value' placeholder='". __('Linet Field', 'wc-linet') ."' />
-				</label></td>
-				<td><label>
-					<input type='text' name='{$fieldName}[wc_field][]' id='{$fieldName}{$key}_wc' value='$wc_value' placeholder='". __('Woocommerce Field', 'wc-linet') ."' />
-				</label></td>
-				<td><label><button class='remove'>Remove</button></label></td>
-				</tr>";
-		}
+			<?php
 
-		if( is_array($options) && count($options) > 0 ) {
-			foreach ( $options['linet_field'] as $key => $value ) {
-				echo row($key,self::OPTION_PREFIX.$args['key'],$value,$options['wc_field'][$key]);
+
+			function row($key, $fieldName, $value, $wc_value)
+			{
+				// Escape attributes and translations
+				$key = esc_attr($key);
+				$fieldName = esc_attr($fieldName);
+				$value = esc_attr($value);
+				$wc_value = esc_attr($wc_value);
+
+				$linet_placeholder = esc_attr__('Linet Field', 'linet-erp-woocommerce-integration');
+				$wc_placeholder = esc_attr__('Woocommerce Field', 'linet-erp-woocommerce-integration');
+
+				return "<tr class='repeat'>
+			<td class='id'>{$key}</td>
+			<td><label>
+					<input type='text' name='{$fieldName}[linet_field][]' id='{$fieldName}{$key}_linet' value='{$value}' placeholder='{$linet_placeholder}' />
+			</label></td>
+			<td><label>
+					<input type='text' name='{$fieldName}[wc_field][]' id='{$fieldName}{$key}_wc' value='{$wc_value}' placeholder='{$wc_placeholder}' />
+			</label></td>
+			<td><label><button class='remove'>" . esc_html__('Remove', 'linet-erp-woocommerce-integration') . "</button></label></td>
+	</tr>";
 			}
-		} else {
-			echo row(0,self::OPTION_PREFIX.$args['key'],'','');
-		}
-		?>
+			if (is_array($options) && count($options) > 0) {
+				foreach ($options['linet_field'] as $key => $value) {
+					echo wp_kses_post(row($key, self::OPTION_PREFIX . $args['key'], $value, $options['wc_field'][$key]),WC_Linet::ALLOWD_TAGS);
+				}
+			} else {
+				echo wp_kses_post(row(0, self::OPTION_PREFIX . $args['key'], '', ''),WC_Linet::ALLOWD_TAGS);
+			}
+			?>
 		</tbody>
 	</table>
 	<button class="repeater_add_new">Add New Row</button>
@@ -45,7 +56,9 @@
 		padding: 15px;
 		border: 1px solid #ddd;
 	}
-	.repeater_text table td, .repeater_text table th {
+
+	.repeater_text table td,
+	.repeater_text table th {
 		padding: 5px;
 		border: 0;
 		width: auto;
@@ -59,6 +72,7 @@
 		background: #0085ba;
 		color: white;
 	}
+
 	.repeater_add_new {
 		background: #0085ba;
 		color: #fff;
@@ -73,12 +87,12 @@
 </style>
 
 <script>
-	jQuery(document).ready(function($){
+	jQuery(document).ready(function ($) {
 		$('.repeater_add_new').on('click', function (e) {
 			e.preventDefault();
 			//$('.repeater_text table tbody tr:last-child');
-			var tableRow    = $('.repeater_text table tbody tr:last-child'),
-			cloneTableRow = tableRow.clone();
+			var tableRow = $('.repeater_text table tbody tr:last-child'),
+				cloneTableRow = tableRow.clone();
 
 			cloneTableRow.find('input').val('');
 			cloneTableRow.find('td.id').html(parseInt(cloneTableRow.find('td.id').html()) + 1);
@@ -87,8 +101,8 @@
 
 		$('body').on('click', '.remove', function (e) {
 			e.preventDefault();
-			if( $('.repeater_text table tbody tr').length > 1 ) {
-				var tableRow    = $(this).closest('tr');
+			if ($('.repeater_text table tbody tr').length > 1) {
+				var tableRow = $(this).closest('tr');
 				tableRow.remove();
 			} else {
 				alert('לא ניתן להסיר את האפשרות האחרונה. נקה את השדות ותשמור על מנת לבטל.')

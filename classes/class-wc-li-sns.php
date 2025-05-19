@@ -5,8 +5,8 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.6.0
-Text Domain: wc-linet
+Version: 3.6.1
+Text Domain: linet-erp-woocommerce-integration
 Domain Path: /languages/
 WC requires at least: 2.2
 WC tested up to: 6.0
@@ -33,20 +33,6 @@ class WC_LI_Sns
    * @var WC_LI_Sns
    */
 
-  public static function authMsg($msg, $logger)
-  {
-    $ch = curl_init();
-    curl_setopt_array($ch, array(
-      CURLOPT_URL => $msg['SubscribeURL'],
-      CURLOPT_RETURNTRANSFER => TRUE,
-    )
-    );
-
-    $response = curl_exec($ch);
-    curl_close($ch);
-    return $response;
-
-  }
 
   public static function updateItem($item_id, $logger)
   {
@@ -84,7 +70,7 @@ class WC_LI_Sns
 
     if ($doc['refstatus'] == "1") {
 
-      $number = str_replace(__('Online Order', 'wc-linet') . " #", "", $doc['refnum_ext']);
+      $number = str_replace(__('Online Order', 'linet-erp-woocommerce-integration') . " #", "", $doc['refnum_ext']);
 
       $order = new WC_Order($number);
 
@@ -105,14 +91,12 @@ class WC_LI_Sns
 
   public static function parsekMsg($msg, $logger)
   {
-    if ($msg['Type'] == 'SubscriptionConfirmation' && isset($msg['SubscribeURL'])) {
-      return self::authMsg($msg, $logger);
-    }
+
 
     if (isset($msg['Message'])) {
       $data = explode("-", $msg['Message']);
       if (count($data) == 3) {
-        update_option('wc_linet_last_sns', date('Y-m-d H:i:s'));
+        update_option('wc_linet_last_sns', gmdate('Y-m-d H:i:s'));
 
         if ($data[1] == '\\app\\models\\Item')
           return self::updateItem((int) $data[2], $logger);
@@ -133,7 +117,7 @@ class WC_LI_Sns
       $sender = $msg['MessageNext']['sender'];
       //$data=explode("-",$msg['MessageNext']['title']);
       //if(count($data)==3){
-      update_option('wc_linet_last_sns', date('Y-m-d H:i:s'));
+      update_option('wc_linet_last_sns', gmdate('Y-m-d H:i:s'));
 
       if ($classname == '\\app\\models\\Item')
         return self::updateItem((int) $sender, $logger);
@@ -147,7 +131,7 @@ class WC_LI_Sns
     if (isset($msg['Message']) && isset($msg['Message']['title'])) {
       $data = explode("-", $msg['Message']['title']);
       if (count($data) == 3) {
-        update_option('wc_linet_last_sns', date('Y-m-d H:i:s'));
+        update_option('wc_linet_last_sns', gmdate('Y-m-d H:i:s'));
 
         if ($data[1] == '\\app\\models\\Item')
           return self::updateItem((int) $data[2], $logger);

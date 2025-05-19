@@ -1,15 +1,15 @@
 <?php
 /*
-Plugin Name: WooCommerce Linet Integration
+Plugin Name: Linet ERP Integration For Woocommerce
 Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.6.0
-Text Domain: wc-linet
+Version: 3.6.1
+Text Domain: linet-erp-woocommerce-integration
 Domain Path: /languages/
 WC requires at least: 2.2
-WC tested up to: 6.8.1
+WC tested up to: 6.8
 Copyright 2020  Adam Ben Hour
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License, version 2, as
@@ -32,9 +32,8 @@ class WC_LI_Settings
   const OPTION_PREFIX = 'wc_linet_';
   const SERVER = "https://app.linet.org.il";
   const DEV_SERVER = "https://dev.linet.org.il";
-  //const DEV_SERVER = "http://10.8.0.6:8123";
 
-  const STOCK_LIMIT = 50;
+  const STOCK_LIMIT = 5;
   const RUNTIME_LIMIT = 21;
 
   // Settings defaults
@@ -73,10 +72,11 @@ class WC_LI_Settings
     if (is_user_logged_in() && current_user_can('administrator')) {
 
       $no_nonce = get_option('wc_linet_nonce') === 'off';
-      if ($no_nonce ||
+      if (
+        $no_nonce ||
         (isset($headers['X-Wp-Nonce']) && wp_verify_nonce($headers['X-Wp-Nonce'], 'wp_rest'))
-        
-        ) {
+
+      ) {
 
         add_action('wp_ajax_LinetGetFile', 'WC_LI_Settings::LinetGetFile');
         add_action('wp_ajax_LinetDeleteFile', 'WC_LI_Settings::LinetDeleteFile');
@@ -133,9 +133,9 @@ class WC_LI_Settings
           'name' => "{$field_key}[{$loop}]",
           'value' => $value,
           'custom_attributes' => array('readonly' => 'readonly'),
-          'label' => esc_html__('Linet ID', 'woocommerce'),
+          'label' => esc_html_e('Linet ID', 'linet-erp-woocommerce-integration'),
           'desc_tip' => true,
-          'description' => esc_html__('Enter the linet ID', 'woocommerce'),
+          'description' => esc_html_e('Enter the linet ID', 'linet-erp-woocommerce-integration'),
           'wrapper_class' => 'form-row form-row-last',
         )
       );
@@ -147,98 +147,98 @@ class WC_LI_Settings
     return array(
 
       'one_item_order' => array(
-        'title' => __('One Item Order', 'wc-linet'),
+        'title' => __('One Item Order', 'linet-erp-woocommerce-integration'),
         'default' => 'off',
         'type' => 'select',
         'options' => array(
-          'off' => __('Off', 'wc-linet'),
-          'on' => __('On', 'wc-linet'),
+          'off' => __('Off', 'linet-erp-woocommerce-integration'),
+          'on' => __('On', 'linet-erp-woocommerce-integration'),
         ),
-        'description' => __('Remove all items from linet doc and make one item only', 'wc-linet'),
+        'description' => __('Remove all items from linet doc and make one item only', 'linet-erp-woocommerce-integration'),
       ),
 
 
       'autosend' => array(
-        'title' => __('Mail Document', 'wc-linet'),
+        'title' => __('Mail Document', 'linet-erp-woocommerce-integration'),
         'default' => 'on',
         'type' => 'select',
         'options' => array(
-          'off' => __('Off', 'wc-linet'),
-          'on' => __('On', 'wc-linet'),
+          'off' => __('Off', 'linet-erp-woocommerce-integration'),
+          'on' => __('On', 'linet-erp-woocommerce-integration'),
         ),
-        'description' => __('Autosend document in mail', 'wc-linet'),
+        'description' => __('Autosend document in mail', 'linet-erp-woocommerce-integration'),
       ),
       'autosendsms' => array(
-        'title' => __('SMS Document', 'wc-linet'),
+        'title' => __('SMS Document', 'linet-erp-woocommerce-integration'),
         'default' => 'on',
         'type' => 'select',
         'options' => array(
-          'off' => __('Off', 'wc-linet'),
-          'on' => __('On', 'wc-linet'),
+          'off' => __('Off', 'linet-erp-woocommerce-integration'),
+          'on' => __('On', 'linet-erp-woocommerce-integration'),
         ),
-        'description' => __('Autosend document in sms', 'wc-linet'),
+        'description' => __('Autosend document in sms', 'linet-erp-woocommerce-integration'),
       ),
 
       'genral_acc' => array(
-        'title' => __('General Custemer Account', 'wc-linet'),
+        'title' => __('General Custemer Account', 'linet-erp-woocommerce-integration'),
         'default' => '0',
         'type' => 'text',
-        'description' => __('Enter 0 for auto create account', 'wc-linet'),
+        'description' => __('Enter 0 for auto create account', 'linet-erp-woocommerce-integration'),
       ),
 
       'j5Token' => array(
-        'title' => __('J5 Token EAV field', 'wc-linet'),
+        'title' => __('J5 Token EAV field', 'linet-erp-woocommerce-integration'),
         'default' => '',
         'type' => 'text',
-        'description' => __('J5 Token field sync {eavX}', 'wc-linet'),
+        'description' => __('J5 Token field sync {eavX}', 'linet-erp-woocommerce-integration'),
       ),
       'j5Number' => array(
-        'title' => __('J5 Reference Number EAV field', 'wc-linet'),
+        'title' => __('J5 Reference Number EAV field', 'linet-erp-woocommerce-integration'),
         'default' => '',
         'type' => 'text',
-        'description' => __('J5 Reference Number field sync {eavX}', 'wc-linet'),
+        'description' => __('J5 Reference Number field sync {eavX}', 'linet-erp-woocommerce-integration'),
       ),
 
       'genral_item' => array(
-        'title' => __('General Item', 'wc-linet'),
+        'title' => __('General Item', 'linet-erp-woocommerce-integration'),
         'default' => '1',
         'type' => 'text',
-        'description' => __('Code for Linet general Item ', 'wc-linet'),
+        'description' => __('Code for Linet general Item ', 'linet-erp-woocommerce-integration'),
       ),
 
       'income_acc' => array(
-        'title' => __('Income Account', 'wc-linet'),
+        'title' => __('Income Account', 'linet-erp-woocommerce-integration'),
         'default' => '100',
         'type' => 'text',
-        'description' => __('Income Account', 'wc-linet'),
+        'description' => __('Income Account', 'linet-erp-woocommerce-integration'),
       ),
 
       'income_acc_novat' => array(
-        'title' => __('Income Account No VAT', 'wc-linet'),
+        'title' => __('Income Account No VAT', 'linet-erp-woocommerce-integration'),
         'default' => '102',
         'type' => 'text',
-        'description' => __('Income Account No VAT', 'wc-linet'),
+        'description' => __('Income Account No VAT', 'linet-erp-woocommerce-integration'),
       ),
 
       'printview' => array(
-        'title' => __('Document Print View', 'wc-linet'),
+        'title' => __('Document Print View', 'linet-erp-woocommerce-integration'),
         'default' => '',
         'type' => 'text',
-        'description' => __('Document Print View.', 'wc-linet'),
+        'description' => __('Document Print View.', 'linet-erp-woocommerce-integration'),
       ),
 
       'status' => array(
-        'title' => __('Document status', 'wc-linet'),
+        'title' => __('Document status', 'linet-erp-woocommerce-integration'),
         'default' => '2',
         'type' => 'text',
-        'description' => __('Document status.', 'wc-linet'),
+        'description' => __('Document status.', 'linet-erp-woocommerce-integration'),
       ),
 
       'orderFields' => array(
-        'title' => __('Custom Order Fields', 'wc-linet'),
+        'title' => __('Custom Order Fields', 'linet-erp-woocommerce-integration'),
         'default' => '',
         'type' => 'repeater_text',
-        'description' => __('Linet Custom Field ID (eav{N}) for auto syncd products.', 'wc-linet'),
+        'description' => __('Linet Custom Field ID (eav{N}) for auto syncd products.', 'linet-erp-woocommerce-integration'),
       ),
     );
   }
@@ -246,10 +246,10 @@ class WC_LI_Settings
   {
     return array(
       'syncFields' => array(
-        'title' => __('Custom Field ID (TEST)', 'wc-linet'),
+        'title' => __('Custom Field ID (TEST)', 'linet-erp-woocommerce-integration'),
         'default' => '',
         'type' => 'repeater_text',
-        'description' => __('Linet Custom Field ID (eav{N}) for auto syncd products.', 'wc-linet'),
+        'description' => __('Linet Custom Field ID (eav{N}) for auto syncd products.', 'linet-erp-woocommerce-integration'),
       ),
     );
   }
@@ -257,61 +257,62 @@ class WC_LI_Settings
   public function syncOptions()
   {
 
-    $statuses = array('none' => __('Manually', 'wc-linet'));
+    $statuses = array('none' => __('Manually', 'linet-erp-woocommerce-integration'));
     foreach (wc_get_order_statuses() as $key => $name) {
-      $statuses[str_replace("wc-", "", $key)] = __($name, 'wc-linet');
+      $statuses[str_replace("wc-", "", $key)] = $name;
     }
 
     $array = array(
 
       'sku_find' => array(
-        'title' => __('SKU Find', 'wc-linet'),
+        'title' => __('SKU Find', 'linet-erp-woocommerce-integration'),
         'default' => 'off',
         'type' => 'select',
         'options' => array(
-          'off' => __('Off', 'wc-linet'),
-          'on' => __('On', 'wc-linet'),
+          'off' => __('Off', 'linet-erp-woocommerce-integration'),
+          'on' => __('On', 'linet-erp-woocommerce-integration'),
         ),
-        'description' => __('Find Linet items by SKU and not there Item ID', 'wc-linet'),
+        'description' => __('Find Linet items by SKU and not there Item ID', 'linet-erp-woocommerce-integration'),
       ),
 
       'global_attr' => array(
-        'title' => __('Global attributes', 'wc-linet'),
+        'title' => __('Global attributes', 'linet-erp-woocommerce-integration'),
         'default' => 'off',
         'type' => 'select',
         'options' => array(
-          'off' => __('Off', 'wc-linet'),
-          'on' => __('On', 'wc-linet'),
+          'off' => __('Off', 'linet-erp-woocommerce-integration'),
+          'on' => __('On', 'linet-erp-woocommerce-integration'),
         ),
-        'description' => __('use global attributes for variable products', 'wc-linet')
+        'description' => __('use global attributes for variable products', 'linet-erp-woocommerce-integration')
           . '<a style="" href="#target1" class="button-primary" onclick="linet.doRuler();">Write Global Rulers</a> '
         ,
       )
     );
 
     foreach (wc_get_order_statuses() as $key => $name) {
+      $str_name = (string) $name;
       $skey = str_replace("wc-", "", $key);
-      $statuses[$skey] = __($name, 'wc-linet');
+      $statuses[$skey] = $str_name;
 
       $array["sync_orders_$key"] = array(
-        'title' => __('Sync Orders On' . ' ' . $name, 'wc-linet'),
+        'title' => 'Sync Orders On' . ' ' . $str_name,
         'default' => 'none',
         //type' => 'checkbox',
         'type' => 'select',
         'options' => array(
-          '' => __('None', 'wc-linet'),
-          '1' => __('Proforma', 'wc-linet'),
-          '2' => __('Delivery Doc.', 'wc-linet'),
-          '3' => __('Invoice', 'wc-linet'),
-          '6' => __('Quote', 'wc-linet'),
+          '' => __('None', 'linet-erp-woocommerce-integration'),
+          '1' => __('Proforma', 'linet-erp-woocommerce-integration'),
+          '2' => __('Delivery Doc.', 'linet-erp-woocommerce-integration'),
+          '3' => __('Invoice', 'linet-erp-woocommerce-integration'),
+          '6' => __('Quote', 'linet-erp-woocommerce-integration'),
 
-          '7' => __('Sales Order', 'wc-linet'),
-          '8' => __('Receipt', 'wc-linet'),
-          '9' => __('Invoice Receipt', 'wc-linet'),
-          '17' => __('Stock Exit Doc.', 'wc-linet'),
-          '18' => __('Donation Receipt', 'wc-linet'),
+          '7' => __('Sales Order', 'linet-erp-woocommerce-integration'),
+          '8' => __('Receipt', 'linet-erp-woocommerce-integration'),
+          '9' => __('Invoice Receipt', 'linet-erp-woocommerce-integration'),
+          '17' => __('Stock Exit Doc.', 'linet-erp-woocommerce-integration'),
+          '18' => __('Donation Receipt', 'linet-erp-woocommerce-integration'),
         ),
-        'description' => __('Auto Genrate Doc in Linet', 'wc-linet'),
+        'description' => __('Auto Genrate Doc in Linet', 'linet-erp-woocommerce-integration'),
       );
 
 
@@ -320,94 +321,94 @@ class WC_LI_Settings
     return $array + array(
 
       'manual_linet_doc' => array(
-        'title' => __('Sync Orders Manual', 'wc-linet'),
+        'title' => __('Sync Orders Manual', 'linet-erp-woocommerce-integration'),
         'default' => 'none',
         //type' => 'checkbox',
         'type' => 'select',
         'options' => array(
-          '' => __('None', 'wc-linet'),
-          '1' => __('Performa', 'wc-linet'),
-          '2' => __('Delivery Doc.', 'wc-linet'),
-          '3' => __('Invoice', 'wc-linet'),
+          '' => __('None', 'linet-erp-woocommerce-integration'),
+          '1' => __('Performa', 'linet-erp-woocommerce-integration'),
+          '2' => __('Delivery Doc.', 'linet-erp-woocommerce-integration'),
+          '3' => __('Invoice', 'linet-erp-woocommerce-integration'),
 
-          '7' => __('Sales Order', 'wc-linet'),
-          '8' => __('Receipt', 'wc-linet'),
-          '9' => __('Invoice Receipt', 'wc-linet'),
-          '17' => __('Stock Exist Doc.', 'wc-linet'),
-          '18' => __('Donation Receipt', 'wc-linet'),
+          '7' => __('Sales Order', 'linet-erp-woocommerce-integration'),
+          '8' => __('Receipt', 'linet-erp-woocommerce-integration'),
+          '9' => __('Invoice Receipt', 'linet-erp-woocommerce-integration'),
+          '17' => __('Stock Exist Doc.', 'linet-erp-woocommerce-integration'),
+          '18' => __('Donation Receipt', 'linet-erp-woocommerce-integration'),
 
         ),
-        'description' => __('Auto Genrate Doc in Linet', 'wc-linet'),
+        'description' => __('Auto Genrate Doc in Linet', 'linet-erp-woocommerce-integration'),
       ),
 
       'sync_back_status' => array(
-        'title' => __('sync back order status', 'wc-linet'),
+        'title' => __('sync back order status', 'linet-erp-woocommerce-integration'),
         'default' => 'none',
         //type' => 'checkbox',
         'type' => 'select',
         'options' => $statuses,
-        'description' => __('will change order stauts after action in linet', 'wc-linet'),
+        'description' => __('will change order stauts after action in linet', 'linet-erp-woocommerce-integration'),
       ),
 
       'supported_gateways' => array(
-        'title' => __('Supported Gateways', 'wc-linet'),
+        'title' => __('Supported Gateways', 'linet-erp-woocommerce-integration'),
         'default' => '',
         //type' => 'checkbox',
         'type' => 'pay_list',
-        'description' => __('Select Gateways to invoice', 'wc-linet'),
+        'description' => __('Select Gateways to invoice', 'linet-erp-woocommerce-integration'),
       ),
       'stock_manage' => array(
         //out
-        'title' => __('Stock Manage', 'wc-linet'),
+        'title' => __('Stock Manage', 'linet-erp-woocommerce-integration'),
         'default' => 'on',
         'type' => 'select',
         'options' => array(
-          'off' => __('Off', 'wc-linet'),
-          'on' => __('On', 'wc-linet'),
+          'off' => __('Off', 'linet-erp-woocommerce-integration'),
+          'on' => __('On', 'linet-erp-woocommerce-integration'),
         ),
-        'description' => __('Use Linet to sync the stock level of items', 'wc-linet'),
+        'description' => __('Use Linet to sync the stock level of items', 'linet-erp-woocommerce-integration'),
       ),
       'only_stock_manage' => array(
-        'title' => __('Only Stock Manage', 'wc-linet'),
+        'title' => __('Only Stock Manage', 'linet-erp-woocommerce-integration'),
         'default' => 'off',
         'type' => 'select',
         'options' => array(
-          'off' => __('Off', 'wc-linet'),
-          'on' => __('On', 'wc-linet'),
+          'off' => __('Off', 'linet-erp-woocommerce-integration'),
+          'on' => __('On', 'linet-erp-woocommerce-integration'),
         ),
-        'description' => __('Will update only stock levels and not other details', 'wc-linet'),
+        'description' => __('Will update only stock levels and not other details', 'linet-erp-woocommerce-integration'),
       ),
 
       'no_description' => array(
-        'title' => __('No Description', 'wc-linet'),
+        'title' => __('No Description', 'linet-erp-woocommerce-integration'),
         'default' => 'off',
         'type' => 'select',
         'options' => array(
-          'off' => __('Off', 'wc-linet'),
-          'on' => __('On', 'wc-linet'),
+          'off' => __('Off', 'linet-erp-woocommerce-integration'),
+          'on' => __('On', 'linet-erp-woocommerce-integration'),
         ),
-        'description' => __('Will block updates  for description from linet', 'wc-linet'),
+        'description' => __('Will block updates  for description from linet', 'linet-erp-woocommerce-integration'),
       ),
 
       'pricelist_account' => array(
-        'title' => __('Pricelist Custemer ID', 'wc-linet'),
+        'title' => __('Pricelist Custemer ID', 'linet-erp-woocommerce-integration'),
         'default' => '',
         'type' => 'text',
-        'description' => __('custemer id for a spical pricelist for the site', 'wc-linet'),
+        'description' => __('custemer id for a spical pricelist for the site', 'linet-erp-woocommerce-integration'),
       ),
 
 
       'sync_items' => array(
-        'title' => __('Sync Items', 'wc-linet'),
+        'title' => __('Sync Items', 'linet-erp-woocommerce-integration'),
         'default' => 'on',
         'type' => 'select',
         'options' => array(
-          'off' => __('Off', 'wc-linet'),
-          'on' => __('On', 'wc-linet'),
-          'sns' => __('SNS - Select Only With Linet Support!', 'wc-linet'),
+          'off' => __('Off', 'linet-erp-woocommerce-integration'),
+          'on' => __('On', 'linet-erp-woocommerce-integration'),
+          'sns' => __('SNS - Select Only With Linet Support!', 'linet-erp-woocommerce-integration'),
         ),
 
-        'description' => __('Manual Items Sync:', 'wc-linet') .
+        'description' => __('Manual Items Sync:', 'linet-erp-woocommerce-integration') .
           ' <br /><button type="button" id="linwc-btn" class="button-primary" onclick="linet.fullItemsSync();">Linet->WC</button>' .
           ' <br /><button type="button" id="wclin-btn" class="button" style="display:none;" onclick="linet.fullProdSync();">WC->Linet</button>' .
           "<div id='mItems' class='hidden'>" .
@@ -420,94 +421,94 @@ class WC_LI_Settings
         ,
       ),
       'syncField' => array(
-        'title' => __('Custom Field ID (Product)', 'wc-linet'),
+        'title' => __('Custom Field ID (Product)', 'linet-erp-woocommerce-integration'),
         'default' => '',
         'type' => 'text',
-        'description' => __('Linet Custom Field ID (eav{N}) for auto syncd products', 'wc-linet'),
+        'description' => __('Linet Custom Field ID (eav{N}) for auto syncd products', 'linet-erp-woocommerce-integration'),
       ),
       'syncValue' => array(
-        'title' => __('Custom Field Value (Product)', 'wc-linet'),
+        'title' => __('Custom Field Value (Product)', 'linet-erp-woocommerce-integration'),
         'default' => '',
         'type' => 'text',
-        'description' => __('Linet Custom Field Value for auto syncd products', 'wc-linet'),
+        'description' => __('Linet Custom Field Value for auto syncd products', 'linet-erp-woocommerce-integration'),
       ),
       'syncCatField' => array(
-        'title' => __('Custom Field ID (Category)', 'wc-linet'),
+        'title' => __('Custom Field ID (Category)', 'linet-erp-woocommerce-integration'),
         'default' => '',
         'type' => 'text',
-        'description' => __('Linet Custom Field ID (eav{N}) for auto syncd categories', 'wc-linet'),
+        'description' => __('Linet Custom Field ID (eav{N}) for auto syncd categories', 'linet-erp-woocommerce-integration'),
       ),
       'syncCatValue' => array(
-        'title' => __('Custom Field Value (Category)', 'wc-linet'),
+        'title' => __('Custom Field Value (Category)', 'linet-erp-woocommerce-integration'),
         'default' => '',
         'type' => 'text',
-        'description' => __('Linet Custom Field Value for auto syncd categories', 'wc-linet'),
+        'description' => __('Linet Custom Field Value for auto syncd categories', 'linet-erp-woocommerce-integration'),
       ),
       'picsync' => array(
-        'title' => __('Picture Sync', 'wc-linet'),
+        'title' => __('Picture Sync', 'linet-erp-woocommerce-integration'),
         'default' => 'on',
         'type' => 'select',
         'options' => array(
-          'off' => __('Off', 'wc-linet'),
-          'on' => __('On', 'wc-linet'),
+          'off' => __('Off', 'linet-erp-woocommerce-integration'),
+          'on' => __('On', 'linet-erp-woocommerce-integration'),
         ),
-        'description' => __('Will sync Pictures', 'wc-linet'),
+        'description' => __('Will sync Pictures', 'linet-erp-woocommerce-integration'),
       ),
       'rect_img' => array(
-        'title' => __('Picture Options', 'wc-linet'),
+        'title' => __('Picture Options', 'linet-erp-woocommerce-integration'),
         'default' => 'off',
         'type' => 'select',
         'options' => array(
-          'none' => __('None', 'wc-linet'),
-          'on' => __('Force Rect. Picture', 'wc-linet'),
-          'nothumb' => __('Original File', 'wc-linet'),
+          'none' => __('None', 'linet-erp-woocommerce-integration'),
+          'on' => __('Force Rect. Picture', 'linet-erp-woocommerce-integration'),
+          'nothumb' => __('Original File', 'linet-erp-woocommerce-integration'),
         ),
-        'description' => __('Will force Rectangular Pictures', 'wc-linet'),
+        'description' => __('Will force Rectangular Pictures', 'linet-erp-woocommerce-integration'),
       ),
 
 
       'not_product_attributes' => array(
-        'title' => __('No Product Attributes', 'wc-linet'),
+        'title' => __('No Product Attributes', 'linet-erp-woocommerce-integration'),
         'default' => 'off',
         'type' => 'select',
         'options' => array(
-          'off' => __('Off', 'wc-linet'),
-          'on' => __('On', 'wc-linet'),
+          'off' => __('Off', 'linet-erp-woocommerce-integration'),
+          'on' => __('On', 'linet-erp-woocommerce-integration'),
         ),
-        'description' => __('Do not write product_attributes meta data', 'wc-linet'),
+        'description' => __('Do not write product_attributes meta data', 'linet-erp-woocommerce-integration'),
       ),
 
 
       'warehouse_id' => array(
-        'title' => __('Warehouse', 'wc-linet'),
+        'title' => __('Warehouse', 'linet-erp-woocommerce-integration'),
         'default' => '115',
         'type' => 'text',
-        'description' => __('Warehouse ID from Linet', 'wc-linet'),
+        'description' => __('Warehouse ID from Linet', 'linet-erp-woocommerce-integration'),
       ),
 
       'warehouse_exclude' => array(
-        'title' => __('Warehouse exclude', 'wc-linet'),
+        'title' => __('Warehouse exclude', 'linet-erp-woocommerce-integration'),
         'default' => '',
         'type' => 'text',
-        'description' => __('Warehouse ID from Linet you can write a list with commas(,)', 'wc-linet'),
+        'description' => __('Warehouse ID from Linet you can write a list with commas(,)', 'linet-erp-woocommerce-integration'),
       ),
 
       'warehouse_stock_count' => array(
-        'title' => __('Stock Count Warehouse', 'wc-linet'),
+        'title' => __('Stock Count Warehouse', 'linet-erp-woocommerce-integration'),
         'default' => 'on',
         'type' => 'select',
         'options' => array(
-          'off' => __('All company Warehouses', 'wc-linet'),
-          'on' => __('The same warehouse', 'wc-linet'),
+          'off' => __('All company Warehouses', 'linet-erp-woocommerce-integration'),
+          'on' => __('The same warehouse', 'linet-erp-woocommerce-integration'),
         ),
-        'description' => __('Stock Count Warehouse', 'wc-linet'),
+        'description' => __('Stock Count Warehouse', 'linet-erp-woocommerce-integration'),
       ),
 
       'itemFields' => array(
-        'title' => __('Custom Item Fields', 'wc-linet'),
+        'title' => __('Custom Item Fields', 'linet-erp-woocommerce-integration'),
         'default' => '',
         'type' => 'repeater_text',
-        'description' => __('Linet Custom Field ID (eav{N}) for auto syncd products.', 'wc-linet'),
+        'description' => __('Linet Custom Field ID (eav{N}) for auto syncd products.', 'linet-erp-woocommerce-integration'),
       ),
     );
   }
@@ -519,7 +520,7 @@ class WC_LI_Settings
     $filtered = preg_replace('/\.+/', '.', $filtered);
 
     $name = str_replace("/", "", str_replace("..", "", $_POST['name']));
-    echo file_get_contents(WC_LOG_DIR . $filtered);
+    echo esc_html(file_get_contents(WC_LOG_DIR . $filtered));
     wp_die();
   }
 
@@ -530,8 +531,8 @@ class WC_LI_Settings
     $filtered = preg_replace('/\.+/', '.', $filtered);
 
     //$name = str_replace("/", "", str_replace("..", "",$_POST['name'] ));
-
-    echo unlink( WC_LOG_DIR . $filtered);
+    wp_delete_file(WC_LOG_DIR . $filtered);
+    //echo esc_html(unlink(WC_LOG_DIR . $filtered));
     wp_die();
   }
 
@@ -585,10 +586,10 @@ class WC_LI_Settings
 
       $logger->write("found prod $post_id");
 
-      echo $product->delete(true);
+      echo esc_html($product->delete(true));
 
 
-      echo wc_delete_product_transients($post_id);
+      echo esc_html(wc_delete_product_transients($post_id));
 
     } else {
       $logger->write("not found prod");
@@ -629,21 +630,21 @@ class WC_LI_Settings
     if ($data = get_posts($args)) {
       foreach ($data as $form) {
         $arr["cf7" . $form->ID] = array(
-          'title' => __('CF7:', 'wc-linet') . " " . $form->post_title,
+          'title' => __('CF7:', 'linet-erp-woocommerce-integration') . " " . $form->post_title,
           'default' => '',
           'type' => 'cf7_text',
           'payload' => array('form_id' => $form->ID)
-          //'description' => __('Login ID  retrieved from <a href="http://app.linet.org.il" target="_blank">Linet</a>.', 'wc-linet'),
+          //'description' => __('Login ID  retrieved from <a href="http://app.linet.org.il" target="_blank">Linet</a>.', 'linet-erp-woocommerce-integration'),
         );
       }
     }
 
     $arr["elementor_form"] = array(
-      'title' => __('elementor form map', 'wc-linet'),
+      'title' => __('elementor form map', 'linet-erp-woocommerce-integration'),
       'default' => '',
       'type' => 'elementor_text',
       //'payload' => array('form_id'=>1),
-      'description' => __('map form by name and field id', 'wc-linet'),
+      'description' => __('map form by name and field id', 'linet-erp-woocommerce-integration'),
     );
 
 
@@ -664,25 +665,23 @@ class WC_LI_Settings
 
     $arr = array();
 
-    $query = "SELECT post_id,meta_value ,count(meta_value) as num FROM $wpdb->postmeta where meta_key='_sku' GROUP by meta_value HAVING num>1";
-    $products = $wpdb->get_results($query);
+    $products = $wpdb->get_results("SELECT post_id,meta_value ,count(meta_value) as num FROM {$wpdb->postmeta} where meta_key='_sku' GROUP by meta_value HAVING num>1");
 
     foreach ($products as $index => $product) {
       $arr['sku' . $index] = array(
-        'title' => __('duplicate sku', 'wc-linet') . " <br /><a data-key='_sku' data-value='$product->meta_value' onclick=\"linet.deleteProd(event,this);\" href=''>Delete</a>",
+        'title' => __('duplicate sku', 'linet-erp-woocommerce-integration') . " <br /><a data-key='_sku' data-value='$product->meta_value' onclick=\"linet.deleteProd(event,this);\" href=''>Delete</a>",
         'default' => '',
         'type' => 'none',
         'description' => $product->post_id . " " . $product->meta_value . " " . $product->num,
       );
     }
 
-    $query = "SELECT post_id,meta_value ,count(meta_value) as num FROM $wpdb->postmeta where meta_key='_linet_id' GROUP by meta_value HAVING num>1";
-    $products = $wpdb->get_results($query);
+    $products = $wpdb->get_results("SELECT post_id,meta_value ,count(meta_value) as num FROM {$wpdb->postmeta} WHERE meta_key='_linet_id' GROUP by meta_value HAVING num>1");
 
 
     foreach ($products as $index => $product) {
       $arr['linet_id' . $index] = array(
-        'title' => __('duplicate linet_id', 'wc-linet') . " <br /><a data-key='_linet_id' data-value='$product->meta_value' onclick=\"linet.deleteProd(event,this);\" href=''>Delete</a>",
+        'title' => __('duplicate linet_id', 'linet-erp-woocommerce-integration') . " <br /><a data-key='_linet_id' data-value='$product->meta_value' onclick=\"linet.deleteProd(event,this);\" href=''>Delete</a>",
         'default' => '',
         'type' => 'none',
         'description' => $product->post_id . " " . $product->meta_value . " " . $product->num,
@@ -690,11 +689,10 @@ class WC_LI_Settings
     }
 
 
-    $query = "SELECT ID,post_title,meta_value FROM $wpdb->posts LEFT JOIN $wpdb->postmeta ON post_id=ID AND meta_key = '_wp_attachment_metadata' where post_type='attachment' AND meta_value is null";
-    $attachments = $wpdb->get_results($query);
+    $attachments = $wpdb->get_results("SELECT ID,post_title,meta_value FROM $wpdb->posts LEFT JOIN $wpdb->postmeta ON post_id=ID AND meta_key = '_wp_attachment_metadata' where post_type='attachment' AND meta_value is null");
     foreach ($attachments as $index => $attachment) {
       $arr['attachment' . $index] = array(
-        'title' => __('attachment metadata missing', 'wc-linet') . " <br /><a data-id='$attachment->ID' onclick=\"linet.deleteAttachment(this);\" href=''>Delete</a>",
+        'title' => __('attachment metadata missing', 'linet-erp-woocommerce-integration') . " <br /><a data-id='$attachment->ID' onclick=\"linet.deleteAttachment(this);\" href=''>Delete</a>",
         'default' => '',
         'type' => 'none',
         'description' => "<a data-id='$attachment->ID' data-file='$attachment->post_title' onclick=\"linet.calcAttachment(this);\" href=''>$attachment->post_title</a>",
@@ -702,36 +700,37 @@ class WC_LI_Settings
     }
 
 
-
-
-
-
-
-
-    $query = "select a.* ,meta_id.`meta_value` as meta_id,meta_sku.`meta_value` as meta_sku
-
-  FROM 
-  (
-  SELECT  count(`id`) as inst,max(`id`) as lasty,`post_type`,`post_title`,`post_excerpt`,`post_parent`
-  FROM $wpdb->posts 
-
-
-  where 
-  `post_parent` in (SELECT DISTINCT `post_parent` FROM $wpdb->posts WHERE `post_type`='product_variation') and `post_parent`!=0 
-  and post_type='product_variation'
-  GROUP by `post_parent`,`post_excerpt`  
-  HAVING inst>1  
-  ORDER BY $wpdb->posts.`post_parent` ASC
-
-  ) a
-
-  LEFT JOIN $wpdb->postmeta meta_sku on meta_sku.`meta_key`='_sku' AND meta_sku.`post_id`=a.lasty
-  LEFT JOIN $wpdb->postmeta meta_id on meta_id.`meta_key`='_linet_id' AND meta_id.`post_id`=a.lasty";
-
-    $products = $wpdb->get_results($query);
+    $products = $wpdb->get_results("
+SELECT a.*, meta_id.meta_value AS meta_id, meta_sku.meta_value AS meta_sku
+FROM (
+    SELECT 
+        COUNT(p.ID) AS inst,
+        MAX(p.ID) AS lasty,
+        p.post_type,
+        p.post_title,
+        p.post_excerpt,
+        p.post_parent
+    FROM {$wpdb->posts} p
+    WHERE 
+        p.post_parent IN (
+            SELECT DISTINCT post_parent 
+            FROM {$wpdb->posts} 
+            WHERE post_type = 'product_variation'
+        ) 
+        AND p.post_parent != 0 
+        AND p.post_type = 'product_variation'
+    GROUP BY p.post_parent, p.post_excerpt
+    HAVING inst > 1
+) a
+LEFT JOIN {$wpdb->postmeta} meta_sku 
+    ON meta_sku.meta_key = '_sku' AND meta_sku.post_id = a.lasty
+LEFT JOIN {$wpdb->postmeta} meta_id 
+    ON meta_id.meta_key = '_linet_id' AND meta_id.post_id = a.lasty
+ORDER BY a.post_parent ASC
+");
     foreach ($products as $index => $product) {
       $arr['vari' . $index] = array(
-        'title' => __('duplicate product_variation', 'wc-linet') . " <br /><a class='duplidel' data-key='id' data-value='$product->lasty' onclick=\"linet.deleteProd(event,this);\" href=''>Delete</a>",
+        'title' => __('duplicate product_variation', 'linet-erp-woocommerce-integration') . " <br /><a class='duplidel' data-key='id' data-value='$product->lasty' onclick=\"linet.deleteProd(event,this);\" href=''>Delete</a>",
         'default' => '',
         'type' => 'none',
         'description' => "post_id: " . $product->lasty . " post_parent: " . $product->post_parent . " linet_id:" . $product->meta_id . " sku:" . $product->meta_sku . " count: " . $product->inst,
@@ -750,10 +749,14 @@ class WC_LI_Settings
     foreach ($scanned_directory as $index => $file) {
       if (strpos($file, 'linet') === 0 || strpos($file, 'fatal-errors') === 0)
         $arr['file' . $index] = array(
-          'title' => __('Log File', 'wc-linet') . "<br /><a data-name='$file'  onclick=\"linet.deleteFile(event,this);\" href='#'>Delete</a>",
+          'title' => __('Log File', 'linet-erp-woocommerce-integration') . "<br /><a data-name='$file'  onclick=\"linet.deleteFile(event,this);\" href='#'>Delete</a>",
           'default' => '',
-          'type' => 'none',
-          'description' => "<a  onclick=\"linet.getFile('$file');\" href='#'>$file</a>",
+          'type' => 'href',
+          "onclick" => "linet.getFile('$file')",
+          "href" => '#',
+          'text' => $file,
+          //'description' => $file,
+
         );
     }
 
@@ -767,69 +770,69 @@ class WC_LI_Settings
 
     return array(
       'consumer_id' => array(
-        'title' => __('ID', 'wc-linet'),
+        'title' => __('ID', 'linet-erp-woocommerce-integration'),
         'default' => '',
         'type' => 'text',
-        'description' => __('Login ID  retrieved from <a href="http://app.linet.org.il" target="_blank">Linet</a>.', 'wc-linet'),
+        'description' => __('Login ID  retrieved from <a href="http://app.linet.org.il" target="_blank">Linet</a>.', 'linet-erp-woocommerce-integration'),
       ),
       'consumer_key' => array(
-        'title' => __('Key', 'wc-linet'),
+        'title' => __('Key', 'linet-erp-woocommerce-integration'),
         'default' => '',
         'type' => 'text',
-        'description' => __('Key retrieved from <a href="http://app.linet.org.il" target="_blank">Linet</a>.', 'wc-linet'),
+        'description' => __('Key retrieved from <a href="http://app.linet.org.il" target="_blank">Linet</a>.', 'linet-erp-woocommerce-integration'),
       ),
       'company' => array(
-        'title' => __('Company', 'wc-linet'),
+        'title' => __('Company', 'linet-erp-woocommerce-integration'),
         'default' => '1',
         'type' => 'text',
-        'description' => __('Company id', 'wc-linet'),
+        'description' => __('Company id', 'linet-erp-woocommerce-integration'),
       ),
       'last_update' => array(
-        'title' => __('Last Update Time', 'wc-linet'),
+        'title' => __('Last Update Time', 'linet-erp-woocommerce-integration'),
         'default' => '',
         'type' => 'text',
-        'description' => __('Last Update Time ', 'wc-linet'),
+        'description' => __('Last Update Time ', 'linet-erp-woocommerce-integration'),
         'options' => array(
           'readonly' => true,
         )
       ),
       'last_sns' => array(
-        'title' => __('Last Message Time', 'wc-linet'),
+        'title' => __('Last Message Time', 'linet-erp-woocommerce-integration'),
         'default' => '',
         'type' => 'none',
         'description' => self::get_option("last_sns"),
 
       ),
       'debug' => array(
-        'title' => __('Debug', 'wc-linet'),
+        'title' => __('Debug', 'linet-erp-woocommerce-integration'),
         'default' => 'off',
         'type' => 'select',
         'options' => array(
-          'off' => __('Off', 'wc-linet'),
-          'on' => __('On', 'wc-linet'),
+          'off' => __('Off', 'linet-erp-woocommerce-integration'),
+          'on' => __('On', 'linet-erp-woocommerce-integration'),
         ),
-        'description' => __('Enable logging.  Log file is located at:', 'wc-linet') . " " . WC_LOG_DIR,
+        'description' => __('Enable logging.  Log file is located at:', 'linet-erp-woocommerce-integration') . " " . WC_LOG_DIR,
       ),
       'dev' => array(
-        'title' => __('Dev Mode', 'wc-linet'),
+        'title' => __('Dev Mode', 'linet-erp-woocommerce-integration'),
         'default' => 'off',
         'type' => 'select',
         'options' => array(
-          'off' => __('Off', 'wc-linet'),
-          'on' => __('On', 'wc-linet'),
+          'off' => __('Off', 'linet-erp-woocommerce-integration'),
+          'on' => __('On', 'linet-erp-woocommerce-integration'),
         ),
-        'description' => __('Will work aginst the dev server', 'wc-linet'),
+        'description' => __('Will work aginst the dev server', 'linet-erp-woocommerce-integration'),
       ),
       'nonce' => array(
-        'title' => __('Safe Ajax Mode', 'wc-linet'),
+        'title' => __('Safe Ajax Mode', 'linet-erp-woocommerce-integration'),
         'default' => 'off',
         'type' => 'select',
         'options' => array(
-          'on' => __('On', 'wc-linet'),
-          'off' => __('Off', 'wc-linet'),
+          'on' => __('On', 'linet-erp-woocommerce-integration'),
+          'off' => __('Off', 'linet-erp-woocommerce-integration'),
 
         ),
-        'description' => __('Will disable security nonce', 'wc-linet'),
+        'description' => __('Will disable security nonce', 'linet-erp-woocommerce-integration'),
       ),
     );
   }
@@ -873,9 +876,9 @@ class WC_LI_Settings
       $metas = get_term_meta($term->term_id);
       ?>
       Linet Cat ID:
-      <?= isset($metas['_linet_cat']) && $metas['_linet_cat']['0'] ? $metas['_linet_cat']["0"] : "No Linet ID" ?><br />
+      <?php echo esc_html(isset($metas['_linet_cat']) && $metas['_linet_cat']['0'] ? $metas['_linet_cat']["0"] : "No Linet ID") ?><br />
       Linet Last Upate:
-      <?= isset($metas['_linet_last_update']) && $metas['_linet_last_update']['0'] ? $metas['_linet_last_update']["0"] : "unkown" ?><br />
+      <?php echo esc_html(isset($metas['_linet_last_update']) && $metas['_linet_last_update']['0'] ? $metas['_linet_last_update']["0"] : "unkown") ?><br />
 
       <?php
     }
@@ -890,7 +893,6 @@ class WC_LI_Settings
 
 
       $nonce = get_option('wc_linet_nonce') !== 'off';
-      $beforeSendNonce = "";
 
       if ($nonce) {
         wp_localize_script('wp-api', 'wpApiSettings', array(
@@ -898,9 +900,7 @@ class WC_LI_Settings
           'nonce' => wp_create_nonce('wp_rest')
         ));
 
-        $beforeSendNonce = "beforeSend: function (xhr) {
-                  xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
-                },";
+
       }
 
 
@@ -919,8 +919,12 @@ class WC_LI_Settings
               method: 'POST',
               dataType: "json",
 
-              <?= $beforeSendNonce; ?>
-                    data: data
+              <?php if ($nonce): ?>
+                                                            beforeSend: function (xhr) {
+                  xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                },
+              <?php endif; ?>
+                                                  data: data
             }).done(function (response) {
               alert(response.status);
               location.reload();
@@ -938,9 +942,12 @@ class WC_LI_Settings
               method: 'POST',
               dataType: "json",
 
-              <?= $beforeSendNonce; ?>
-
-              data: data
+              <?php if ($nonce): ?>
+                                                            beforeSend: function (xhr) {
+                  xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                },
+              <?php endif; ?>
+                                                    data: data
             }).done(function (response) {
               alert(response.status);
               location.reload();
@@ -949,12 +956,15 @@ class WC_LI_Settings
         }
       </script>
       Linet ID:
-      <?= isset($metas['_linet_id']) && $metas['_linet_id']['0'] ? $metas['_linet_id']["0"] : "No Linet ID" ?><br />
+      <?php echo esc_html(isset($metas['_linet_id']) && $metas['_linet_id']['0'] ? $metas['_linet_id']["0"] : "No Linet ID") ?><br />
       Linet Last Upate:
-      <?= isset($metas['_linet_last_update']) && $metas['_linet_last_update']['0'] ? $metas['_linet_last_update']["0"] : "unkown" ?><br />
-      <a class="button" data-post_id="<?= $post->ID; ?>" onclick="linet.singleSync(<?= $post->ID; ?>);">Sync Item From
+      <?php echo esc_html(isset($metas['_linet_last_update']) && $metas['_linet_last_update']['0'] ? $metas['_linet_last_update']["0"] : "unkown") ?><br />
+      <a class="button" data-post_id="<?php echo esc_attr($post->ID); ?>"
+        onclick="linet.singleSync(<?php echo esc_attr($post->ID); ?>);">Sync
+        Item From
         Linet</a>
-      <a class="button hidden" data-post_id="<?= $post->ID; ?>" onclick="linet.singleToSync(<?= $post->ID; ?>);">Sync Item To
+      <a class="button hidden" data-post_id="<?php echo esc_attr($post->ID); ?>"
+        onclick="linet.singleToSync(<?php echo esc_attr($post->ID); ?>);">Sync Item To
         Linet</a>
       <?php
     }
@@ -994,7 +1004,7 @@ class WC_LI_Settings
     // Add section
     add_settings_section(
       'wc_linet_settings',
-      __('Linet Settings', 'wc-linet'),
+      __('Linet Settings', 'linet-erp-woocommerce-integration'),
       array(
         $this,
         'settings_intro'
@@ -1010,57 +1020,39 @@ class WC_LI_Settings
       $this->form()
     );
 
+    $selectedTab = isset($_GET["tab"]) ? $_GET["tab"] : "";
 
-    //here we display the sections and options in the settings page based on the active tab
-    if (isset($_GET["tab"])) {
-      if ($_GET["tab"] == "order-options") {
+
+    switch ($selectedTab) {
+      case "order-options":
         $this->renderOptTab($this->orderOptions());
-      }
-      if ($_GET["tab"] == "line-options") {
+        break;
+
+      case 'line-options':
+
         $this->renderOptTab($this->lineOptions());
+        break;
 
-        /*
-        if(LI_WC_Dependencies::check_custom_product_addons()){
-        $settingsMap = new WC_LI_Settings_Map();
-        foreach($settingsMap->settings as $key => $setting){
-        add_settings_field(self::OPTION_PREFIX . $setting['name']. $key, $setting['label'], array(
-        $this,
-        'input_text'
-        ), 'woocommerce_linet', 'wc_linet_settings', array('key' => $setting['name'], 'option' => $setting));
-        register_setting('woocommerce_linet', self::OPTION_PREFIX . $setting['name']);
-        }
-        }
-        if(LI_WC_Dependencies::check_yith_woocommerce_product_add_ons()){
-        $settingsMap = new WC_LI_Settings_Yith_Map();
-        foreach($settingsMap->settings as $key => $setting){
-        add_settings_field(self::OPTION_PREFIX .'ywapo'. $setting['elementId']. $key, $setting['label'], array(
-        $this,
-        'input_text'
-        ), 'woocommerce_linet', 'wc_linet_settings', array('key' =>'ywapo'. $setting['elementId'], 'option' => $setting));
-        register_setting('woocommerce_linet', self::OPTION_PREFIX .'ywapo'. $setting['elementId']);
-        }
-        }
-        */
-
-      }
-      if ($_GET["tab"] == "sync-options") {
+      case 'sync-options':
         $this->renderOptTab($this->syncOptions());
-      }
-      if ($_GET["tab"] == "connection-options") {
-        $this->renderOptTab($this->connectionOptions());
-      }
+        break;
 
-      if ($_GET["tab"] == "maintenance") {
+      case 'maintenance':
         $this->renderOptTab($this->maintenance());
-      }
+        break;
 
-      if ($_GET["tab"] == "form") {
+      case 'connection-options':
+        $this->renderOptTab($this->connectionOptions());
+        break;
+      case 'form':
         $this->renderOptTab($this->form());
-      }
+        break;
 
-    } else {
-      $this->renderOptTab($this->connectionOptions());
+      default:
+        $this->renderOptTab($this->connectionOptions());
+        break;
     }
+    //here we display the sections and options in the settings page based on the active tab
 
 
     //$this->renderOptTab($this->settings);
@@ -1080,8 +1072,17 @@ class WC_LI_Settings
       ), 'woocommerce_linet', 'wc_linet_settings', array('key' => $key, 'option' => $option));
 
       // Register setting
-      register_setting('woocommerce_linet', self::OPTION_PREFIX . $key);
+      register_setting('woocommerce_linet', self::OPTION_PREFIX . $key, [
+        'sanitize_callback' => 'sanitize_text_field' // Add appropriate sanitization function
+      ]);
     }
+  }
+
+  public function input_href($settings)
+  {
+
+    //print_r($settings);
+    return printf("<a onclick='%s' href='%s'>%s</a>", esc_attr($settings['option']['onclick']), esc_attr($settings['option']['href']), esc_html($settings['option']['text']));
   }
 
   /**
@@ -1093,8 +1094,8 @@ class WC_LI_Settings
   {
     $sub_menu_page = add_submenu_page(
       'woocommerce',
-      __('Linet', 'wc-linet'),
-      __('Linet', 'wc-linet'),
+      __('Linet', 'linet-erp-woocommerce-integration'),
+      __('Linet', 'linet-erp-woocommerce-integration'),
       'manage_woocommerce',
       'woocommerce_linet',
       array(
@@ -1158,17 +1159,17 @@ class WC_LI_Settings
 
     ?>
     <div class="wrap woocommerce">
-      <form method="post" id="mainform" action="options.php?tab=<?= $active_tab; ?>">
+      <form method="post" id="mainform" action="options.php?tab=<?php echo esc_attr($active_tab); ?>">
         <div class="icon32 icon32-woocommerce-settings" id="icon-woocommerce"><br /></div>
         <h2>
-          <?php _e('Linet for WooCommerce', 'wc-linet'); ?>
+          <?php esc_html_e('Linet for WooCommerce', 'linet-erp-woocommerce-integration'); ?>
         </h2>
 
         <?php
         if (isset($_GET['settings-updated']) && ($_GET['settings-updated'] == 'true')) {
-          echo '<div id="message" class="updated fade"><p><strong>' . __('Your settings have been saved.', 'wc-linet') . '</strong></p></div>';
+          echo '<div id="message" class="updated fade"><p><strong>' . esc_html_e('Your settings have been saved.', 'linet-erp-woocommerce-integration') . '</strong></p></div>';
         } else if (isset($_GET['settings-updated']) && ($_GET['settings-updated'] == 'false')) {
-          echo '<div id="message" class="error fade"><p><strong>' . __('There was an error saving your settings.', 'wc-linet') . '</strong></p></div>';
+          echo '<div id="message" class="error fade"><p><strong>' . esc_html_e('There was an error saving your settings.', 'linet-erp-woocommerce-integration') . '</strong></p></div>';
         }
         ?>
 
@@ -1182,7 +1183,7 @@ class WC_LI_Settings
 
         ) {
 
-          echo '<div id="backgroundSync" class="error fade"><p><strong>' . __('background sync is rununing started/syncd', 'wc-linet') . $status['start'] . "/" . $status['offset'] . '</strong></p></div>';
+          echo '<div id="backgroundSync" class="error fade"><p><strong>' . esc_html_e('background sync is rununing started/syncd', 'linet-erp-woocommerce-integration') . esc_html($status['start']) . "/" . esc_html($status['offset']) . '</strong></p></div>';
         }
         ?>
 
@@ -1195,22 +1196,22 @@ class WC_LI_Settings
           <!-- when tab buttons are clicked we jump back to the same page but with a new parameter that represents the clicked tab. accordingly we make it active -->
           <a href="?page=woocommerce_linet&tab=connection-options" class="nav-tab <?php if ($active_tab == 'connection-options') {
             echo 'nav-tab-active';
-          } ?> "><?php _e('Connection Options', 'sandbox'); ?></a>
+          } ?> "><?php esc_html_e('Connection Options', 'linet-erp-woocommerce-integration'); ?></a>
           <a href="?page=woocommerce_linet&tab=order-options" class="nav-tab <?php if ($active_tab == 'order-options') {
             echo 'nav-tab-active';
-          } ?>"><?php _e('Order Options', 'sandbox'); ?></a>
+          } ?>"><?php esc_html_e('Order Options', 'linet-erp-woocommerce-integration'); ?></a>
           <a href="?page=woocommerce_linet&tab=line-options" class="nav-tab <?php if ($active_tab == 'line-options') {
             echo 'nav-tab-active';
-          } ?>"><?php _e('Line Options', 'sandbox'); ?></a>
+          } ?>"><?php esc_html_e('Line Options', 'linet-erp-woocommerce-integration'); ?></a>
           <a href="?page=woocommerce_linet&tab=sync-options" class="nav-tab <?php if ($active_tab == 'sync-options') {
             echo 'nav-tab-active';
-          } ?>"><?php _e('Sync Options', 'sandbox'); ?></a>
+          } ?>"><?php esc_html_e('Sync Options', 'linet-erp-woocommerce-integration'); ?></a>
           <a href="?page=woocommerce_linet&tab=maintenance" class="nav-tab <?php if ($active_tab == 'maintenance') {
             echo 'nav-tab-active';
-          } ?>"><?php _e('Maintenance', 'sandbox'); ?></a>
+          } ?>"><?php esc_html_e('Maintenance', 'linet-erp-woocommerce-integration'); ?></a>
           <a href="?page=woocommerce_linet&tab=form" class="nav-tab <?php if ($active_tab == 'form') {
             echo 'nav-tab-active';
-          } ?>"><?php _e('Form', 'sandbox'); ?></a>
+          } ?>"><?php esc_html_e('Form', 'linet-erp-woocommerce-integration'); ?></a>
 
 
         </h2>
@@ -1221,7 +1222,6 @@ class WC_LI_Settings
 
 
         $nonce = get_option('wc_linet_nonce') !== 'off';
-        $beforeSendNonce = "";
 
         if ($nonce) {
           wp_localize_script('wp-api', 'wpApiSettings', array(
@@ -1229,11 +1229,8 @@ class WC_LI_Settings
             'nonce' => wp_create_nonce('wp_rest')
           ));
 
-          $beforeSendNonce = "beforeSend: function (xhr) {
-            xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
-          },";
-        }
 
+        }
 
 
 
@@ -1260,8 +1257,12 @@ class WC_LI_Settings
               jQuery.ajax({
                 url: ajaxurl,
                 method: 'POST',
-                <?= $beforeSendNonce; ?>
-                    data: data
+                <?php if ($nonce): ?>
+                                  beforeSend: function (xhr) {
+                    xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                  },
+                <?php endif; ?>
+                                     data: data
               }).done(function (response) {
                 console.log(response);
               });
@@ -1286,9 +1287,13 @@ class WC_LI_Settings
               jQuery.ajax({
                 url: ajaxurl,
                 method: 'POST',
-                <?= $beforeSendNonce; ?>
 
-                    data: data
+                <?php if ($nonce): ?>
+                            beforeSend: function (xhr) {
+                    xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                  },
+                <?php endif; ?>
+                      data: data
               }).done(function (response) {
                 console.log(response);
               });
@@ -1316,9 +1321,13 @@ class WC_LI_Settings
               jQuery.ajax({
                 url: ajaxurl,
                 method: 'POST',
-                <?= $beforeSendNonce; ?>
 
-                    data: data
+                <?php if ($nonce): ?>
+                            beforeSend: function (xhr) {
+                    xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                  },
+                <?php endif; ?>
+                      data: data
               }).done(function (response) {
                 console.log(response);
               });
@@ -1338,8 +1347,12 @@ class WC_LI_Settings
               jQuery.ajax({
                 url: ajaxurl,
                 method: 'POST',
-                <?= $beforeSendNonce; ?>
 
+                <?php if ($nonce): ?>
+                            beforeSend: function (xhr) {
+                    xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                  },
+                <?php endif; ?>
                     data: data
               }).done(function (response) {
                 console.log(response);
@@ -1355,8 +1368,12 @@ class WC_LI_Settings
               jQuery.ajax({
                 url: ajaxurl,
                 method: 'POST',
-                <?= $beforeSendNonce; ?>
 
+                <?php if ($nonce): ?>
+                            beforeSend: function (xhr) {
+                    xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                  },
+                <?php endif; ?>
                     data: data
               }).done(function (response) {
                 console.log(response);
@@ -1383,9 +1400,12 @@ class WC_LI_Settings
                 method: 'POST',
                 dataType: "json",
 
-                <?= $beforeSendNonce; ?>
-
-                    data: data
+                <?php if ($nonce): ?>
+                            beforeSend: function (xhr) {
+                    xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                  },
+                <?php endif; ?>
+                      data: data
               }).done(function (response) {
                 alert(response.text);
               });
@@ -1405,8 +1425,12 @@ class WC_LI_Settings
               jQuery.ajax({
                 url: ajaxurl,
                 method: 'POST',
-                <?= $beforeSendNonce; ?>
 
+                <?php if ($nonce): ?>
+                            beforeSend: function (xhr) {
+                    xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                  },
+                <?php endif; ?>
                     data: data
               }).done(function (response) {
                 alert(response);
@@ -1425,13 +1449,15 @@ class WC_LI_Settings
               };
               jQuery('#mItems').removeClass('hidden');
 
-
-
               jQuery.ajax({
                 url: ajaxurl,
                 method: 'POST',
-                <?= $beforeSendNonce; ?>
 
+                <?php if ($nonce): ?>
+                            beforeSend: function (xhr) {
+                    xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                  },
+                <?php endif; ?>
                     data: data
               }).done(function (response) {
                 jQuery('#target').html("Items:  0/" + response);
@@ -1443,11 +1469,8 @@ class WC_LI_Settings
                 }
               });
 
-
-
               return false
             },
-
 
             prodSync: function (offset) {
               var data = {
@@ -1470,9 +1493,13 @@ class WC_LI_Settings
               jQuery.ajax({
                 url: ajaxurl,
                 method: 'POST',
-                <?= $beforeSendNonce; ?>
 
-                    data: data
+                <?php if ($nonce): ?>
+                            beforeSend: function (xhr) {
+                    xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                  },
+                <?php endif; ?>
+                  data: data
               }).done(function (response) {
 
                 //console.log(response);
@@ -1487,13 +1514,7 @@ class WC_LI_Settings
                 //count
               });
 
-
             },
-
-
-
-
-
 
             getList: function () {
               var data = {
@@ -1501,14 +1522,17 @@ class WC_LI_Settings
                 //'mode': 1
               };
 
-
               jQuery.ajax({
                 url: ajaxurl,
                 method: 'POST',
                 dataType: "json",
 
-                <?= $beforeSendNonce; ?>
 
+                <?php if ($nonce): ?>
+                            beforeSend: function (xhr) {
+                    xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                  },
+                <?php endif; ?>
                     data: data
               }).done(function (response) {
                 jQuery('#catList').html("");
@@ -1523,20 +1547,19 @@ class WC_LI_Settings
                   jQuery.ajax({
                     url: ajaxurl,
                     method: 'POST',
-                    <?= $beforeSendNonce; ?>
-
+                    <?php if ($nonce): ?>
+                            beforeSend: function (xhr) {
+                        xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                      },
+                    <?php endif; ?>
                         data: data
                   }).done(function (response) {
                     linet.catDet(response);
 
                   });
 
-
-
                 }
-
               });
-
 
             },
 
@@ -1554,8 +1577,12 @@ class WC_LI_Settings
                 method: 'POST',
                 dataType: "json",
 
-                <?= $beforeSendNonce; ?>
 
+                <?php if ($nonce): ?>
+                            beforeSend: function (xhr) {
+                    xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                  },
+                <?php endif; ?>
                     data: data
               }).done(function (response) {
                 console.log(response)
@@ -1592,9 +1619,13 @@ class WC_LI_Settings
                 method: 'POST',
                 dataType: "json",
 
-                <?= $beforeSendNonce; ?>
 
-                    data: data
+                <?php if ($nonce): ?>
+                            beforeSend: function (xhr) {
+                    xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                  },
+                <?php endif; ?>
+                          data: data
               }).done(function (response) {
 
                 jQuery('#subTarget').html("Items: " + (offset + response.items));
@@ -1622,9 +1653,12 @@ class WC_LI_Settings
                 method: 'POST',
                 //dataType: "json",
 
-                <?= $beforeSendNonce; ?>
-
-                    data: data
+                <?php if ($nonce): ?>
+                            beforeSend: function (xhr) {
+                    xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                  },
+                <?php endif; ?>
+                      data: data
               }).done(function (response) {                //done!
                 jQuery('#wclin-btn').prop('disabled', false);
                 jQuery('#linwc-btn').prop('disabled', false);
@@ -1648,7 +1682,7 @@ class WC_LI_Settings
    */
   public function settings_intro()
   {
-    //echo '<p>' . __('Settings for your Linet account including security keys and default account numbers.<br/> <strong>All</strong> text fields are required for the integration to work properly.', 'wc-linet') . '</p>';
+    //echo '<p>' . __('Settings for your Linet account including security keys and default account numbers.<br/> <strong>All</strong> text fields are required for the integration to work properly.', 'linet-erp-woocommerce-integration') . '</p>';
   }
 
 
@@ -1680,14 +1714,14 @@ class WC_LI_Settings
    */
   public function input_text($args)
   {
-    echo '<input type="text" name="' . self::OPTION_PREFIX . $args['key'] . '" id="' . self::OPTION_PREFIX . $args['key'] . '" value="' . $this->get_option($args['key']) . '" />';
-    echo '<p class="description">' . $args['option']['description'] . '</p>';
+    echo '<input type="text" name="' . esc_attr(self::OPTION_PREFIX . $args['key']) . '" id="' . esc_attr(self::OPTION_PREFIX . $args['key']) . '" value="' . esc_attr($this->get_option($args['key'])) . '" />';
+    echo '<p class="description">' . esc_html($args['option']['description']) . '</p>';
   }
 
   public function input_none($args)
   {
     //echo '';
-    echo '<h3 class="description">' . $args['option']['description'] . '</h3>';
+    echo '<h3 class="description">' . esc_html($args['option']['description']) . '</h3>';
   }
 
   /**
@@ -1697,38 +1731,41 @@ class WC_LI_Settings
    */
   public function input_checkbox($args)
   {
-    echo '<input type="checkbox" name="' . self::OPTION_PREFIX . $args['key'] . '" id="' . self::OPTION_PREFIX . $args['key'] . '" ' . checked('on', $this->get_option($args['key']), false) . ' /> ';
-    echo '<p class="description">' . $args['option']['description'] . '</p>';
+    echo '<input type="checkbox" name="' . esc_attr(self::OPTION_PREFIX . $args['key']) . '" id="' . esc_attr(self::OPTION_PREFIX . $args['key']) . '" ' . esc_attr(checked('on', $this->get_option($args['key']), false)) . ' /> ';
+    echo '<p class="description">' . esc_html($args['option']['description']) . '</p>';
   }
 
   public function input_select($args)
   {
     $option = $this->get_option($args['key']);
 
-    $name = esc_attr(self::OPTION_PREFIX . $args['key']);
+    $name = self::OPTION_PREFIX . $args['key'];
     $id = esc_attr(self::OPTION_PREFIX . $args['key']);
-    echo "<select name='$name' id='$id'>";
+    echo "<select name='" . esc_attr($name) . "' id='" . esc_attr($id) . "'>";
 
     foreach ($args['option']['options'] as $key => $value) {
       $selected = selected($option, $key, false);
       $text = esc_html($value);
       $val = esc_attr($key);
-      echo "<option value='$val' $selected>$text</option>";
+      echo "<option value='" . esc_attr($val) . "' " . esc_attr($selected) . ">" . esc_html($text) . "</option>";
     }
 
     echo '</select>';
-    echo '<p class="description">' . $args['option']['description'] . '</p>';
-    //echo '<p class="description">' . esc_html($args['option']['description']) . '</p>';
+    echo '<p class="description">' . esc_html($args['option']['description']) . '</p>';
   }
 
   public function input_pay_list($args)
   {
     $option = $this->get_option($args['key']);
 
-    $name = esc_attr(self::OPTION_PREFIX . $args['key']);
-    $id = esc_attr(self::OPTION_PREFIX . $args['key']);
+    $name = self::OPTION_PREFIX . $args['key'] . "[]";
+    $id = self::OPTION_PREFIX . $args['key'];
     //echo $option;
-    echo "<select name='{$name}[]' id='$id' multiple='true'>";
+    printf(
+      "<select name='%s' id='%s' multiple='true'>",
+      esc_attr($name),
+      esc_attr($id)
+    );
 
     $pay = new \WC_Payment_Gateways;
 
@@ -1742,9 +1779,8 @@ class WC_LI_Settings
         $selected = 'selected';
       }
       //$selected = selected($option, $key, false);
-      $text = esc_html($value);
-      $val = esc_attr($key);
-      echo "<option value='$val' $selected>$text</option>";
+
+      echo "<option value='" . esc_attr($key) . "' " . esc_attr($selected) . ">" . esc_html($text) . "</option>";
     }
 
     echo '</select>';
@@ -1775,41 +1811,42 @@ class WC_LI_Settings
     }
 
     $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
-    $ch = curl_init();
-    $logger->write('OWER REQUEST(' . $server . "/api/" . $req . ")\n" . json_encode($body));
-    curl_setopt_array(
-      $ch,
-      array(
 
-        CURLOPT_TIMEOUT => 20,
-        CURLOPT_URL => $server . "/api/" . $req,
-        CURLOPT_POST => TRUE,
-        CURLOPT_RETURNTRANSFER => TRUE,
-        CURLOPT_SSL_VERIFYHOST => $dev ? 0 : 2,
-        CURLOPT_SSL_VERIFYPEER => !$dev,
-        CURLOPT_HTTPHEADER => array(
-          'Content-Type: application/json',
-          'Wordpress-Site: ' . str_replace("http://", "", str_replace("https://", "", get_site_url())),
-          'Wordpress-Plugin: ' . WC_Linet::VERSION
-        ),
-        CURLOPT_POSTFIELDS => json_encode($body)
-      )
+
+    $url = $server . "/api/" . $req;
+    $logger->write('OWER REQUEST(' . $url . ")\n" . json_encode($body));
+
+    $args = array(
+      'method' => 'POST',
+      'sslverify' => !$dev,
+      'headers' => array(
+        'Content-Type' => 'application/json',
+        'Wordpress-Site' => str_replace("http://", "", str_replace("https://", "", get_site_url())),
+        'Wordpress-Plugin' => WC_Linet::VERSION,
+      ),
+      'body' => json_encode($body),
     );
 
-    $response = curl_exec($ch);
-    curl_close($ch);
-    //var_dump($server . "/api/" . $req);
-    //var_dump($response);exit;
-    $logger->write('LINET RESPONSE:' . "\n" . json_encode($response));
+    $response = wp_remote_post($url, $args);
 
-    unset($body);
+    if (is_wp_error($response)) {
+      $error_message = $response->get_error_message();
+      $logger->write('Request failed:' . " $error_message\n");
+    }
+
+    $body = wp_remote_retrieve_body($response);
+
+
+    $logger->write('LINET RESPONSE:' . $body . "\n");
+
+    //unset($body);
     unset($login_id);
     unset($hash);
     unset($company);
     unset($ch);
     unset($server);
     unset($req);
-    return json_decode($response);
+    return json_decode($body);
   }
 
   public static function TestAjax()

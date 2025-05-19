@@ -1,9 +1,9 @@
-=== Linet ERP-Woocommerce Integration Plugin ===
+=== Linet ERP Integration For Woocommerce ===
 Contributors: aribhour
-Tags: sync, business, ERP, accounting, woocommerce, Linet
+Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 4.6
-Tested up to: 5.7
-Stable tag: 5.7
+Tested up to: 6.8
+Stable tag: 3.6.1
 License: GPLv2 or later
 Requires PHP: 5.2
 Donate link: http://www.linet.org.il
@@ -45,6 +45,14 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+
+
+- 2025.05.19 - version 3.6.1 =
+
+- minor security fixs
+
+- sync back cats
+
 
 - 2025.05.13 - version 3.6.0 =
 

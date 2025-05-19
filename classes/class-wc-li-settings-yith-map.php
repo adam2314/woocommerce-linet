@@ -5,8 +5,8 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.6.0
-Text Domain: wc-linet
+Version: 3.6.1
+Text Domain: linet-erp-woocommerce-integration
 Domain Path: /languages/
 WC requires at least: 2.2
 WC tested up to: 6.0
@@ -37,10 +37,7 @@ class WC_LI_Settings_Yith_Map
     //get all settings
     global $wpdb;
 
-
-    $query = "SELECT label,id FROM {$wpdb->prefix}yith_wapo_types WHERE %n";
-
-    $items = $wpdb->get_results($wpdb->prepare($query, array(1)));
+    $items = $wpdb->get_results($wpdb->prepare("SELECT label,id FROM {$wpdb->prefix}yith_wapo_types WHERE 1"));
 
     foreach ($items as $itm) {
       //$decoded=json_decode($itm->meta_value);
