@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.6.1
+Version: 3.6.2
 Text Domain: linet-erp-woocommerce-integration
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -410,7 +410,7 @@ class WC_LI_Settings
 
         'description' => __('Manual Items Sync:', 'linet-erp-woocommerce-integration') .
           ' <br /><button type="button" id="linwc-btn" class="button-primary" onclick="linet.fullItemsSync();">Linet->WC</button>' .
-          ' <br /><button type="button" id="wclin-btn" class="button" style="display:none;" onclick="linet.fullProdSync();">WC->Linet</button>' .
+          ' <br /><button type="button" id="wclin-btn" class="button hidden" onclick="linet.fullProdSync();">WC->Linet</button>' .
           "<div id='mItems' class='hidden'>" .
           '
       <div id="target"></div>
@@ -1715,13 +1715,13 @@ ORDER BY a.post_parent ASC
   public function input_text($args)
   {
     echo '<input type="text" name="' . esc_attr(self::OPTION_PREFIX . $args['key']) . '" id="' . esc_attr(self::OPTION_PREFIX . $args['key']) . '" value="' . esc_attr($this->get_option($args['key'])) . '" />';
-    echo '<p class="description">' . esc_html($args['option']['description']) . '</p>';
+    echo '<p class="description">' . wp_kses($args['option']['description'],WC_Linet::ALLOWD_TAGS) . '</p>';
   }
 
   public function input_none($args)
   {
     //echo '';
-    echo '<h3 class="description">' . esc_html($args['option']['description']) . '</h3>';
+    echo '<h3 class="description">' . wp_kses($args['option']['description'],WC_Linet::ALLOWD_TAGS) . '</h3>';
   }
 
   /**
@@ -1732,7 +1732,7 @@ ORDER BY a.post_parent ASC
   public function input_checkbox($args)
   {
     echo '<input type="checkbox" name="' . esc_attr(self::OPTION_PREFIX . $args['key']) . '" id="' . esc_attr(self::OPTION_PREFIX . $args['key']) . '" ' . esc_attr(checked('on', $this->get_option($args['key']), false)) . ' /> ';
-    echo '<p class="description">' . esc_html($args['option']['description']) . '</p>';
+    echo '<p class="description">' . wp_kses($args['option']['description'],WC_Linet::ALLOWD_TAGS) . '</p>';
   }
 
   public function input_select($args)
@@ -1751,7 +1751,7 @@ ORDER BY a.post_parent ASC
     }
 
     echo '</select>';
-    echo '<p class="description">' . esc_html($args['option']['description']) . '</p>';
+    echo '<p class="description">' . wp_kses($args['option']['description'],WC_Linet::ALLOWD_TAGS) . '</p>';
   }
 
   public function input_pay_list($args)
@@ -1819,6 +1819,7 @@ ORDER BY a.post_parent ASC
     $args = array(
       'method' => 'POST',
       'sslverify' => !$dev,
+		    'timeout'     => 20,
       'headers' => array(
         'Content-Type' => 'application/json',
         'Wordpress-Site' => str_replace("http://", "", str_replace("https://", "", get_site_url())),

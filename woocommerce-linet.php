@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 3.6.1
+  Version: 3.6.2
   License: GPLv2 or later
   Text Domain: linet-erp-woocommerce-integration
   Domain Path: /languages/
@@ -44,11 +44,12 @@ require_once 'woo-includes/woo-functions.php';
  * Main plugin class
  */
 class WC_Linet {
-  const VERSION = '3.6.1';
+  const VERSION = '3.6.2';
 
 
 
   const ALLOWD_TAGS = array(
+	  
     'input' => array(
         'type' => true,
         'name' => true,
@@ -58,6 +59,11 @@ class WC_Linet {
         'class' => true,
     ),
     'button' => array(
+		
+		
+		'id' => true,
+		'style' => true,
+		'onclick' => true,
         'type' => true,
         'class' => true,
     ),
@@ -66,7 +72,10 @@ class WC_Linet {
         'style' => true,
     ),
     'label' => array(),
-  
+      'a' => array('class' => true,'href' => true,'onclick' => true,"target"=>true,"data-id"=>true,"data-key"=>true,"data-value"=>true),
+      'progress' => array('class' => true,'id' => true),
+      'div' => array('class' => true,'id' => true,'style'=>true),
+
     'tr' => array(),
     'td' => array('class' => true),
     'th' => array(),
