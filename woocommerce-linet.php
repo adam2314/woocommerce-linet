@@ -5,7 +5,7 @@
   Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
   Author: Speedcomp
   Author URI: http://www.linet.org.il
-  Version: 3.6.2
+  Version: 3.6.3
   License: GPLv2 or later
   Text Domain: linet-erp-woocommerce-integration
   Domain Path: /languages/
@@ -44,7 +44,7 @@ require_once 'woo-includes/woo-functions.php';
  * Main plugin class
  */
 class WC_Linet {
-  const VERSION = '3.6.2';
+  const VERSION = '3.6.3';
 
 
 
@@ -211,7 +211,7 @@ class WC_Linet {
   public function notice_wc_required() {
     ?>
     <div class="error">
-        <p><?php esc_html_e('WooCommerce Linet Integration requires WooCommerce 2.5.0 or higher to be installed and activated!', 'linet-erp-woocommerce-integration'); ?></p>
+        <p><?php echo esc_html_e('WooCommerce Linet Integration requires WooCommerce 2.5.0 or higher to be installed and activated!', 'linet-erp-woocommerce-integration'); ?></p>
     </div>
     <?php
   }
@@ -243,7 +243,9 @@ function __woocommerce_linet_main() {
 }
 
 // Initialize plugin when plugins are loaded
-add_action('plugins_loaded', '__woocommerce_linet_main');
+//add_action('plugins_loaded', '__woocommerce_linet_main');
+add_action( 'woocommerce_init', '__woocommerce_linet_main' );
+
 
 add_action( 'before_woocommerce_init', function() {
 	if ( class_exists( \Automattic\WooCommerce\Utilities\FeaturesUtil::class ) ) {

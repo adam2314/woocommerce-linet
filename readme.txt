@@ -3,7 +3,7 @@ Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 4.6
 Tested up to: 6.8
-Stable tag: 3.6.2
+Stable tag: 3.6.3
 License: GPLv2 or later
 Requires PHP: 5.2
 Donate link: http://www.linet.org.il
@@ -45,6 +45,10 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+
+- 2025.05.20 - version 3.6.3 =
+
+- incrase time out
 
 - 2025.05.20 - version 3.6.2 =
 
