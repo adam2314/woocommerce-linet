@@ -1,34 +1,28 @@
 <?php
 /*
-  Plugin Name: Linet ERP Integration For Woocommerce
-  Plugin URI: https://github.com/adam2314/woocommerce-linet
-  Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
-  Author: Speedcomp
-  Author URI: http://www.linet.org.il
-  Version: 3.6.3
-  License: GPLv2 or later
-  Text Domain: linet-erp-woocommerce-integration
-  Domain Path: /languages/
-  WC requires at least: 2.2
-  WC tested up to: 6.8.1
-
-
-  Copyright 2020  Adam Ben Hour
-
-  This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License, version 2, as
-  published by the Free Software Foundation.
-
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
-
-  You should have received a copy of the GNU General Public License
-  along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-
+ * Plugin Name: Linet ERP Integration For Woocommerce
+ * Plugin URI: https://github.com/adam2314/woocommerce-linet
+ * Description: Integrates WooCommerce with the Linet accounting software.
+ * Author: Speedcomp
+ * Author URI: http://www.linet.org.il
+ * License: GPL v2 or later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+ * Version: 3.6.4
+ * Requires at least: 4.6
+ * Requires PHP: 5.2
  */
+
+
+/*
+
+Text Domain: linet-erp-woocommerce-integration
+Domain Path: /languages/
+WC requires at least: 2.2
+WC tested up to: 6.8.1
+
+Copyright 2020  Adam Ben Hour
+
+*/
 
 /**
  * Required functions
@@ -44,7 +38,7 @@ require_once 'woo-includes/woo-functions.php';
  * Main plugin class
  */
 class WC_Linet {
-  const VERSION = '3.6.3';
+  const VERSION = '3.6.4';
 
 
 
@@ -252,3 +246,5 @@ add_action( 'before_woocommerce_init', function() {
 		\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
 	}
 } );
+
+

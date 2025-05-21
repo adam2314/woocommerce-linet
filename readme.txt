@@ -3,11 +3,13 @@ Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 4.6
 Tested up to: 6.8
-Stable tag: 3.6.3
+Stable tag: 3.6.4
 License: GPLv2 or later
 Requires PHP: 5.2
 Donate link: http://www.linet.org.il
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
+
+
 
 After installing this plugin you can sync woocommerce with Linet ERP.
 
@@ -45,6 +47,10 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+
+- 2025.05.21 - version 3.6.4 =
+
+- change get_image_extension_from_mime
 
 - 2025.05.20 - version 3.6.3 =
 
