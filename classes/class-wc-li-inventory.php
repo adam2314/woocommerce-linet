@@ -897,6 +897,26 @@ class WC_LI_Inventory
     return $term_id;
   }
 
+
+
+
+  public static function get_image_extension_from_mime($mime_type)
+  {
+    $map = [
+      'image/jpeg' => 'jpg',
+      'image/png' => 'png',
+      'image/gif' => 'gif',
+      'image/webp' => 'webp',
+      'image/bmp' => 'bmp',
+      'image/svg+xml' => 'svg',
+      'image/tiff' => 'tiff',
+      'image/x-icon' => 'ico',
+    ];
+
+    return isset($map[$mime_type]) ? $map[$mime_type] : false;
+  }
+
+
   public static function getImage($pic, $logger = false)
   { //unused ,$parent_id=''
     $server = WC_LI_Settings::SERVER;
@@ -981,30 +1001,12 @@ class WC_LI_Inventory
 
 
 
-
-        function get_image_extension_from_mime($mime_type)
-        {
-          $map = [
-            'image/jpeg' => 'jpg',
-            'image/png' => 'png',
-            'image/gif' => 'gif',
-            'image/webp' => 'webp',
-            'image/bmp' => 'bmp',
-            'image/svg+xml' => 'svg',
-            'image/tiff' => 'tiff',
-            'image/x-icon' => 'ico',
-          ];
-
-          return isset($map[$mime_type]) ? $map[$mime_type] : false;
-        }
-
-
         //var_dump($url);
         //var_dump($content_type);exit;
 
 
         $logger->write("mimetype img: " . $content_type);
-        $ext = get_image_extension_from_mime($content_type);
+        $ext = self::get_image_extension_from_mime($content_type);
         if (!$ext) {
 
           return false;
