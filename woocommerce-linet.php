@@ -7,7 +7,7 @@
  * Author URI: http://www.linet.org.il
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Version: 3.6.4
+ * Version: 3.6.5
  * Requires at least: 4.6
  * Requires PHP: 5.2
  */
@@ -37,50 +37,51 @@ require_once 'woo-includes/woo-functions.php';
  * Class WC_Linet
  * Main plugin class
  */
-class WC_Linet {
-  const VERSION = '3.6.4';
+class WC_Linet
+{
+  const VERSION = '3.6.5';
 
 
 
   const ALLOWD_TAGS = array(
-	  
+
     'input' => array(
-        'type' => true,
-        'name' => true,
-        'id' => true,
-        'value' => true,
-        'placeholder' => true,
-        'class' => true,
+      'type' => true,
+      'name' => true,
+      'id' => true,
+      'value' => true,
+      'placeholder' => true,
+      'class' => true,
     ),
     'button' => array(
-		
-		
-		'id' => true,
-		'style' => true,
-		'onclick' => true,
-        'type' => true,
-        'class' => true,
+
+
+      'id' => true,
+      'style' => true,
+      'onclick' => true,
+      'type' => true,
+      'class' => true,
     ),
     'table' => array(
-        'class' => true,
-        'style' => true,
+      'class' => true,
+      'style' => true,
     ),
     'label' => array(),
-      'a' => array('class' => true,'href' => true,'onclick' => true,"target"=>true,"data-id"=>true,"data-key"=>true,"data-value"=>true),
-      'progress' => array('class' => true,'id' => true),
-      'div' => array('class' => true,'id' => true,'style'=>true),
+    'a' => array('class' => true, 'href' => true, 'onclick' => true, "target" => true, "data-id" => true, "data-key" => true, "data-value" => true),
+    'progress' => array('class' => true, 'id' => true),
+    'div' => array('class' => true, 'id' => true, 'style' => true),
 
     'tr' => array(),
     'td' => array('class' => true),
     'th' => array(),
     'thead' => array(),
     'tbody' => array(),
-    'label' => array(),
   );
   /**
    * The constructor
    */
-  public function __construct() {
+  public function __construct()
+  {
     if (is_woocommerce_active() && version_compare(WC()->version, '2.5.0', '>=')) {
 
 
@@ -92,7 +93,7 @@ class WC_Linet {
     //$this->add_elementor_action();
 
 
-     //else {
+    //else {
     //	add_action( 'admin_notices', array( $this, 'notice_wc_required' ) );
     //}
   }
@@ -100,7 +101,8 @@ class WC_Linet {
   /**
    * Setup the class
    */
-  public function setup() {
+  public function setup()
+  {
 
 
 
@@ -138,17 +140,17 @@ class WC_Linet {
 
     // Plugins Links
     add_filter('plugin_action_links_' . plugin_basename(self::get_plugin_file()), array(
-        $this,
-        'plugin_links'
+      $this,
+      'plugin_links'
     ));//*/
 
 
 
     $obj = array(
-      
+
     );
-  
-    $obj = apply_filters( 'woocommerce_linet_loaded', $obj );
+
+    $obj = apply_filters('woocommerce_linet_loaded', $obj);
 
 
 
@@ -162,13 +164,13 @@ class WC_Linet {
 
   public function add_elementor_action()
   {
-    add_action( 'elementor_pro/init', function() {
+    add_action('elementor_pro/init', function () {
 
       // Instantiate the action class
       $linetapp = new WC_LI_Linet_Elementor();
 
       // Register the action with form widget
-      \ElementorPro\Plugin::instance()->modules_manager->get_modules( 'forms' )->add_form_action( $linetapp->get_name(), $linetapp );
+      \ElementorPro\Plugin::instance()->modules_manager->get_modules('forms')->add_form_action($linetapp->get_name(), $linetapp);
     });
   }
 
@@ -181,7 +183,8 @@ class WC_Linet {
    *
    * @return String
    */
-  public static function get_plugin_file() {
+  public static function get_plugin_file()
+  {
     return __FILE__;
   }
 
@@ -191,8 +194,9 @@ class WC_Linet {
    * @static
    * @access private
    */
-  private function setup_autoloader() {
-    require_once( plugin_dir_path(self::get_plugin_file()) . '/classes/class-wc-li-autoloader.php' );
+  private function setup_autoloader()
+  {
+    require_once(plugin_dir_path(self::get_plugin_file()) . '/classes/class-wc-li-autoloader.php');
 
     // Core loader
     $autoloader = new WC_LI_Autoloader(plugin_dir_path(self::get_plugin_file()) . 'classes/');
@@ -202,10 +206,13 @@ class WC_Linet {
   /**
    * Admin error notifying user that WC is required
    */
-  public function notice_wc_required() {
+  public function notice_wc_required()
+  {
     ?>
     <div class="error">
-        <p><?php echo esc_html_e('WooCommerce Linet Integration requires WooCommerce 2.5.0 or higher to be installed and activated!', 'linet-erp-woocommerce-integration'); ?></p>
+      <p>
+        <?php echo esc_html_e('WooCommerce Linet Integration requires WooCommerce 2.5.0 or higher to be installed and activated!', 'linet-erp-woocommerce-integration'); ?>
+      </p>
     </div>
     <?php
   }
@@ -217,7 +224,8 @@ class WC_Linet {
    *
    * @return array
    */
-  public function plugin_links($links) {
+  public function plugin_links($links)
+  {
     $plugin_links = array(
       '<a href="' . admin_url('admin.php?page=woocommerce_linet') . '">' . __('Settings', 'linet-erp-woocommerce-integration') . '</a>',
       '<a href="http://www.linet.org.il/support/">' . __('Support', 'linet-erp-woocommerce-integration') . '</a>',
@@ -232,19 +240,20 @@ class WC_Linet {
 /**
  * Extension main function
  */
-function __woocommerce_linet_main() {
+function __woocommerce_linet_main()
+{
   new WC_Linet();
 }
 
 // Initialize plugin when plugins are loaded
 //add_action('plugins_loaded', '__woocommerce_linet_main');
-add_action( 'woocommerce_init', '__woocommerce_linet_main' );
+add_action('woocommerce_init', '__woocommerce_linet_main');
 
 
-add_action( 'before_woocommerce_init', function() {
-	if ( class_exists( \Automattic\WooCommerce\Utilities\FeaturesUtil::class ) ) {
-		\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
-	}
-} );
+add_action('before_woocommerce_init', function () {
+  if (class_exists(\Automattic\WooCommerce\Utilities\FeaturesUtil::class)) {
+    \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility('custom_order_tables', __FILE__, true);
+  }
+});
 
 

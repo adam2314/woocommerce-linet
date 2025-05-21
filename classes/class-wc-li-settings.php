@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.6.4
+Version: 3.6.5
 Text Domain: linet-erp-woocommerce-integration
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -920,11 +920,11 @@ ORDER BY a.post_parent ASC
               dataType: "json",
 
               <?php if ($nonce): ?>
-                                                                    beforeSend: function (xhr) {
+                                                                            beforeSend: function (xhr) {
                   xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
                 },
               <?php endif; ?>
-                                                        data: data
+                                                              data: data
             }).done(function (response) {
               alert(response.status);
               location.reload();
@@ -943,11 +943,11 @@ ORDER BY a.post_parent ASC
               dataType: "json",
 
               <?php if ($nonce): ?>
-                                                                    beforeSend: function (xhr) {
+                                                                            beforeSend: function (xhr) {
                   xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
                 },
               <?php endif; ?>
-                                                          data: data
+                                                                data: data
             }).done(function (response) {
               alert(response.status);
               location.reload();
@@ -1258,11 +1258,11 @@ ORDER BY a.post_parent ASC
                 url: ajaxurl,
                 method: 'POST',
                 <?php if ($nonce): ?>
-                                        beforeSend: function (xhr) {
+                                              beforeSend: function (xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
                   },
                 <?php endif; ?>
-                                         data: data
+                                             data: data
               }).done(function (response) {
                 console.log(response);
               });
@@ -1289,11 +1289,11 @@ ORDER BY a.post_parent ASC
                 method: 'POST',
 
                 <?php if ($nonce): ?>
-                                  beforeSend: function (xhr) {
+                                        beforeSend: function (xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
                   },
                 <?php endif; ?>
-                          data: data
+                              data: data
               }).done(function (response) {
                 console.log(response);
               });
@@ -1323,11 +1323,11 @@ ORDER BY a.post_parent ASC
                 method: 'POST',
 
                 <?php if ($nonce): ?>
-                                  beforeSend: function (xhr) {
+                                        beforeSend: function (xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
                   },
                 <?php endif; ?>
-                          data: data
+                              data: data
               }).done(function (response) {
                 console.log(response);
               });
@@ -1349,11 +1349,11 @@ ORDER BY a.post_parent ASC
                 method: 'POST',
 
                 <?php if ($nonce): ?>
-                                  beforeSend: function (xhr) {
+                                        beforeSend: function (xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
                   },
                 <?php endif; ?>
-                        data: data
+                            data: data
               }).done(function (response) {
                 console.log(response);
               });
@@ -1370,11 +1370,11 @@ ORDER BY a.post_parent ASC
                 method: 'POST',
 
                 <?php if ($nonce): ?>
-                                  beforeSend: function (xhr) {
+                                        beforeSend: function (xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
                   },
                 <?php endif; ?>
-                        data: data
+                            data: data
               }).done(function (response) {
                 console.log(response);
                 var blob = new Blob([response]);
@@ -1401,11 +1401,11 @@ ORDER BY a.post_parent ASC
                 dataType: "json",
 
                 <?php if ($nonce): ?>
-                                  beforeSend: function (xhr) {
+                                        beforeSend: function (xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
                   },
                 <?php endif; ?>
-                          data: data
+                              data: data
               }).done(function (response) {
                 alert(response.text);
               });
@@ -1427,11 +1427,11 @@ ORDER BY a.post_parent ASC
                 method: 'POST',
 
                 <?php if ($nonce): ?>
-                                  beforeSend: function (xhr) {
+                                        beforeSend: function (xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
                   },
                 <?php endif; ?>
-                        data: data
+                            data: data
               }).done(function (response) {
                 alert(response);
               });
@@ -1454,11 +1454,11 @@ ORDER BY a.post_parent ASC
                 method: 'POST',
 
                 <?php if ($nonce): ?>
-                                  beforeSend: function (xhr) {
+                                        beforeSend: function (xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
                   },
                 <?php endif; ?>
-                        data: data
+                            data: data
               }).done(function (response) {
                 jQuery('#target').html("Items:  0/" + response);
                 jQuery('#targetBar').prop('max', response);
@@ -1495,11 +1495,11 @@ ORDER BY a.post_parent ASC
                 method: 'POST',
 
                 <?php if ($nonce): ?>
-                                  beforeSend: function (xhr) {
+                                        beforeSend: function (xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
                   },
                 <?php endif; ?>
-                      data: data
+                          data: data
               }).done(function (response) {
 
                 //console.log(response);
@@ -1529,11 +1529,11 @@ ORDER BY a.post_parent ASC
 
 
                 <?php if ($nonce): ?>
-                                  beforeSend: function (xhr) {
+                                        beforeSend: function (xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
                   },
                 <?php endif; ?>
-                        data: data
+                            data: data
               }).done(function (response) {
                 jQuery('#catList').html("");
                 for (i = 0; i < response.body.length; i++) {
@@ -1548,11 +1548,11 @@ ORDER BY a.post_parent ASC
                     url: ajaxurl,
                     method: 'POST',
                     <?php if ($nonce): ?>
-                                  beforeSend: function (xhr) {
+                                        beforeSend: function (xhr) {
                         xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
                       },
                     <?php endif; ?>
-                            data: data
+                                data: data
                   }).done(function (response) {
                     linet.catDet(response);
 
@@ -1579,11 +1579,11 @@ ORDER BY a.post_parent ASC
 
 
                 <?php if ($nonce): ?>
-                                  beforeSend: function (xhr) {
+                                        beforeSend: function (xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
                   },
                 <?php endif; ?>
-                        data: data
+                            data: data
               }).done(function (response) {
                 console.log(response)
                 jQuery('#target').html("Categories:  " + response.cats + "");
@@ -1621,11 +1621,11 @@ ORDER BY a.post_parent ASC
 
 
                 <?php if ($nonce): ?>
-                                  beforeSend: function (xhr) {
+                                        beforeSend: function (xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
                   },
                 <?php endif; ?>
-                              data: data
+                                  data: data
               }).done(function (response) {
 
                 jQuery('#subTarget').html("Items: " + (offset + response.items));
@@ -1654,11 +1654,11 @@ ORDER BY a.post_parent ASC
                 //dataType: "json",
 
                 <?php if ($nonce): ?>
-                                  beforeSend: function (xhr) {
+                                        beforeSend: function (xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
                   },
                 <?php endif; ?>
-                          data: data
+                              data: data
               }).done(function (response) {                //done!
                 jQuery('#wclin-btn').prop('disabled', false);
                 jQuery('#linwc-btn').prop('disabled', false);
@@ -1780,7 +1780,7 @@ ORDER BY a.post_parent ASC
       }
       //$selected = selected($option, $key, false);
 
-      echo "<option value='" . esc_attr($key) . "' " . esc_attr($selected) . ">" . esc_html($text) . "</option>";
+      echo "<option value='" . esc_attr($key) . "' " . esc_attr($selected) . ">" . esc_html($value) . "</option>";
     }
 
     echo '</select>';

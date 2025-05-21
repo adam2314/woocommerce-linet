@@ -64,13 +64,13 @@
 
 			if (is_array($options) && count($options) > 0) {
 				foreach ($options['form_name'] as $key => $value) {
-					echo wp_kses_post(row($key, self::OPTION_PREFIX . $args['key'], $value, $options['el_field'][$key], $options['li_field'][$key]),WC_Linet::ALLOWD_TAGS);
+					echo wp_kses(row($key, self::OPTION_PREFIX . $args['key'], $value, $options['el_field'][$key], $options['li_field'][$key]), WC_Linet::ALLOWD_TAGS);
 					//echo row($key, self::OPTION_PREFIX . $args['key'], $value, $options['el_field'][$key], $options['li_field'][$key]),$allowed_html;
 				}
 			} else {
-				echo wp_kses_post(row(0, self::OPTION_PREFIX . $args['key'], ''),WC_Linet::ALLOWD_TAGS);
+				echo wp_kses(row(0, self::OPTION_PREFIX . $args['key'], ''), WC_Linet::ALLOWD_TAGS);
 				//echo row(0, self::OPTION_PREFIX . $args['key'], '');
-
+			
 			}
 			?>
 		</tbody>
