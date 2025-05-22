@@ -434,7 +434,7 @@ class WC_LI_Inventory
 
     $saleprice = $product->get_price();
     $saleprice = $product->get_regular_price();
-    $price11 = $product->get_sale_price();
+    $ssprice = $product->get_sale_price();
 
     $isProduct = 1;
 
@@ -513,8 +513,10 @@ class WC_LI_Inventory
       //_manage_stock=yes
       //_stock
     );
-    if ($price11) {
-      $body['price11'] = $price11;
+    $sale_pricelist_id = get_option('wc_linet_sale_pricelist_id');
+
+    if ($ssprice &&$sale_pricelist_id ) {
+      $body['price'.$sale_pricelist_id] = $ssprice;
     }
 
     $obj = array(
