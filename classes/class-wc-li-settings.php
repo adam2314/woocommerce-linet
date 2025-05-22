@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.6.6
+Version: 3.6.7
 Text Domain: linet-erp-woocommerce-integration
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -52,19 +52,8 @@ class WC_LI_Settings
     //if (is_user_logged_in() && current_user_can('administrator') && wp_verify_nonce(get_header('x-wp-nonce'), 'action')) {
     //
 
-    function getRequestHeaders()
-    {
-      $headers = array();
-      foreach ($_SERVER as $key => $value) {
-        if (substr($key, 0, 5) <> 'HTTP_') {
-          continue;
-        }
-        $header = str_replace(' ', '-', ucwords(str_replace('_', ' ', strtolower(substr($key, 5)))));
-        $headers[$header] = $value;
-      }
-      return $headers;
-    }
-    $headers = getRequestHeaders();
+
+    $headers = self::getRequestHeaders();
 
 
 
@@ -117,6 +106,20 @@ class WC_LI_Settings
     if (!is_null($override)) {
       $this->override = $override;
     }
+  }
+
+
+  public static function getRequestHeaders()
+  {
+    $headers = array();
+    foreach ($_SERVER as $key => $value) {
+      if (substr($key, 0, 5) <> 'HTTP_') {
+        continue;
+      }
+      $header = str_replace(' ', '-', ucwords(str_replace('_', ' ', strtolower(substr($key, 5)))));
+      $headers[$header] = $value;
+    }
+    return $headers;
   }
 
   public static function add_variation_custom_sku_input_field($loop, $variation_data, $post)

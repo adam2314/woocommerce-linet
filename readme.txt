@@ -3,7 +3,7 @@ Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 4.6
 Tested up to: 6.8
-Stable tag: 3.6.6
+Stable tag: 3.6.7
 License: GPLv2 or later
 Requires PHP: 5.2
 Donate link: http://www.linet.org.il
@@ -47,6 +47,10 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+
+- 2025.05.21 - version 3.6.7 =
+
+- Cannot redeclare getRequestHeaders
 
 - 2025.05.21 - version 3.6.6 =
 
