@@ -5,7 +5,7 @@ Plugin URI: https://github.com/adam2314/woocommerce-linet
 Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
 Author: Speedcomp
 Author URI: http://www.linet.org.il
-Version: 3.6.5
+Version: 3.6.6
 Text Domain: linet-erp-woocommerce-integration
 Domain Path: /languages/
 WC requires at least: 2.2
@@ -1193,7 +1193,16 @@ class WC_LI_Inventory
     //$product = wc_get_product( $post_id   );
     //$product = wc_get_product($post_id);
 
-    $result = self::WpItemSync($post_id, $logger);
+
+    global $wpdb;
+
+      $products = $wpdb->get_results($wpdb->prepare("SELECT ID FROM {$wpdb->posts} as p WHERE " .
+      "(p.post_type='product' OR p.post_type='product_variation') AND " .
+      " p.post_status = 'publish' AND " .
+      " p.ID=%d OR p.post_parent=%d" , $post_id));
+
+    foreach($products as $product)
+    $result = self::WpItemSync($product->ID, $logger);
     if ($result)
       echo json_encode(
         array(
