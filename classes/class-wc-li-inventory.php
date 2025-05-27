@@ -1,27 +1,5 @@
 <?php
-/*
-Plugin Name: WooCommerce Linet Integration
-Plugin URI: https://github.com/adam2314/woocommerce-linet
-Description: Integrates <a href="http://www.woothemes.com/woocommerce" target="_blank" >WooCommerce</a> with the <a href="http://www.linet.org.il" target="_blank">Linet</a> accounting software.
-Author: Speedcomp
-Author URI: http://www.linet.org.il
-Version: 3.6.9
-Text Domain: linet-erp-woocommerce-integration
-Domain Path: /languages/
-WC requires at least: 2.2
-WC tested up to: 6.0
-Copyright 2020  Adam Ben Hour
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License, version 2, as
-published by the Free Software Foundation.
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-*/
+
 if (!defined('ABSPATH')) {
   exit;
 } // Exit if accessed directly
@@ -255,10 +233,10 @@ class WC_LI_Inventory
     wp_die();
   }
 
-  public static function WpCatSync($product,$logger = null)
+  public static function WpCatSync($product, $logger = null)
   { //wp->linet
     //$cat_id=0;
-    $terms = get_the_terms( $product->get_id(), 'product_cat' );
+    $terms = get_the_terms($product->get_id(), 'product_cat');
 
     //$terms = wp_get_post_terms($product->get_id(), 'product_cat');
     $logger->write("WpCatSync: $terms");
@@ -440,6 +418,10 @@ class WC_LI_Inventory
 
     $terms = wp_get_object_terms($product->get_id(), 'product_type');
 
+    $product_type = $product->get_type();
+    $logger->write("WpItemSync get_type: $product_type");
+
+
     if (isset($terms[0])) {
       if ($terms[0]->name == 'variable') {
         $isProduct = 3;
@@ -454,7 +436,7 @@ class WC_LI_Inventory
       }
     }
 
-    if ($product->get_type() == 'product_variation') {
+    if ($product_type == 'product_variation' || $product_type == 'variation') {
       $isProduct = 0;
       $sku = array(self::getProdSku($product->get_parent_id()));
       foreach (wc_get_product_variation_attributes($product->get_id()) as $val) {
@@ -466,7 +448,7 @@ class WC_LI_Inventory
         //$sku[] = $val;
       }
       $itemSku = implode("-", $sku);
-      $logger->write("WpItemSync sku(product_variation): " . $itemSku);
+      $logger->write("WpItemSync sku($product_type): $itemSku");
 
     }
 
@@ -515,8 +497,8 @@ class WC_LI_Inventory
     );
     $sale_pricelist_id = get_option('wc_linet_sale_pricelist_id');
 
-    if ($ssprice &&$sale_pricelist_id ) {
-      $body['price'.$sale_pricelist_id] = $ssprice;
+    if ($ssprice && $sale_pricelist_id) {
+      $body['price' . $sale_pricelist_id] = $ssprice;
     }
 
     $obj = array(
@@ -1140,7 +1122,7 @@ class WC_LI_Inventory
     global $wpdb;
     $post = $wpdb->get_col($wpdb->prepare("SELECT ID FROM {$wpdb->posts} as p LEFT JOIN {$wpdb->postmeta} as pm ON pm.post_id = p.ID WHERE " .
       "p.post_type in ('product','product_variation') AND " .
-      "pm.meta_key = %s AND pm.meta_value = %s LIMIT 1;", $meta,$value));
+      "pm.meta_key = %s AND pm.meta_value = %s LIMIT 1;", $meta, $value));
 
     if (count($post) == 1) {
       return wc_get_product($post[0]);
@@ -1198,15 +1180,19 @@ class WC_LI_Inventory
 
     global $wpdb;
 
-      $products = $wpdb->get_col($wpdb->prepare("SELECT ID FROM {$wpdb->posts} p WHERE " .
+    $products = $wpdb->get_col($wpdb->prepare(
+      "SELECT ID FROM {$wpdb->posts} p WHERE " .
       " p.post_status = 'publish' AND " .
       "(p.post_type='product' OR p.post_type='product_variation') AND " .
-      " (p.ID=%d OR p.post_parent=%d)" 
-      
-      , $post_id, $post_id));
+      " (p.ID=%d OR p.post_parent=%d)"
+
+      ,
+      $post_id,
+      $post_id
+    ));
 
 
-    foreach($products as $product)
+    foreach ($products as $product)
       $result = self::WpItemSync($product, $logger);
     if ($result)
       echo json_encode(

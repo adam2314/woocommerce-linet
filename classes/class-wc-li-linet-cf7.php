@@ -1,9 +1,4 @@
 <?php
-/**
- * Class Linet_Cf7
- * @see https://developers.elementor.com/custom-form-action/
- * Custom cf7 form action after submit to add a subsciber to
- */
 
 if (!defined('ABSPATH')) {
   exit;

@@ -1,12 +1,4 @@
 <?php
-/**
- * Class Linet_Elementor
- * @see https://developers.elementor.com/custom-form-action/
- * Custom elementor form action after submit to add a subsciber to
- * Sendy list via API
- */
-
-use ElementorPro\Modules\Forms\Controls\Fields_Map;
 
 class WC_LI_Linet_Elementor extends \ElementorPro\Modules\Forms\Classes\Action_Base
 {
