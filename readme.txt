@@ -47,6 +47,9 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+- 2025.07.30 - version 3.6.11 =
+
+- new switch to presevere old attributes
 
 - 2025.05.27 - version 3.6.10 =
 

@@ -8,6 +8,7 @@ class WC_LI_Inventory
 {
   const IMAGE_DIR = 'images';
 
+  const SKU_PREFIX = 'SKU';
 
   /**
    * Setup the required settings hooks
@@ -309,7 +310,12 @@ class WC_LI_Inventory
   {
     $typeBody = array('name' => str_replace("pa_", "", $attr->get_taxonomy())); //name
 
-    $rulerBody = array('name' => $typeBody['name'], 'slug' => $typeBody['name']); //name
+    $attribute_data = $attr->get_data();
+
+    $name = $typeBody['name'] == "" ? $attribute_data['name'] : $typeBody['name'];
+
+
+    $rulerBody = array('name' => $name, 'slug' => $name); //name
 
     $linItem = WC_LI_Settings::sendAPI('search/MutexRuler', $rulerBody);
     $rulerId = false;
@@ -341,33 +347,74 @@ class WC_LI_Inventory
 
     }
 
-    foreach ($attr->get_terms() as $term) {
+    $terms = $attr->get_terms();
+    if (is_null($terms)) {
+      $terms = $attribute_data["options"];
 
-      $slug = str_replace(" ", "", urldecode($term->slug));
-      $slug = str_replace("-", "", $slug);
-      $slug = str_replace("(", "", $slug);
-      $slug = str_replace(")", "", $slug);
 
-      $rulerUnitBody = array(
-        'ruler_id' => $rulerId,
-        'name' => $term->name,
-        'value' => $slug,
-        'uValue' => $slug,
-        'slug' => $slug
-      );
+      foreach ($terms as $term) {
 
-      $linItem = WC_LI_Settings::sendAPI('search/MutexRulerUnit', $rulerUnitBody);
-      $rulerUnitId = false;
-      if ($linItem->errorCode == 1000) {
-        //create body pic?
-        $newLinItem = WC_LI_Settings::sendAPI('create/MutexRulerUnit', $rulerUnitBody);
-        if ($newLinItem->errorCode == 0) {
-          $rulerUnitId = $newLinItem->body->id;
+        $slug = str_replace(" ", "", urldecode($term));
+        $slug = str_replace("-", "", $slug);
+        $slug = str_replace("(", "", $slug);
+        $slug = str_replace(")", "", $slug);
+
+        $rulerUnitBody = array(
+          'ruler_id' => $rulerId,
+          'name' => $term,
+          'value' => $slug,
+          'uValue' => $slug,
+          'slug' => $slug
+        );
+
+        $linItem = WC_LI_Settings::sendAPI('search/MutexRulerUnit', $rulerUnitBody);
+        $rulerUnitId = false;
+        if ($linItem->errorCode == 1000) {
+          //create body pic?
+          $newLinItem = WC_LI_Settings::sendAPI('create/MutexRulerUnit', $rulerUnitBody);
+          if ($newLinItem->errorCode == 0) {
+            $rulerUnitId = $newLinItem->body->id;
+          }
+        } else {
+          $rulerUnitId = $linItem->body[0]->id;
         }
-      } else {
-        $rulerUnitId = $linItem->body[0]->id;
       }
+
+
+    } else {
+
+      foreach ($attr->get_terms() as $term) {
+
+        $slug = str_replace(" ", "", urldecode($term->slug));
+        $slug = str_replace("-", "", $slug);
+        $slug = str_replace("(", "", $slug);
+        $slug = str_replace(")", "", $slug);
+
+        $rulerUnitBody = array(
+          'ruler_id' => $rulerId,
+          'name' => $term->name,
+          'value' => $slug,
+          'uValue' => $slug,
+          'slug' => $slug
+        );
+
+        $linItem = WC_LI_Settings::sendAPI('search/MutexRulerUnit', $rulerUnitBody);
+        $rulerUnitId = false;
+        if ($linItem->errorCode == 1000) {
+          //create body pic?
+          $newLinItem = WC_LI_Settings::sendAPI('create/MutexRulerUnit', $rulerUnitBody);
+          if ($newLinItem->errorCode == 0) {
+            $rulerUnitId = $newLinItem->body->id;
+          }
+        } else {
+          $rulerUnitId = $linItem->body[0]->id;
+        }
+      }
+
     }
+
+    //var_dump();exit;
+
 
     return $rulerId;
   }
@@ -383,7 +430,7 @@ class WC_LI_Inventory
     )
       return $metas['_sku'][0];
 
-    return $post_id;
+    return self::SKU_PREFIX . $post_id;
   }
 
   public static function WpItemSync($post_id, $logger)
@@ -401,6 +448,9 @@ class WC_LI_Inventory
     //get term meta?
 
     $itemSku = $product->get_sku();
+    if ($itemSku == '') {
+      $itemSku = self::SKU_PREFIX . $post_id;
+    }
 
     $stockType = 0;
     $ammount = 0;
@@ -1384,6 +1434,10 @@ class WC_LI_Inventory
     $global_attr = get_option('wc_linet_global_attr') == 'on';
 
     $no_description = get_option('wc_linet_no_description') == 'on';
+
+    $old_attr = get_option('wc_linet_old_attr') == 'on';
+
+
     $logger->write("singleProdSync start: " . $item->item->id);
 
 
@@ -1520,7 +1574,9 @@ class WC_LI_Inventory
       $not_product_attributes = get_option('wc_linet_not_product_attributes');
 
       if ($not_product_attributes != "on") {
-        $attributes = array();
+        $attributes = $old_attr ? $product->get_attributes() : array();
+
+
         //var_dump($item);exit;
         foreach ($item->mutex as $mutexIndex => $fullRuler) {
 
@@ -1601,7 +1657,9 @@ class WC_LI_Inventory
         }
 
 
-        $attributes = array();
+        $attributes = $old_attr ? $product->get_attributes() : array();
+
+
 
         if (is_null($item->mutex)) //we need to get attrbuts..
           $item->mutex = array();

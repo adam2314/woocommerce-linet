@@ -267,7 +267,19 @@ class WC_LI_Settings
         'description' => __('use global attributes for variable products', 'linet-erp-woocommerce-integration')
           . '<a style="" href="#target1" class="button-primary" onclick="linet.doRuler();">Write Global Rulers</a> '
         ,
-      )
+      ),
+
+
+      'old_attr' => array(
+        'title' => __('Preserve Old attributes', 'linet-erp-woocommerce-integration'),
+        'default' => 'off',
+        'type' => 'select',
+        'options' => array(
+          'off' => __('Off', 'linet-erp-woocommerce-integration'),
+          'on' => __('On', 'linet-erp-woocommerce-integration'),
+        ),
+        'description' => __('preserve old attributes for variable products', 'linet-erp-woocommerce-integration'),
+      ),
     );
 
     foreach (wc_get_order_statuses() as $key => $name) {
@@ -536,6 +548,20 @@ class WC_LI_Settings
     if ($key === "id") {
       $post_id = (int) $value;
       return self::DeleteProd(wc_get_product($post_id), $logger);
+    }
+
+
+    if ($key === "_linet_id") {
+      global $wpdb;
+
+      return $wpdb->query(
+          $wpdb->prepare(
+              "DELETE FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value = %s",
+              $key,
+              $value
+          )
+      );
+
     }
 
     $products = wc_get_products(

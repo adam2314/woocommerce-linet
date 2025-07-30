@@ -339,7 +339,7 @@ class WC_LI_Invoice
     ];
 
 
-
+    //var_dump($order->get_payment_method());exit;
     switch ($order->get_payment_method()) {
       case 'cod':
         $rcpt["type"] = 1;
@@ -377,6 +377,13 @@ class WC_LI_Invoice
             $this->doc[$j5Token] = $zc_response['Token'];
           if ($j5Number)
             $this->doc[$j5Number] = $zc_response['ReferenceNumber'];
+        }
+
+
+        if (isset($zc_response['Installments']) && $zc_response['Installments']>1) {
+          $rcpt['paymentsNo']['value'] = $zc_response['Installments'];
+          $rcpt["type"] = 6;
+
         }
 
 
@@ -497,6 +504,7 @@ class WC_LI_Invoice
       case 'pelacard':
         break;
       case 'tranzila':
+        //cc_company_approval_num
         $token = $order->get_meta("cc_company_approval_num", true);
         $token_index = $order->get_meta("transaction_id", true);
 
@@ -513,6 +521,10 @@ class WC_LI_Invoice
           $rcpt['npay']['value'] = $npay;
           $rcpt['spay']['value'] = $spay;
           $rcpt['fpay']['value'] = $fpay;
+        }
+        if($token!="" && $j5Token == '' && $j5Number == ''){
+          $rcpt['auth_number']['value'] = $token;
+
         }
 
 
@@ -566,6 +578,8 @@ class WC_LI_Invoice
     $obj = apply_filters('woocommerce_linet_set_order', $obj);
 
     $this->doc = $obj['doc'];
+  //var_dump($this->doc);exit;
+
 
     return true;
   }

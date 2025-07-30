@@ -7,7 +7,7 @@
  * Author URI: http://www.linet.org.il
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Version: 3.6.10
+ * Version: 3.6.11
  * Requires at least: 4.6
  * Requires PHP: 5.2
  */
@@ -39,7 +39,7 @@ require_once 'woo-includes/woo-functions.php';
  */
 class WC_Linet
 {
-  const VERSION = '3.6.10';
+  const VERSION = '3.6.11';
 
 
 
