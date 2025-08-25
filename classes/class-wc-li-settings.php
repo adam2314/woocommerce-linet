@@ -116,7 +116,7 @@ class WC_LI_Settings
           'custom_attributes' => array('readonly' => 'readonly'),
           'label' => esc_html_e('Linet ID', 'linet-erp-woocommerce-integration'),
           'desc_tip' => true,
-          'description' => esc_html_e('Enter the linet ID', 'linet-erp-woocommerce-integration'),
+          //'description' => esc_html_e('Enter the linet ID', 'linet-erp-woocommerce-integration'),
           'wrapper_class' => 'form-row form-row-last',
         )
       );

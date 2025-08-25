@@ -3,7 +3,7 @@ Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 4.6
 Tested up to: 6.8
-Stable tag: 3.6.10
+Stable tag: 3.6.12
 License: GPLv2 or later
 Requires PHP: 5.2
 Donate link: http://www.linet.org.il
@@ -47,6 +47,13 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+
+- 2025.08.25 - version 3.6.12 =
+
+- cat linet_id
+- prod linet_id
+
+
 - 2025.07.30 - version 3.6.11 =
 
 - new switch to presevere old attributes

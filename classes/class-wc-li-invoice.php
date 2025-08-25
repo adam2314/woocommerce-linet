@@ -137,7 +137,7 @@ class WC_LI_Invoice
 
 
       $vat_cat = ($country_id == "IL") ? 1 : 2;
-      if ($vat_cat === 1 && $product && $product->get_tax_status() === 'none') {
+      if ($vat_cat === 1 && $product && $product->get_tax_status() == 'none' ) {
         $vat_cat = 2;
       }
 

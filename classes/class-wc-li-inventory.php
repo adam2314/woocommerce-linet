@@ -23,11 +23,144 @@ class WC_LI_Inventory
     add_filter('manage_product_cat_custom_column', array($this, 'category_columns'), 10, 3);
     add_filter('manage_edit-product_cat_sortable_columns', array($this, 'category_columns_sort'));
 
+
+
+
+
     add_action('manage_product_posts_custom_column', array($this, 'product_columns'), 10, 2);
-    add_filter('manage_product_posts_columns', array($this, 'product_columns_head'));
+    add_filter('manage_edit-product_columns', array($this, 'product_columns_head'));
     add_filter('manage_edit-product_sortable_columns', array($this, 'product_columns_sort'));
     add_action('pre_get_posts', array($this, 'linet_posts_orderby'));
 
+
+
+
+    //chat
+    add_action('admin_footer-edit.php', array($this, 'jqurey'));
+
+    add_action('admin_footer-edit-tags.php', array($this, 'jqurey'));
+    add_action('edited_product_cat', function ($term_id) {
+      if (isset($_POST['linet_id'])) {
+        update_term_meta($term_id, '_linet_cat', sanitize_text_field($_POST['linet_id']));
+      }
+    });
+
+    add_action('save_post_product', function ($post_id) {
+      if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE)
+        return;
+      if (isset($_POST['linet_id'])) {
+        update_post_meta($post_id, '_linet_id', sanitize_text_field($_POST['linet_id']));
+      }
+    });
+
+
+    add_action('quick_edit_custom_box', function ($column_name, $screen, $taxonomy) {
+      if ($screen === 'edit-tags' && $taxonomy === 'product_cat' && $column_name === 'linet_id') {
+        ?>
+        <fieldset>
+          <div class="inline-edit-col">
+            <label>
+              <span class="title"><?php esc_html_e('Linet ID', 'linet-erp-woocommerce-integration'); ?></span>
+              <span class="input-text-wrap">
+                <input type="text" name="linet_id" class="ptitle" value="">
+              </span>
+            </label>
+          </div>
+        </fieldset>
+        <?php
+      }
+
+
+    }, 10, 3);
+
+    add_action('quick_edit_custom_box', function ($column_name, $obj) {
+      if ($obj === 'product' && $column_name === 'linet_id') {
+        ?>
+        <fieldset>
+          <div class="inline-edit-col">
+            <label>
+              <span class="title"><?php esc_html_e('Linet ID', 'linet-erp-woocommerce-integration'); ?></span>
+              <span class="input-text-wrap">
+                <input type="text" name="linet_id" class="ptitle" value="">
+              </span>
+            </label>
+          </div>
+        </fieldset>
+        <?php
+      }
+
+
+    }, 10, 3);
+
+
+
+
+  }
+
+
+
+
+
+
+  public function jqurey()
+  {
+
+    global $typenow;
+
+    if ($typenow === 'product') {
+      ?>
+      <script>
+        jQuery(function ($) {
+          //if (typeof inlineEditPost === 'undefined') {
+          //  return; // safeguard: don't run if Quick Edit not available
+          //}
+
+          var wp_inline_edit = inlineEditPost.edit;
+          inlineEditPost.edit = function (id) {
+            wp_inline_edit.apply(this, arguments);
+            var postId = 0;
+            if (typeof (id) == 'object') {
+              postId = parseInt(this.getId(id));
+            }
+            if (postId > 0) {
+              var $row = $('#post-' + postId);
+              var linetId = $row.find('td.column-linet_id').text().trim();
+              if (linetId === '–') linetId = '';
+              $(':input[name="linet_id"]').val(linetId);
+            }
+          };
+        });
+      </script>
+
+      <?php
+    }
+
+    $screen = get_current_screen();
+    if ($screen->id === 'edit-product_cat') {
+      ?>
+      <script>
+        jQuery(function ($) {
+          //if (typeof inlineEditPost === 'undefined') {
+          //  return; // safeguard: don't run if Quick Edit not available
+          //}
+          var wp_inline_edit_function = inlineEditTax.edit;
+          inlineEditTax.edit = function (id) {
+            wp_inline_edit_function.apply(this, arguments);
+            var termId = 0;
+            if (typeof (id) == 'object') {
+              termId = parseInt(this.getId(id));
+            }
+            if (termId > 0) {
+              var $row = $('#tag-' + termId);
+              var linetId = $row.find('td.column-linet_id').text().trim();
+              if (linetId === '–') linetId = '';
+              $(':input[name="linet_id"]').val(linetId);
+            }
+          };
+        });
+      </script>
+      <?php
+    }
   }
 
 
@@ -1585,36 +1718,39 @@ class WC_LI_Inventory
           $attribute->set_visible(1);
           $attribute->set_variation(1);
 
-          if ($global_attr && isset($item->slugmutex[$mutexIndex])) {
-            $cutRoler = $item->slugmutex[$mutexIndex];
+          if ($global_attr ) {
+            if(isset($item->slugmutex[$mutexIndex])){
+              $cutRoler = $item->slugmutex[$mutexIndex];
 
-            $taxonomy = wc_attribute_taxonomy_name($cutRoler->rulerSlug);
-
-            $tmparray = array();
-
-            foreach ($cutRoler->units as $rolerUnit) {
-              $term_name = $rolerUnit->name;
-              $term_slug = sanitize_title(strtolower($rolerUnit->slug));
-
-              if (!$term = get_term_by('slug', $term_slug, $taxonomy)) {
-                wp_insert_term($term_name, $taxonomy, array('slug' => $term_slug));
-                $term = get_term_by('slug', $term_slug, $taxonomy);
+              $taxonomy = wc_attribute_taxonomy_name($cutRoler->rulerSlug);
+  
+              $tmparray = array();
+  
+              foreach ($cutRoler->units as $rolerUnit) {
+                $term_name = $rolerUnit->name;
+                $term_slug = sanitize_title(strtolower($rolerUnit->slug));
+  
+                if (!$term = get_term_by('slug', $term_slug, $taxonomy)) {
+                  wp_insert_term($term_name, $taxonomy, array('slug' => $term_slug));
+                  $term = get_term_by('slug', $term_slug, $taxonomy);
+                }
+  
+  
+  
+                $tmparray[] = (int) $term->term_id;
+                $logger->write("singleProdSync tmparray " . $term->term_id);
+  
               }
-
-
-
-              $tmparray[] = (int) $term->term_id;
-              $logger->write("singleProdSync tmparray " . $term->term_id);
-
+  
+              $attribute->set_id(wc_attribute_taxonomy_id_by_name($taxonomy));
+              $attribute->set_name($taxonomy);
+              $attribute->set_options($tmparray);
+  
+              //Save main product to get its id
+  
+              $logger->write("singleProdSync mutex $taxonomy $post_id " . json_encode($tmparray));
+  
             }
-
-            $attribute->set_id(wc_attribute_taxonomy_id_by_name($taxonomy));
-            $attribute->set_name($taxonomy);
-            $attribute->set_options($tmparray);
-
-            //Save main product to get its id
-
-            $logger->write("singleProdSync mutex $taxonomy $post_id " . json_encode($tmparray));
 
           } else {
             $attribute->set_id(0);
@@ -1729,7 +1865,7 @@ class WC_LI_Inventory
       $product->set_sale_price("");
     }
 
-    $product->set_tax_status($item->item->itemVatCat_id == 1 ? 'taxable' : 'none');
+    $product->set_tax_status( $item->item->itemVatCat_id == 1 ? 'taxable' : 'none');
     try {
       $product->set_sku($item->item->sku);
 
