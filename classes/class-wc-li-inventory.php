@@ -1598,7 +1598,7 @@ class WC_LI_Inventory
 
     //$post_id = self::findByProdId($item->item->id);
     $product_type = "product";
-    $product_update_type = "product";
+    $product_fc_type = "product";
 
 
     if ($product)
