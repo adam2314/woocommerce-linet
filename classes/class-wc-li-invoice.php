@@ -658,7 +658,7 @@ class WC_LI_Invoice
     $this->doc[$linAddress] = array(
 
       "firstname" => $address['first_name'],
-      "lastname" => $address['first_name'],
+      "lastname" => $address['last_name'],
       "company" => $address['company'],
       "phone" => $address['phone'],
       "email" => $address['email'],
