@@ -48,6 +48,10 @@ No answer to that question.
 
 == Changelog ==
 
+- 2025.09.10 - version 3.6.14 =
+	- undiefed var
+  
+
 - 2025.09.08 - version 3.6.13 =
 	- first name to last name update
   
