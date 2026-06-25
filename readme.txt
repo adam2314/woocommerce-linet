@@ -1,11 +1,11 @@
 === Linet ERP Integration For Woocommerce ===
 Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
-Requires at least: 4.6
-Tested up to: 6.8
-Stable tag: 3.6.13
+Requires at least: 6.0
+Tested up to: 6.9.4
+Stable tag: 3.6.18
 License: GPLv2 or later
-Requires PHP: 5.2
+Requires PHP: 8.0
 Donate link: http://www.linet.org.il
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,7 +48,22 @@ No answer to that question.
 
 == Changelog ==
 
-- 2025.09.10 - version 3.6.14 =
+= 2026.05.13 - version 3.6.18 =
+
+* Fix: variable product type not converting from simple on sync - wp_set_object_terms now runs after wp_update_post
+* Fix: product found by SKU not updating - post_id now correctly set from SKU lookup
+* Fix: stock update now clears WooCommerce transient cache and WordPress object cache
+* Updated: WordPress compatibility 6.9.4, WooCommerce compatibility 10.7.0
+* Updated: minimum requirements PHP 8.0, WordPress 6.0
+
+- 2026.03.17 - version 3.6.17 =
+	- wp_slash in set_name
+
+- 2026.03.09 - version 3.6.16 =
+	- added new config opt ignore_supported_gateways
+
+
+- 2025.09.10 - version 3.6.15 =
 	- undiefed var
   
 

@@ -484,8 +484,10 @@ class WC_LI_Inventory
     if (is_null($terms)) {
       $terms = $attribute_data["options"];
 
+      $order=0;
 
       foreach ($terms as $term) {
+        $order++;
 
         $slug = str_replace(" ", "", urldecode($term));
         $slug = str_replace("-", "", $slug);
@@ -496,7 +498,7 @@ class WC_LI_Inventory
           'ruler_id' => $rulerId,
           'name' => $term,
           'value' => $slug,
-          'uValue' => $slug,
+          'uValue' => $order,
           'slug' => $slug
         );
 
@@ -515,9 +517,9 @@ class WC_LI_Inventory
 
 
     } else {
-
+      $order=0;
       foreach ($attr->get_terms() as $term) {
-
+        $order++;
         $slug = str_replace(" ", "", urldecode($term->slug));
         $slug = str_replace("-", "", $slug);
         $slug = str_replace("(", "", $slug);
@@ -527,7 +529,7 @@ class WC_LI_Inventory
           'ruler_id' => $rulerId,
           'name' => $term->name,
           'value' => $slug,
-          'uValue' => $slug,
+          'uValue' => $order,
           'slug' => $slug
         );
 
@@ -565,6 +567,35 @@ class WC_LI_Inventory
 
     return self::SKU_PREFIX . $post_id;
   }
+
+
+  public static function get_product_attribute_index( $product_id, $attribute_name, $value,$logger ) {
+    $product = wc_get_product( $product_id );
+    $attributes = $product->get_attributes();
+    //$logger->write(print_r($attributes,true));
+
+    if ( ! isset( $attributes[$attribute_name] ) ) {
+        return false;
+    }
+
+    $attribute = $attributes[$attribute_name];
+
+    // Get full option list
+    if ( $attribute->is_taxonomy() ) {
+      $terms = wc_get_product_terms( $product_id, $attribute_name, ['fields' => 'all'] );
+      $options = wp_list_pluck( $terms, 'slug' );
+    } else {
+      $options = $attribute->get_options();
+      $options = array_map( 'sanitize_title', $options );
+    }
+
+    // Normalize
+    $value = sanitize_title( $value );
+    $logger->write("get_product_attribute_index $value");
+    //$logger->write(print_r($options,true));
+
+    return array_search( $value, $options )+1;
+}
 
   public static function WpItemSync($post_id, $logger)
   { //wp->linet
@@ -622,13 +653,21 @@ class WC_LI_Inventory
     if ($product_type == 'product_variation' || $product_type == 'variation') {
       $isProduct = 0;
       $sku = array(self::getProdSku($product->get_parent_id()));
-      foreach (wc_get_product_variation_attributes($product->get_id()) as $val) {
+      foreach (wc_get_product_variation_attributes($product->get_id()) as $attr_name=>$val) {
         $tval = str_replace(" ", "", urldecode($val));
         $tval = str_replace("-", "", $tval);
         $tval = str_replace("(", "", $tval);
         $tval = str_replace(")", "", $tval);
-        $sku[] = $tval;
-        //$sku[] = $val;
+        $tval = str_replace("/", "", $tval);
+        $tval = str_replace("+", "", $tval);
+        $tval = str_replace("\\", "", $tval);
+
+        //$sku[] = $tval;
+        $logger->write("WpItemSync ".urldecode($attr_name).": $val");
+
+        $index = self::get_product_attribute_index( $product->get_parent_id(), str_replace("attribute_","",$attr_name), $val,$logger );
+
+        $sku[] = $index;
       }
       $itemSku = implode("-", $sku);
       $logger->write("WpItemSync sku($product_type): $itemSku");
@@ -1624,6 +1663,9 @@ class WC_LI_Inventory
     if (!$post_id) {
 
       $product = self::findByProdSku($item->item->sku);
+      if ($product) {
+        $post_id = $product->get_id();
+      }
       $logger->write("singleProdSync by sku: $product_type(linet_id)," . $item->item->id);
 
     }
@@ -1638,18 +1680,20 @@ class WC_LI_Inventory
       $update_product_type = $product_type;
 
       if ($update_product_type == "variable") {
-        wp_set_object_terms($post_id, 'variable', 'product_type');
         $update_product_type = "product";
-
-      } else if ($update_product_type == "product_variation") {
-        wp_set_object_terms($post_id, '', 'product_type');
-
-      } else {
-        wp_set_object_terms($post_id, 'simple', 'product_type');
-
       }
 
       wp_update_post(array("ID" => $post_id, "post_type" => $update_product_type));
+
+      // Set WC product type term AFTER wp_update_post so save_post hooks
+      // (WooCommerce or third-party) cannot reset it back to 'simple'.
+      if ($product_type == "variable") {
+        wp_set_object_terms($post_id, 'variable', 'product_type');
+      } else if ($product_type == "product_variation") {
+        wp_set_object_terms($post_id, '', 'product_type');
+      } else {
+        wp_set_object_terms($post_id, 'simple', 'product_type');
+      }
 
       $logger->write("singleProdSyncType: $post_id");
 
@@ -1675,7 +1719,9 @@ class WC_LI_Inventory
         $product = new WC_Product();
       }
 
-      $product->set_name((string) $item->item->name);
+      //$product->set_name((string) $item->item->name);
+      $product->set_name(wp_slash((string) $item->item->name));                                                                  
+
       if (!$no_description)
         $product->set_description((string) $item->item->description);
       $product->set_sku($item->item->sku);
@@ -1691,7 +1737,8 @@ class WC_LI_Inventory
       //$classname = WC_Product_Factory::get_product_classname( $post_id, $product_type );
       //$product = new $classname($post_id);
 
-      $product->set_name((string) $item->item->name);
+      //$product->set_name((string) $item->item->name);
+      $product->set_name(wp_slash((string) $item->item->name));                                                                  
       if (!$no_description)
         $product->set_description((string) $item->item->description);
     }
@@ -2001,6 +2048,9 @@ class WC_LI_Inventory
       $product->set_manage_stock('no');
     }
     $logger->write("updateStock product save: $qty " . $product->save());
+
+    wc_delete_product_transients($product->get_id());
+    clean_post_cache($product->get_id());
 
     return $product;
   }

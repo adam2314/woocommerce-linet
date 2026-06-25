@@ -271,10 +271,13 @@ class WC_LI_Invoice_Manager
 
     // Get the order
     $order = wc_get_order($order_id);
-    $supported_gateways = $this->settings->get_option('supported_gateways');
-    if (!in_array($order->get_payment_method(), $supported_gateways)) {
-      $order->add_order_note(__("LINET: Will not create doc. unsupported gateway", 'linet-erp-woocommerce-integration'));
-      return false;
+    $ignore_supported_gateways = $this->settings->get_option('ignore_supported_gateways');
+    if ($ignore_supported_gateways !== 'on') {
+      $supported_gateways = $this->settings->get_option('supported_gateways');
+      if (!in_array($order->get_payment_method(), $supported_gateways)) {
+        $order->add_order_note(__("LINET: Will not create doc. unsupported gateway", 'linet-erp-woocommerce-integration'));
+        return false;
+      }
     }
 
 

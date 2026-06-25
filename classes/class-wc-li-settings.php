@@ -350,6 +350,16 @@ class WC_LI_Settings
         'type' => 'pay_list',
         'description' => __('Select Gateways to invoice', 'linet-erp-woocommerce-integration'),
       ),
+      'ignore_supported_gateways' => array(
+        'title' => __('Ignore Supported Gateways', 'linet-erp-woocommerce-integration'),
+        'default' => 'off',
+        'type' => 'select',
+        'options' => array(
+          'off' => __('Off', 'linet-erp-woocommerce-integration'),
+          'on' => __('On', 'linet-erp-woocommerce-integration'),
+        ),
+        'description' => __('When enabled, invoices will be created for all gateways regardless of the Supported Gateways selection', 'linet-erp-woocommerce-integration'),
+      ),
       'stock_manage' => array(
         //out
         'title' => __('Stock Manage', 'linet-erp-woocommerce-integration'),
@@ -921,6 +931,8 @@ ORDER BY a.post_parent ASC
 
       $metas = get_post_meta($post->ID);
       ?>
+      
+      <div class="linetDataAndAction">
       <script>
         var linet = {
           singleSync: function (post_id) {
@@ -980,6 +992,7 @@ ORDER BY a.post_parent ASC
       <a class="button hidden" data-post_id="<?php echo esc_attr($post->ID); ?>"
         onclick="linet.singleToSync(<?php echo esc_attr($post->ID); ?>);">Sync Item To
         Linet</a>
+      </div>
       <?php
     }
   }
@@ -1801,10 +1814,12 @@ ORDER BY a.post_parent ASC
       esc_attr($name)
     );
 
-    $pay = new \WC_Payment_Gateways;
+    //$pay = new \WC_Payment_Gateways;
+    $payment_gateways = WC()->payment_gateways->get_available_payment_gateways();
 
-    foreach ($pay->get_available_payment_gateways() as $id => $small) {
-      $opt['options'][$id] = $small->title;
+
+    foreach ($payment_gateways as $gateway_id => $gateway) {
+      $opt['options'][$gateway_id] = $gateway->title;
     }
 
     foreach ($opt['options'] as $key => $value) {

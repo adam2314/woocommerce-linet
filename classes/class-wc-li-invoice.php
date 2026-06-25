@@ -137,7 +137,7 @@ class WC_LI_Invoice
 
 
       $vat_cat = ($country_id == "IL") ? 1 : 2;
-      if ($vat_cat === 1 && $product && $product->get_tax_status() == 'none' ) {
+      if ($vat_cat === 1 && $product && $product->get_tax_status() == 'none') {
         $vat_cat = 2;
       }
 
@@ -363,6 +363,7 @@ class WC_LI_Invoice
         break;
 
 
+      case 'zcredit_google_pay':
       case 'zcredit_checkout':
       case 'zcredit_payment':
       case 'zcredit_checkout_payment':
@@ -380,7 +381,7 @@ class WC_LI_Invoice
         }
 
 
-        if (isset($zc_response['Installments']) && $zc_response['Installments']>1) {
+        if (isset($zc_response['Installments']) && $zc_response['Installments'] > 1) {
           $rcpt['paymentsNo']['value'] = $zc_response['Installments'];
           $rcpt["type"] = 6;
 
@@ -433,7 +434,7 @@ class WC_LI_Invoice
           $rcpt['paymentsNo']['value'] = $payplus_number_of_payments;
         }
 
-        $payplus_approval_num = $order->get_meta('payplus_approval_num');
+        $payplus_approval_num = $order->get_meta('payplus_number');
 
         if ($payplus_approval_num) {
           $rcpt['auth_number']['value'] = $payplus_approval_num;
@@ -442,13 +443,13 @@ class WC_LI_Invoice
         }
 
 
-        $payplus_token_uid = $order->get_meta('payplus_token_uid');
+        $payplus_transaction_uid = $order->get_meta('payplus_transaction_uid');
 
 
-        if ($payplus_token_uid) {
-          $rcpt['card_no']['value'] = $payplus_token_uid;
+        if ($payplus_transaction_uid) {
+          $rcpt['card_no']['value'] = $payplus_transaction_uid;
           if ($j5Token)
-            $this->doc[$j5Token] = $payplus_token_uid;
+            $this->doc[$j5Token] = $payplus_transaction_uid;
 
         }
 
@@ -495,6 +496,7 @@ class WC_LI_Invoice
 
 
 
+      case 'ppcp-gateway':
       case 'ppec_paypal':
       case 'paypal':
         $rcpt["type"] = 8;
@@ -522,7 +524,7 @@ class WC_LI_Invoice
           $rcpt['spay']['value'] = $spay;
           $rcpt['fpay']['value'] = $fpay;
         }
-        if($token!="" && $j5Token == '' && $j5Number == ''){
+        if ($token != "" && $j5Token == '' && $j5Number == '') {
           $rcpt['auth_number']['value'] = $token;
 
         }
@@ -578,7 +580,7 @@ class WC_LI_Invoice
     $obj = apply_filters('woocommerce_linet_set_order', $obj);
 
     $this->doc = $obj['doc'];
-  //var_dump($this->doc);exit;
+    //var_dump($this->doc);exit;
 
 
     return true;
@@ -751,8 +753,22 @@ class WC_LI_Invoice
 
       $accId = $this->getAcc($acc_email);
       if ($accId === false) { //create new acc
+        $obj = array(
+          'acc' => $body,
+          'order' => $this->order
+        );
+        $obj = apply_filters('woocommerce_linet_account_create', $obj);
+        $body = $obj['acc'];
+
         $accId = $this->createAcc($body);
       } else { //update acc
+
+        $obj = array(
+          'acc' => $body,
+          'order' => $this->order
+        );
+        $obj = apply_filters('woocommerce_linet_account_update', $obj);
+        $body = $obj['acc'];
         $this->updateAcc($accId, $body);
       }
     } //*/
