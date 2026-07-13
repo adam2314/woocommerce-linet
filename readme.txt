@@ -48,6 +48,16 @@ No answer to that question.
 
 == Changelog ==
 
+= 2026.06.25 - version 3.6.20 =
+
+* Upgrade: new paypal gateway support
+
+
+= 2026.06.25 - version 3.6.19 =
+
+* Fix: variable product type not converting from simple on sync - wp_set_object_terms now runs after wp_update_post
+
+
 = 2026.05.13 - version 3.6.18 =
 
 * Fix: variable product type not converting from simple on sync - wp_set_object_terms now runs after wp_update_post

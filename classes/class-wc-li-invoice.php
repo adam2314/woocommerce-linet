@@ -497,6 +497,7 @@ class WC_LI_Invoice
 
 
       case 'ppcp-gateway':
+      case 'ppcp':
       case 'ppec_paypal':
       case 'paypal':
         $rcpt["type"] = 8;
