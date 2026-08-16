@@ -40,7 +40,7 @@ require_once 'woo-includes/woo-functions.php';
  */
 class WC_Linet
 {
-  const VERSION = '3.6.20';
+  const VERSION = '3.6.21';
 
 
 
