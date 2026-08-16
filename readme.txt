@@ -3,7 +3,7 @@ Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 6.0
 Tested up to: 6.9.4
-Stable tag: 3.6.18
+Stable tag: 3.6.21
 License: GPLv2 or later
 Requires PHP: 8.0
 Donate link: http://www.linet.org.il
@@ -47,6 +47,16 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+
+= 2026.08.16 - version 3.6.21 =
+
+* New: WC->Linet sync now pushes all product categories in a first phase, before any item is synced
+* New: category hierarchy is now sent to Linet - parent_id set from the parent term's Linet category id
+* Fix: a category already mapped to Linet is now updated on sync, instead of only being checked for existence
+* Fix: Linet->WC categories are now synced parents first, so a child no longer lands at top level when it arrives before its parent
+* Fix: a category moved to top level in Linet is now flattened in WooCommerce as well
+* Updated: WC->Linet item sync no longer re-resolves categories through the API for every product
+
 
 = 2026.06.25 - version 3.6.20 =
 

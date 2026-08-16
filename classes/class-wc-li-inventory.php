@@ -10,6 +10,9 @@ class WC_LI_Inventory
 
   const SKU_PREFIX = 'SKU';
 
+  /** Term meta holding the Linet itemcategory id of a product_cat term */
+  const CAT_META = '_linet_cat';
+
   /**
    * Setup the required settings hooks
    */
@@ -41,7 +44,7 @@ class WC_LI_Inventory
     add_action('admin_footer-edit-tags.php', array($this, 'jqurey'));
     add_action('edited_product_cat', function ($term_id) {
       if (isset($_POST['linet_id'])) {
-        update_term_meta($term_id, '_linet_cat', sanitize_text_field($_POST['linet_id']));
+        update_term_meta($term_id, self::CAT_META, sanitize_text_field($_POST['linet_id']));
       }
     });
 
@@ -181,7 +184,7 @@ class WC_LI_Inventory
   {
     if ($column_name == 'linet_id') {
 
-      $linet_id = get_term_meta($term_id, '_linet_cat', true);
+      $linet_id = get_term_meta($term_id, self::CAT_META, true);
 
       return isset($linet_id) && !empty($linet_id) ?
         "<a target='_blank' href='https://app.linet.org.il/itemcategory/update?id=$linet_id'>$linet_id</a>"
@@ -340,16 +343,20 @@ class WC_LI_Inventory
     //$logger = new WC_LI_Logger(get_option('wc_linet_debug'));
     $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
 
-    if ($mode == 0) {
-      //count items to sync
+    if ($mode == 2) {
+      //phase 1: push every product_cat to Linet, before any item is touched
+      $offset = intval($_POST['offset']);
+      $logger->write("WP->Linet Cat Sync Pulse:$offset");
+      echo json_encode(self::WpSmallCatsSyncAjax($offset, $logger));
+
+    } elseif ($mode == 0) {
+      //phase 2: count items to sync
       $counts = $wpdb->get_col($wpdb->prepare("SELECT count(ID) FROM {$wpdb->posts} as p " .
         "WHERE " .
         "(p.post_type='product' OR p.post_type='product_variation') AND " .
         "p.post_status = 'publish'"));
       //var_dump($counts);
       $count = 0;
-
-      //get all cats and sync
 
       if (count($counts) != 0) {
         $count = $counts[0] * 1;
@@ -367,49 +374,168 @@ class WC_LI_Inventory
     wp_die();
   }
 
+  /**
+   * All product_cat term ids, parents before children, so a category is
+   * always pushed to Linet after its parent already has a Linet id.
+   */
+  public static function wpCatSyncOrder()
+  {
+    $terms = get_terms(array(
+      'taxonomy' => 'product_cat',
+      'hide_empty' => false,
+    ));
+
+    if (is_wp_error($terms) || !is_array($terms)) {
+      return array();
+    }
+
+    $depths = array();
+    foreach ($terms as $term) {
+      $depths[$term->term_id] = count(get_ancestors($term->term_id, 'product_cat', 'taxonomy'));
+    }
+    asort($depths);
+
+    return array_keys($depths);
+  }
+
+  /**
+   * One pulse of the category phase: sync categories from $offset until the
+   * runtime budget runs out.
+   */
+  public static function WpSmallCatsSyncAjax($offset, $logger)
+  {
+    $term_ids = self::wpCatSyncOrder();
+    $total = count($term_ids);
+
+    $synced = 0;
+    $runtime = microtime(true);
+
+    for ($i = $offset; $i < $total; $i++) {
+      if (microtime(true) - $runtime >= WC_LI_Settings::RUNTIME_LIMIT) {
+        break;
+      }
+      self::WpSingleCatSync($term_ids[$i], $logger);
+      $synced++;
+    }
+
+    return array(
+      'status' => 'Success',
+      'total' => $total,
+      'synced' => $synced,
+      'offset' => $offset + $synced,
+      'done' => ($offset + $synced) >= $total,
+    );
+  }
+
+  /**
+   * Push a single product_cat term to Linet and return its Linet category id.
+   */
+  public static function WpSingleCatSync($term, $logger = null, $seen = array())
+  { //wp->linet
+    if (is_numeric($term)) {
+      $term = get_term((int) $term, 'product_cat');
+    }
+
+    if (!$term || is_wp_error($term)) {
+      return 0;
+    }
+
+    if (in_array($term->term_id, $seen)) {
+      return 0; //broken hierarchy, don't loop
+    }
+    $seen[] = $term->term_id;
+
+    $catBody = array(
+      'name' => $term->name,
+      'profit' => 1,
+      'parent_id' => 0, //0 = top level, same as the Linet->WP side reads it
+    );
+
+    if ($term->parent) {
+      //parent_id holds the parent's Linet category id, not the wp term id
+      $parent_cat_id = (int) get_term_meta($term->parent, self::CAT_META, true);
+      if (!$parent_cat_id) {
+        $parent_cat_id = (int) self::WpSingleCatSync($term->parent, $logger, $seen);
+      }
+      if ($parent_cat_id) {
+        $catBody['parent_id'] = $parent_cat_id;
+      }
+    }
+
+    //already mapped? push the current name/parent onto that Linet category
+    $linet_cat_id = (int) get_term_meta($term->term_id, self::CAT_META, true);
+
+    if ($linet_cat_id) {
+      $linCat = WC_LI_Settings::sendAPI('search/itemcategory', array('id' => $linet_cat_id));
+
+      if ($linCat->errorCode == 1000) {
+        //gone from Linet - drop the mapping and fall through to search by name
+        if ($logger)
+          $logger->write("WpSingleCatSync stale mapping: $term->name ($linet_cat_id)");
+        $linet_cat_id = 0;
+      } else {
+        //update body pic?
+        $linCat = WC_LI_Settings::sendAPI('update/itemcategory?id=' . $linet_cat_id, $catBody);
+        if ($logger)
+          $logger->write("WpSingleCatSync updated: $term->name ($linet_cat_id) errorCode $linCat->errorCode");
+
+        return $linet_cat_id;
+      }
+    }
+
+    $linCat = WC_LI_Settings::sendAPI('search/itemcategory', array('name' => $term->name));
+
+    if ($linCat->errorCode == 1000) {
+      //create body pic?
+      $linCat = WC_LI_Settings::sendAPI('create/itemcategory', $catBody);
+      if ($linCat->errorCode == 0 && $linCat->status == 200) {
+        $linet_cat_id = (int) $linCat->body->id;
+        update_term_meta($term->term_id, self::CAT_META, $linet_cat_id);
+        if ($logger)
+          $logger->write("WpSingleCatSync created: $term->name ($linet_cat_id)");
+        return $linet_cat_id;
+      }
+      if ($logger)
+        $logger->write("WpSingleCatSync create failed: $term->name (errorCode $linCat->errorCode)");
+      return 0;
+    }
+
+    //found by name - adopt it, push our values, and remember the mapping
+    $linet_cat_id = (int) $linCat->body[0]->id;
+    update_term_meta($term->term_id, self::CAT_META, $linet_cat_id);
+    //update body pic?
+    $linCat = WC_LI_Settings::sendAPI('update/itemcategory?id=' . $linet_cat_id, $catBody);
+    if ($logger)
+      $logger->write("WpSingleCatSync matched: $term->name ($linet_cat_id) errorCode $linCat->errorCode");
+
+    return $linet_cat_id;
+  }
+
   public static function WpCatSync($product, $logger = null)
   { //wp->linet
-    //$cat_id=0;
     $terms = get_the_terms($product->get_id(), 'product_cat');
-
-    //$terms = wp_get_post_terms($product->get_id(), 'product_cat');
-    $logger->write("WpCatSync: $terms");
 
     $cats = array();
     if (is_array($terms) && count($terms) > 0) {
 
       foreach ($terms as $term) {
+        //the category phase has already mapped these, so this is a meta read
+        $linet_cat_id = (int) get_term_meta($term->term_id, self::CAT_META, true);
 
-        $termsMeta = get_term_meta($term->term_id);
-
-        if (isset($termsMeta['_linet_cat']) && isset($termsMeta['_linet_cat'][0])) {
-          $linCat = WC_LI_Settings::sendAPI('view/itemcategory?id=' . $termsMeta['_linet_cat'][0]);
-          //var_dump("_linet_cat search");
-          //var_dump($linCat);exit;
-          if ($linCat->errorCode == 0 && $linCat->status == 200)
-            $cats[] = (int) $termsMeta['_linet_cat'][0];
+        if (!$linet_cat_id) {
+          //term added after the category phase ran - push it now
+          $linet_cat_id = (int) self::WpSingleCatSync($term, $logger);
         }
 
-        $linCat = WC_LI_Settings::sendAPI('search/itemcategory', array('name' => $term->name));
-        $catBody = array(
-          'name' => $term->name,
-          'profit' => 1,
-        );
-        if ($linCat->errorCode == 1000) {
-          //create body pic?
-          $linCat = WC_LI_Settings::sendAPI('create/itemcategory', $catBody);
-          if ($linCat->errorCode == 0 && $linCat->status == 200) {
-            update_term_meta($term->term_id, '_linet_cat', $linCat->body->id);
-            $cats[] = (int) $linCat->body->id;
-          }
-        } else {
-          $cat_id = $linCat->body[0]->id;
-          //update body pic?
-          update_term_meta($term->term_id, '_linet_cat', $cat_id);
-          $cats[] = (int) $cat_id;
+        if ($linet_cat_id) {
+          $cats[] = $linet_cat_id;
         }
       }
     }
+
+    if ($logger)
+      $logger->write("WpCatSync (post_id): " . $product->get_id() . " cats: " . implode(',', $cats));
+
     return array_unique($cats);
   }
 
@@ -946,14 +1072,16 @@ class WC_LI_Inventory
       $catFilter = self::syncCatParams();
 
       $cats = WC_LI_Settings::sendAPI('newsearch/itemcategory', $catFilter);
-      foreach ($cats->body as $cat) {
+      $cats = self::linetCatSyncOrder($cats->body);
+
+      foreach ($cats as $cat) {
         self::singleCatSync($cat, $logger);
       }
 
       echo json_encode(
         array(
           'status' => 'Success',
-          'cats' => count($cats->body)
+          'cats' => count($cats)
         )
       );
       wp_die();
@@ -1004,17 +1132,64 @@ class WC_LI_Inventory
     wp_die();
   }
 
+  /**
+   * Linet categories sorted parents before children, so findByCatId() can
+   * always resolve a parent that arrived in the same batch.
+   */
+  public static function linetCatSyncOrder($cats)
+  {
+    if (!is_array($cats)) {
+      return array();
+    }
+
+    $by_id = array();
+    foreach ($cats as $cat) {
+      if (isset($cat->id)) {
+        $by_id[$cat->id] = $cat;
+      }
+    }
+
+    $depths = array();
+    foreach ($cats as $index => $cat) {
+      $depth = 0;
+      $parent_id = isset($cat->parent_id) ? (int) $cat->parent_id : 0;
+      $walked = array();
+
+      //walk up while the parent is in this batch; anything above that is
+      //either already in wp or outside the filter, so it counts as a root
+      while ($parent_id && isset($by_id[$parent_id]) && !in_array($parent_id, $walked)) {
+        $walked[] = $parent_id;
+        $depth++;
+        $parent_id = (int) $by_id[$parent_id]->parent_id;
+      }
+
+      $depths[$index] = $depth;
+    }
+
+    asort($depths);
+
+    $ordered = array();
+    foreach (array_keys($depths) as $index) {
+      $ordered[] = $cats[$index];
+    }
+
+    return $ordered;
+  }
+
   public static function singleCatSync($cat, $logger)
   {
     global $wpdb;
 
     $term = self::findTermByCatId($cat->id);
-    $catParams = array('name' => $cat->name);
+    //parent always goes in, so a category flattened in Linet gets flattened here
+    $catParams = array('name' => $cat->name, 'parent' => 0);
 
     if ($cat->parent_id != 0) {
       $parent_term_id = self::findByCatId($cat->parent_id);
       if ($parent_term_id) {
         $catParams['parent'] = $parent_term_id;
+      } else {
+        $logger->write("Parent cat not in wp: (parent_id)$cat->parent_id for $cat->name");
       }
     }
 
@@ -1072,7 +1247,7 @@ class WC_LI_Inventory
       'jet_woo_builder_template',
 
       '_linet_last_update',
-      '_linet_cat',
+      self::CAT_META,
 
     );
 
@@ -1087,7 +1262,7 @@ class WC_LI_Inventory
       }
     }
 
-    update_term_meta($term_id, '_linet_cat', $cat->id);
+    update_term_meta($term_id, self::CAT_META, $cat->id);
 
     $picsync = get_option('wc_linet_picsync');
     if ($picsync == 'on') {
@@ -1282,7 +1457,7 @@ class WC_LI_Inventory
       'hide_empty' => false,
       'meta_query' => array(
         array(
-          'key' => '_linet_cat',
+          'key' => self::CAT_META,
           'value' => $cat_id,
         )
       ),
@@ -1781,9 +1956,9 @@ class WC_LI_Inventory
                   wp_insert_term($term_name, $taxonomy, array('slug' => $term_slug));
                   $term = get_term_by('slug', $term_slug, $taxonomy);
                 }
-  
-  
-  
+
+                $logger->write("singleProdSync term lookup taxonomy:$taxonomy slug:$term_slug -> term_id:{$term->term_id} name:" . $term->name);
+
                 $tmparray[] = (int) $term->term_id;
                 $logger->write("singleProdSync tmparray " . $term->term_id);
   
@@ -1863,7 +2038,7 @@ class WC_LI_Inventory
                 $term = get_term_by('slug', $slug, $taxonomy);
               }
 
-
+              $logger->write("singleProdSync term lookup taxonomy:$taxonomy slug:$slug -> term_id:{$term->term_id} name:" . $term->name);
 
               $logger->write("singleProdSync mutex global " . $tax . " " . $term->term_id);
 
@@ -2142,7 +2317,7 @@ class WC_LI_Inventory
     $cats = WC_LI_Settings::sendAPI('newsearch/itemcategory', $catFilter);
 
 
-    $cats = $cats->body;
+    $cats = self::linetCatSyncOrder($cats->body);
 
     $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
 

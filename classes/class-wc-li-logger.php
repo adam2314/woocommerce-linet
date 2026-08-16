@@ -53,7 +53,7 @@ class WC_LI_Logger
       $wc_logger = new WC_Logger();
 
       // Add to logger
-      $wc_logger->add('linet', $message);
+      $wc_logger->add('linet', html_entity_decode((string) $message, ENT_QUOTES, 'UTF-8'));
     }
   }
 

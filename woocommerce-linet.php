@@ -7,7 +7,7 @@
  * Author URI: http://www.linet.org.il
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Version: 3.6.20
+ * Version: 3.6.21
  * Tested up to: 7.0
  * Requires at least: 6.0
  * Requires PHP: 8.0

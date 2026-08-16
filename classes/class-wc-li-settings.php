@@ -900,7 +900,8 @@ ORDER BY a.post_parent ASC
       $metas = get_term_meta($term->term_id);
       ?>
       Linet Cat ID:
-      <?php echo esc_html(isset($metas['_linet_cat']) && $metas['_linet_cat']['0'] ? $metas['_linet_cat']["0"] : "No Linet ID") ?><br />
+      <?php $cat_meta = WC_LI_Inventory::CAT_META; ?>
+      <?php echo esc_html(isset($metas[$cat_meta]) && $metas[$cat_meta]['0'] ? $metas[$cat_meta]["0"] : "No Linet ID") ?><br />
       Linet Last Upate:
       <?php echo esc_html(isset($metas['_linet_last_update']) && $metas['_linet_last_update']['0'] ? $metas['_linet_last_update']["0"] : "unkown") ?><br />
 
@@ -919,6 +920,7 @@ ORDER BY a.post_parent ASC
       $nonce = get_option('wc_linet_nonce') !== 'off';
 
       if ($nonce) {
+        wp_enqueue_script('wp-api');
         wp_localize_script('wp-api', 'wpApiSettings', array(
           'root' => esc_url_raw(rest_url()),
           'nonce' => wp_create_nonce('wp_rest')
@@ -1269,6 +1271,7 @@ ORDER BY a.post_parent ASC
         $nonce = get_option('wc_linet_nonce') !== 'off';
 
         if ($nonce) {
+          wp_enqueue_script('wp-api');
           wp_localize_script('wp-api', 'wpApiSettings', array(
             'root' => esc_url_raw(rest_url()),
             'nonce' => wp_create_nonce('wp_rest')
@@ -1488,11 +1491,62 @@ ORDER BY a.post_parent ASC
 
             fullProdSync: function () {
               //event.preventDefault();
+              jQuery('#mItems').removeClass('hidden');
+              linet.timeoutErrorCount = 0;
+
+              //phase 1: all categories, then the items
+              linet.wpCatSync(0);
+
+              return false
+            },
+
+            wpCatSync: function (offset) {
+              var data = {
+                'action': 'WpItemSync',
+                'mode': 2,
+                'offset': offset
+              };
+
+              clearTimeout(linet.resumeTimeOut);
+
+              linet.resumeTimeOut = setTimeout(
+                () => {
+                  linet.wpCatSync(offset);
+                  linet.timeoutErrorCount++
+                }, 1000 * 60
+              )
+
+              jQuery.ajax({
+                url: ajaxurl,
+                method: 'POST',
+                dataType: "json",
+
+                <?php if ($nonce): ?>
+                                                          beforeSend: function (xhr) {
+                    xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                  },
+                <?php endif; ?>
+                                        data: data
+              }).done(function (response) {
+                jQuery('#target').html("Categories:  " + response.offset + "/" + response.total);
+                jQuery('#targetBar').prop('max', response.total || 1);
+                jQuery('#targetBar').val(response.offset);
+
+                if (!response.done && response.synced > 0) {
+                  linet.wpCatSync(response.offset);
+                } else {
+                  clearTimeout(linet.resumeTimeOut);
+                  linet.timeoutErrorCount = 0;
+                  linet.prodSyncStart();
+                }
+              });
+            },
+
+            prodSyncStart: function () {
               var data = {
                 'action': 'WpItemSync',
                 'mode': 0
               };
-              jQuery('#mItems').removeClass('hidden');
 
               jQuery.ajax({
                 url: ajaxurl,
@@ -1507,6 +1561,7 @@ ORDER BY a.post_parent ASC
               }).done(function (response) {
                 jQuery('#target').html("Items:  0/" + response);
                 jQuery('#targetBar').prop('max', response);
+                jQuery('#targetBar').val(0);
                 linet.timeoutErrorCount = 0;
                 if (response) {
                   linet.prodSync(0);
@@ -1856,9 +1911,9 @@ ORDER BY a.post_parent ASC
     $hash = get_option('wc_linet_consumer_key');
     $company = get_option('wc_linet_company');
 
-    $body['login_id'] = $login_id;
-    $body['login_hash'] = $hash;
-    $body['login_company'] = $company;
+    //$body['login_id'] = $login_id;
+    //$body['login_hash'] = $hash;
+    //$body['login_company'] = $company;
 
     if ($login_id == '' || $hash == '' || $company == '') {
       return false;
@@ -1875,6 +1930,10 @@ ORDER BY a.post_parent ASC
       'sslverify' => !$dev,
       'timeout' => 30,
       'headers' => array(
+        'login-id'=> $login_id,
+        'login-hash'=> $hash,
+        'login-company'=> $company,
+
         'Content-Type' => 'application/json',
         'Wordpress-Site' => str_replace("http://", "", str_replace("https://", "", get_site_url())),
         'Wordpress-Plugin' => WC_Linet::VERSION,
