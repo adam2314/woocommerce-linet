@@ -524,12 +524,35 @@ class WC_LI_Settings
   }
 
 
+  /**
+   * The maintenance tab deletes products and files, so make sure the request
+   * really comes from somebody who is allowed to manage the shop.
+   *
+   * @return bool
+   */
+  private static function canMaintain()
+  {
+    if (current_user_can('manage_woocommerce')) {
+      return true;
+    }
+
+    wp_send_json_error(
+      array('message' => __('You are not allowed to run maintenance actions.', 'linet-erp-woocommerce-integration')),
+      403
+    );
+
+    return false;
+  }
+
   public static function LinetGetFile()
   {
+    if (!current_user_can('manage_woocommerce')) {
+      wp_die(esc_html__('You are not allowed to read the log files.', 'linet-erp-woocommerce-integration'), '', array('response' => 403));
+    }
+
     $filtered = preg_replace('/[^A-Za-z0-9.-]/', '', $_POST['name']);
     $filtered = preg_replace('/\.+/', '.', $filtered);
 
-    $name = str_replace("/", "", str_replace("..", "", $_POST['name']));
     echo esc_html(file_get_contents(WC_LOG_DIR . $filtered));
     wp_die();
   }
@@ -537,110 +560,236 @@ class WC_LI_Settings
 
   public static function LinetDeleteFile()
   {
+    self::canMaintain();
+
     $filtered = preg_replace('/[^A-Za-z0-9.-]/', '', $_POST['name']);
     $filtered = preg_replace('/\.+/', '.', $filtered);
 
-    //$name = str_replace("/", "", str_replace("..", "",$_POST['name'] ));
     wp_delete_file(WC_LOG_DIR . $filtered);
-    //echo esc_html(unlink(WC_LOG_DIR . $filtered));
-    wp_die();
+
+    wp_send_json_success(
+      array(
+        /* translators: %s: log file name */
+        'message' => sprintf(__('%s was deleted.', 'linet-erp-woocommerce-integration'), $filtered),
+      )
+    );
   }
 
+  /**
+   * Maintenance actions on products.
+   *
+   * key=id      delete one product or variation
+   * key=ids     delete a list of products or variations
+   * key=unlink  keep the products, only drop their _linet_id
+   * key=_sku    legacy: keep the oldest product with that sku, delete the rest
+   */
   public static function LinetDeleteProd()
   {
+    self::canMaintain();
 
     $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
 
-    $key = $_POST['key'];
-    $value = $_POST['value'];
-    $logger->write("admin delete by $key: $value");
+    $key = isset($_POST['key']) ? sanitize_text_field(wp_unslash($_POST['key'])) : '';
+    $value = isset($_POST['value']) ? sanitize_text_field(wp_unslash($_POST['value'])) : '';
 
-    if ($key === "id") {
-      $post_id = (int) $value;
-      return self::DeleteProd(wc_get_product($post_id), $logger);
+    $logger->write("admin maintenance action $key: $value");
+
+    if ('' === $value) {
+      wp_send_json_error(array('message' => __('Nothing to do, no product was given.', 'linet-erp-woocommerce-integration')));
     }
 
+    if ('unlink' === $key) {
+      $cleared = 0;
 
-    if ($key === "_linet_id") {
-      global $wpdb;
+      foreach (self::idList($value) as $post_id) {
+        if (delete_post_meta($post_id, '_linet_id')) {
+          $cleared++;
+          wc_delete_product_transients($post_id);
+        }
+      }
 
-      return $wpdb->query(
-          $wpdb->prepare(
-              "DELETE FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value = %s",
-              $key,
-              $value
-          )
+      wp_send_json_success(
+        array(
+          /* translators: %d: number of products */
+          'message' => sprintf(_n('Linet ID cleared from %d product.', 'Linet ID cleared from %d products.', $cleared, 'linet-erp-woocommerce-integration'), $cleared),
+        )
       );
-
     }
 
+    if ('id' === $key || 'ids' === $key) {
+      $ids = self::idList($value);
+      $deleted = array();
+      $failed = array();
+
+      foreach ($ids as $post_id) {
+        if (self::DeleteProd(wc_get_product($post_id), $logger)) {
+          $deleted[] = $post_id;
+        } else {
+          $failed[] = $post_id;
+        }
+      }
+
+      if (empty($deleted)) {
+        wp_send_json_error(
+          array(
+            /* translators: %s: list of post IDs */
+            'message' => sprintf(__('Nothing was deleted (%s).', 'linet-erp-woocommerce-integration'), implode(', ', $ids)),
+          )
+        );
+      }
+
+      /* translators: %d: number of products */
+      $message = sprintf(_n('%d product deleted.', '%d products deleted.', count($deleted), 'linet-erp-woocommerce-integration'), count($deleted));
+
+      if ($failed) {
+        /* translators: %s: list of post IDs */
+        $message .= ' ' . sprintf(__('Could not delete: %s.', 'linet-erp-woocommerce-integration'), implode(', ', $failed));
+      }
+
+      wp_send_json_success(array('message' => $message));
+    }
+
+    // Legacy: a meta key and its value. Keep the oldest match, delete the rest.
     $products = wc_get_products(
-      [
-        'limit' => 10,
-
-        //'type' => array('simple', 'variable'),
-
-        //'post_type' => 'product',
+      array(
+        'limit' => 50,
+        'orderby' => 'ID',
+        'order' => 'ASC',
         'meta_key' => $key,
-        'meta_value' => $value, //'meta_value' => array('yes'),
-        //'meta_compare' => '=' //'meta_compare' => 'NOT IN'
-      ]
-
+        'meta_value' => $value,
+      )
     );
 
-
+    $deleted = 0;
     $first = true;
+
     foreach ($products as $product) {
       if ($first) {
         $first = false;
-      } else {
-        self::DeleteProd($product, $logger);
+        continue;
       }
 
+      if (self::DeleteProd($product, $logger)) {
+        $deleted++;
+      }
     }
 
-    wp_die();
+    wp_send_json_success(
+      array(
+        /* translators: %d: number of products */
+        'message' => sprintf(_n('%d duplicate deleted.', '%d duplicates deleted.', $deleted, 'linet-erp-woocommerce-integration'), $deleted),
+      )
+    );
   }
 
+  /**
+   * Turn a comma separated list of post IDs into a clean array.
+   *
+   * @param string $value
+   *
+   * @return array
+   */
+  private static function idList($value)
+  {
+    $ids = array_map('intval', explode(',', $value));
+    $ids = array_filter(
+      $ids,
+      function ($id) {
+        return $id > 0;
+      }
+    );
+
+    return array_values(array_unique($ids));
+  }
+
+  /**
+   * @param WC_Product|null $product
+   * @param WC_LI_Logger    $logger
+   *
+   * @return bool
+   */
   public static function DeleteProd($product, $logger)
   {
-
-    if (!empty($product)) {
-      $post_id = $product->get_id();
-
-      $logger->write("found prod $post_id");
-
-      echo esc_html($product->delete(true));
-
-
-      echo esc_html(wc_delete_product_transients($post_id));
-
-    } else {
+    if (empty($product)) {
       $logger->write("not found prod");
 
+      return false;
     }
 
+    $post_id = $product->get_id();
+
+    $logger->write("found prod $post_id");
+
+    $deleted = $product->delete(true);
+
+    wc_delete_product_transients($post_id);
+
+    return (bool) $deleted;
   }
 
 
 
-  public static function LinetDeleteAttachment($id)
+  public static function LinetDeleteAttachment($id = 0)
   {
-    $id = (int) $_POST['id'];
+    self::canMaintain();
 
-    wp_delete_attachment($id);
+    $id = isset($_POST['id']) ? (int) $_POST['id'] : 0;
+
+    if (!$id || !wp_delete_attachment($id)) {
+      wp_send_json_error(array('message' => __('The image could not be deleted.', 'linet-erp-woocommerce-integration')));
+    }
+
+    wp_send_json_success(
+      array(
+        /* translators: %d: attachment ID */
+        'message' => sprintf(__('Image #%d was deleted.', 'linet-erp-woocommerce-integration'), $id),
+      )
+    );
   }
 
-  public static function LinetCalcAttachment($id)
+  public static function LinetCalcAttachment($id = 0)
   {
-    $id = (int) $_POST['id'];
-    $pic = (int) $_POST['file'];
+    self::canMaintain();
+
+    $id = isset($_POST['id']) ? (int) $_POST['id'] : 0;
+    $pic = isset($_POST['file']) ? (int) $_POST['file'] : 0;
 
     $basePath = wp_upload_dir()['basedir'] . '/';
     $realtivePath = WC_LI_Inventory::IMAGE_DIR . "/" . $pic;
     $filePath = $basePath . $realtivePath;
 
-    wp_update_attachment_metadata($id, wp_generate_attachment_metadata($id, $filePath));
+    // Prefer the file WordPress has on record, the path above is only the
+    // guess for images that came in from Linet.
+    $attached = $id ? get_attached_file($id) : '';
+
+    if ($attached && file_exists($attached)) {
+      $filePath = $attached;
+      $realtivePath = str_replace($basePath, '', $attached);
+    }
+
+    if (!$id || !file_exists($filePath)) {
+      wp_send_json_error(
+        array(
+          /* translators: %s: path of the missing file */
+          'message' => sprintf(__('The file is missing on the server (%s), so the image sizes cannot be rebuilt.', 'linet-erp-woocommerce-integration'), $realtivePath),
+        )
+      );
+    }
+
+    $meta = wp_generate_attachment_metadata($id, $filePath);
+
+    if (empty($meta)) {
+      wp_send_json_error(array('message' => __('WordPress could not read the image.', 'linet-erp-woocommerce-integration')));
+    }
+
+    wp_update_attachment_metadata($id, $meta);
+
+    wp_send_json_success(
+      array(
+        /* translators: %d: attachment ID */
+        'message' => sprintf(__('The image sizes of #%d were rebuilt.', 'linet-erp-woocommerce-integration'), $id),
+      )
+    );
   }
 
 
@@ -683,108 +832,652 @@ class WC_LI_Settings
 
 
 
+  /**
+   * How many rows each maintenance section lists before it is truncated.
+   */
+  const MAINTENANCE_LIMIT = 100;
+
+  /**
+   * Markup allowed inside a maintenance row.
+   */
+  const MAINTENANCE_TAGS = array(
+    'a' => array(
+      'href' => true,
+      'class' => true,
+      'target' => true,
+      'rel' => true,
+      'onclick' => true,
+      'title' => true,
+      'data-key' => true,
+      'data-value' => true,
+      'data-label' => true,
+      'data-id' => true,
+      'data-name' => true,
+      'data-file' => true,
+    ),
+    'p' => array('class' => true),
+    'div' => array('class' => true),
+    'span' => array('class' => true),
+    'ul' => array('class' => true),
+    'li' => array('class' => true),
+    'code' => array(),
+    'strong' => array(),
+    'em' => array(),
+    'br' => array(),
+  );
+
+  /**
+   * The "Maintenance" tab.
+   *
+   * Every problem is listed together with links to the WooCommerce products it
+   * belongs to, so a product can be inspected before anything is deleted.
+   */
   public function maintenance()
+  {
+    $arr = array();
+
+    $arr = array_merge($arr, $this->maintenanceDuplicateMeta('_sku', __('Duplicate SKU', 'linet-erp-woocommerce-integration'), __('SKU', 'linet-erp-woocommerce-integration')));
+    $arr = array_merge($arr, $this->maintenanceDuplicateMeta('_linet_id', __('Duplicate Linet ID', 'linet-erp-woocommerce-integration'), __('Linet ID', 'linet-erp-woocommerce-integration')));
+    $arr = array_merge($arr, $this->maintenanceDuplicateVariations());
+    $arr = array_merge($arr, $this->maintenanceAttachments());
+
+    if (empty($arr)) {
+      $arr['maint_clean'] = array(
+        'title' => esc_html__('Products', 'linet-erp-woocommerce-integration'),
+        'default' => '',
+        'type' => 'maint',
+        'html' => '<p class="description">' . esc_html__('No duplicate SKUs, Linet IDs, variations or broken images were found.', 'linet-erp-woocommerce-integration') . '</p>',
+      );
+    }
+
+    $arr = array_merge($arr, $this->maintenanceLogFiles());
+
+    return $arr;
+  }
+
+  /**
+   * Products that share the same value in a meta field that has to be unique.
+   *
+   * @param string $meta_key  Meta field to group by, e.g. _sku.
+   * @param string $label     Row title.
+   * @param string $friendly  Name of the field as shown to the user.
+   *
+   * @return array
+   */
+  private function maintenanceDuplicateMeta($meta_key, $label, $friendly)
+  {
+    $arr = array();
+    $groups = $this->findDuplicateMeta($meta_key);
+
+    $truncated = count($groups) > self::MAINTENANCE_LIMIT;
+    $groups = array_slice($groups, 0, self::MAINTENANCE_LIMIT);
+
+    $prefix = 'dup' . str_replace('_', '', $meta_key);
+
+    foreach ($groups as $index => $group) {
+      $ids = $group->ids;
+
+      if (count($ids) < 2) {
+        continue;
+      }
+
+      $keep = array_shift($ids);
+
+      $html = '<p class="description">' . sprintf(
+        /* translators: 1: number of products, 2: name of the field, e.g. SKU */
+        esc_html(_n('%1$d product uses this %2$s.', '%1$d products use this %2$s.', $group->num, 'linet-erp-woocommerce-integration')),
+        (int) $group->num,
+        esc_html($friendly)
+      ) . ' ' . esc_html__('It has to be unique, so only the oldest product should keep it.', 'linet-erp-woocommerce-integration') . '</p>';
+
+      $html .= $this->postListHtml($keep, $ids);
+
+      $html .= '<p>' . $this->maintenanceAction(
+        'ids',
+        implode(',', $ids),
+        sprintf(
+          /* translators: 1: number of products, 2: post ID that is kept */
+          _n('Delete %1$d duplicate product (keep #%2$d)', 'Delete %1$d duplicate products (keep #%2$d)', count($ids), 'linet-erp-woocommerce-integration'),
+          count($ids),
+          $keep
+        ),
+        'button'
+      );
+
+      if ('_linet_id' === $meta_key) {
+        $html .= ' ' . $this->maintenanceAction(
+          'unlink',
+          implode(',', $ids),
+          __('Keep the products, only clear their Linet ID', 'linet-erp-woocommerce-integration'),
+          'button'
+        );
+      }
+
+      $html .= '</p>';
+
+      $arr[$prefix . $index] = array(
+        'title' => esc_html($label) . '<br /><code>' . esc_html($group->value) . '</code>',
+        'default' => '',
+        'type' => 'maint',
+        'html' => $html,
+      );
+    }
+
+    if ($truncated) {
+      $arr[$prefix . 'more'] = array(
+        'title' => esc_html($label),
+        'default' => '',
+        'type' => 'maint',
+        'html' => '<p class="description">' . sprintf(
+          /* translators: %d: number of rows shown */
+          esc_html__('Only the first %d groups are listed. Handle them and reload this page to see the rest.', 'linet-erp-woocommerce-integration'),
+          self::MAINTENANCE_LIMIT
+        ) . '</p>',
+      );
+    }
+
+    return $arr;
+  }
+
+  /**
+   * Variations of the same product that carry the same set of attributes.
+   *
+   * @return array
+   */
+  private function maintenanceDuplicateVariations()
+  {
+    $arr = array();
+    $groups = $this->findDuplicateVariations();
+
+    $truncated = count($groups) > self::MAINTENANCE_LIMIT;
+    $groups = array_slice($groups, 0, self::MAINTENANCE_LIMIT);
+
+    foreach ($groups as $index => $group) {
+      $ids = $group->ids;
+
+      if (count($ids) < 2) {
+        continue;
+      }
+
+      $keep = array_shift($ids);
+      $parent = get_post((int) $group->parent);
+      $parent_title = ($parent && '' !== $parent->post_title) ? $parent->post_title : __('(no title)', 'linet-erp-woocommerce-integration');
+
+      $html = '<p class="description">' . sprintf(
+        /* translators: 1: number of variations, 2: parent product title */
+        esc_html(_n('%1$d variation of %2$s has the same attributes.', '%1$d variations of %2$s have the same attributes.', $group->num, 'linet-erp-woocommerce-integration')),
+        (int) $group->num,
+        '<strong>' . esc_html($parent_title) . '</strong>'
+      ) . ' ' . esc_html__('WooCommerce only ever sells the first one, the others just sit in the database.', 'linet-erp-woocommerce-integration') . '</p>';
+
+      $html .= '<p>' . esc_html__('Parent product:', 'linet-erp-woocommerce-integration') . ' ' . $this->postSummary((int) $group->parent, false) . '</p>';
+
+      if ('' !== trim((string) $group->variation)) {
+        $html .= '<p class="description">' . esc_html__('Attributes:', 'linet-erp-woocommerce-integration') . ' <code>' . esc_html($group->variation) . '</code></p>';
+      }
+
+      $html .= $this->postListHtml($keep, $ids);
+
+      $html .= '<p>' . $this->maintenanceAction(
+        'ids',
+        implode(',', $ids),
+        sprintf(
+          /* translators: 1: number of variations, 2: post ID that is kept */
+          _n('Delete %1$d duplicate variation (keep #%2$d)', 'Delete %1$d duplicate variations (keep #%2$d)', count($ids), 'linet-erp-woocommerce-integration'),
+          count($ids),
+          $keep
+        ),
+        'button'
+      ) . '</p>';
+
+      $arr['vari' . $index] = array(
+        'title' => esc_html__('Duplicate variation', 'linet-erp-woocommerce-integration') . '<br /><code>#' . (int) $group->parent . '</code>',
+        'default' => '',
+        'type' => 'maint',
+        'html' => $html,
+      );
+    }
+
+    if ($truncated) {
+      $arr['varimore'] = array(
+        'title' => esc_html__('Duplicate variation', 'linet-erp-woocommerce-integration'),
+        'default' => '',
+        'type' => 'maint',
+        'html' => '<p class="description">' . sprintf(
+          /* translators: %d: number of rows shown */
+          esc_html__('Only the first %d groups are listed. Handle them and reload this page to see the rest.', 'linet-erp-woocommerce-integration'),
+          self::MAINTENANCE_LIMIT
+        ) . '</p>',
+      );
+    }
+
+    return $arr;
+  }
+
+  /**
+   * Images that were never processed by WordPress, so no thumbnails exist.
+   *
+   * @return array
+   */
+  private function maintenanceAttachments()
   {
     global $wpdb;
 
     $arr = array();
 
-    $products = $wpdb->get_results("SELECT post_id,meta_value ,count(meta_value) as num FROM {$wpdb->postmeta} where meta_key='_sku' GROUP by meta_value HAVING num>1");
+    $attachments = $wpdb->get_results(
+      $wpdb->prepare(
+        "SELECT p.ID, p.post_title
+           FROM {$wpdb->posts} p
+      LEFT JOIN {$wpdb->postmeta} pm
+             ON pm.post_id = p.ID AND pm.meta_key = '_wp_attachment_metadata'
+          WHERE p.post_type = 'attachment'
+            AND pm.meta_value IS NULL
+       ORDER BY p.ID ASC
+          LIMIT %d",
+        self::MAINTENANCE_LIMIT + 1
+      )
+    );
 
-    foreach ($products as $index => $product) {
-      $arr['sku' . $index] = array(
-        'title' => __('duplicate sku', 'linet-erp-woocommerce-integration') . " <br /><a data-key='_sku' data-value='$product->meta_value' onclick=\"linet.deleteProd(event,this);\" href=''>Delete</a>",
-        'default' => '',
-        'type' => 'none',
-        'description' => $product->post_id . " " . $product->meta_value . " " . $product->num,
-      );
-    }
+    $truncated = count($attachments) > self::MAINTENANCE_LIMIT;
+    $attachments = array_slice($attachments, 0, self::MAINTENANCE_LIMIT);
 
-    $products = $wpdb->get_results("SELECT post_id,meta_value ,count(meta_value) as num FROM {$wpdb->postmeta} WHERE meta_key='_linet_id' GROUP by meta_value HAVING num>1");
-
-
-    foreach ($products as $index => $product) {
-      $arr['linet_id' . $index] = array(
-        'title' => __('duplicate linet_id', 'linet-erp-woocommerce-integration') . " <br /><a data-key='_linet_id' data-value='$product->meta_value' onclick=\"linet.deleteProd(event,this);\" href=''>Delete</a>",
-        'default' => '',
-        'type' => 'none',
-        'description' => $product->post_id . " " . $product->meta_value . " " . $product->num,
-      );
-    }
-
-
-    $attachments = $wpdb->get_results("SELECT ID,post_title,meta_value FROM $wpdb->posts LEFT JOIN $wpdb->postmeta ON post_id=ID AND meta_key = '_wp_attachment_metadata' where post_type='attachment' AND meta_value is null");
     foreach ($attachments as $index => $attachment) {
+      $id = (int) $attachment->ID;
+      $used_by = $this->productsUsingAttachment($id);
+
+      $html = '<p class="description">' . esc_html__('WordPress has no image sizes for this file, so it shows up broken or full size in the shop. Rebuild it if the file is still on disk, delete it if it is not.', 'linet-erp-woocommerce-integration') . '</p>';
+
+      $html .= '<p>' . $this->postSummary($id, false) . '</p>';
+
+      if ($used_by) {
+        $html .= '<p class="description">' . esc_html__('Used by:', 'linet-erp-woocommerce-integration') . '</p><ul class="linet-maint-list">';
+        foreach ($used_by as $product_id) {
+          $html .= '<li>' . $this->postSummary($product_id, false) . '</li>';
+        }
+        $html .= '</ul>';
+      } else {
+        $html .= '<p class="description">' . esc_html__('No product uses this image.', 'linet-erp-woocommerce-integration') . '</p>';
+      }
+
+      $html .= '<p>' . sprintf(
+        '<a class="button" href="#" data-id="%1$d" data-file="%2$s" data-label="%3$s" onclick="linet.calcAttachment(event,this);">%4$s</a> <a class="button" href="#" data-id="%1$d" data-label="%5$s" onclick="linet.deleteAttachment(event,this);">%6$s</a>',
+        $id,
+        esc_attr($attachment->post_title),
+        esc_attr__('Rebuild the image sizes', 'linet-erp-woocommerce-integration'),
+        esc_html__('Rebuild the image sizes', 'linet-erp-woocommerce-integration'),
+        esc_attr__('Delete this image', 'linet-erp-woocommerce-integration'),
+        esc_html__('Delete this image', 'linet-erp-woocommerce-integration')
+      ) . '</p>';
+
       $arr['attachment' . $index] = array(
-        'title' => __('attachment metadata missing', 'linet-erp-woocommerce-integration') . " <br /><a data-id='$attachment->ID' onclick=\"linet.deleteAttachment(this);\" href=''>Delete</a>",
+        'title' => esc_html__('Image without sizes', 'linet-erp-woocommerce-integration') . '<br /><code>' . esc_html($attachment->post_title) . '</code>',
         'default' => '',
-        'type' => 'none',
-        'description' => "<a data-id='$attachment->ID' data-file='$attachment->post_title' onclick=\"linet.calcAttachment(this);\" href=''>$attachment->post_title</a>",
+        'type' => 'maint',
+        'html' => $html,
       );
     }
 
-
-    $products = $wpdb->get_results("
-SELECT a.*, meta_id.meta_value AS meta_id, meta_sku.meta_value AS meta_sku
-FROM (
-    SELECT 
-        COUNT(p.ID) AS inst,
-        MAX(p.ID) AS lasty,
-        p.post_type,
-        p.post_title,
-        p.post_excerpt,
-        p.post_parent
-    FROM {$wpdb->posts} p
-    WHERE 
-        p.post_parent IN (
-            SELECT DISTINCT post_parent 
-            FROM {$wpdb->posts} 
-            WHERE post_type = 'product_variation'
-        ) 
-        AND p.post_parent != 0 
-        AND p.post_type = 'product_variation'
-    GROUP BY p.post_parent, p.post_excerpt
-    HAVING inst > 1
-) a
-LEFT JOIN {$wpdb->postmeta} meta_sku 
-    ON meta_sku.meta_key = '_sku' AND meta_sku.post_id = a.lasty
-LEFT JOIN {$wpdb->postmeta} meta_id 
-    ON meta_id.meta_key = '_linet_id' AND meta_id.post_id = a.lasty
-ORDER BY a.post_parent ASC
-");
-    foreach ($products as $index => $product) {
-      $arr['vari' . $index] = array(
-        'title' => __('duplicate product_variation', 'linet-erp-woocommerce-integration') . " <br /><a class='duplidel' data-key='id' data-value='$product->lasty' onclick=\"linet.deleteProd(event,this);\" href=''>Delete</a>",
+    if ($truncated) {
+      $arr['attachmentmore'] = array(
+        'title' => esc_html__('Image without sizes', 'linet-erp-woocommerce-integration'),
         'default' => '',
-        'type' => 'none',
-        'description' => "post_id: " . $product->lasty . " post_parent: " . $product->post_parent . " linet_id:" . $product->meta_id . " sku:" . $product->meta_sku . " count: " . $product->inst,
+        'type' => 'maint',
+        'html' => '<p class="description">' . sprintf(
+          /* translators: %d: number of rows shown */
+          esc_html__('Only the first %d images are listed. Handle them and reload this page to see the rest.', 'linet-erp-woocommerce-integration'),
+          self::MAINTENANCE_LIMIT
+        ) . '</p>',
       );
-    }
-
-
-
-    $scanned_directory = array();
-    if (is_dir(WC_LOG_DIR)) {
-      $scanned_directory = array_diff(scandir(WC_LOG_DIR), array('..', '.'));
-
-    }
-
-    $text = array();
-    foreach ($scanned_directory as $index => $file) {
-      if (strpos($file, 'linet') === 0 || strpos($file, 'fatal-errors') === 0)
-        $arr['file' . $index] = array(
-          'title' => __('Log File', 'linet-erp-woocommerce-integration') . "<br /><a data-name='$file'  onclick=\"linet.deleteFile(event,this);\" href='#'>Delete</a>",
-          'default' => '',
-          'type' => 'href',
-          "onclick" => "linet.getFile('$file')",
-          "href" => '#',
-          'text' => $file,
-          //'description' => $file,
-
-        );
     }
 
     return $arr;
+  }
+
+  /**
+   * Linet and fatal error log files.
+   *
+   * @return array
+   */
+  private function maintenanceLogFiles()
+  {
+    $arr = array();
+
+    if (!is_dir(WC_LOG_DIR)) {
+      return $arr;
+    }
+
+    $files = array_diff(scandir(WC_LOG_DIR), array('..', '.'));
+
+    foreach ($files as $index => $file) {
+      if (0 !== strpos($file, 'linet') && 0 !== strpos($file, 'fatal-errors')) {
+        continue;
+      }
+
+      $path = WC_LOG_DIR . $file;
+      $meta = array();
+
+      if (is_readable($path)) {
+        $meta[] = size_format(filesize($path));
+        $meta[] = sprintf(
+          /* translators: %s: date the log file was last written to */
+          __('last written %s', 'linet-erp-woocommerce-integration'),
+          date_i18n(get_option('date_format') . ' H:i', filemtime($path))
+        );
+      }
+
+      $html = '<p>' . sprintf(
+        '<a href="#" onclick="linet.getFile(\'%1$s\'); return false;">%2$s</a>',
+        esc_js($file),
+        esc_html__('Download', 'linet-erp-woocommerce-integration')
+      );
+
+      if ($meta) {
+        $html .= ' <span class="description">(' . esc_html(implode(', ', $meta)) . ')</span>';
+      }
+
+      $html .= '</p><p>' . sprintf(
+        '<a class="button" href="#" data-name="%1$s" data-label="%2$s" onclick="linet.deleteFile(event,this);">%3$s</a>',
+        esc_attr($file),
+        esc_attr__('Delete this log file', 'linet-erp-woocommerce-integration'),
+        esc_html__('Delete this log file', 'linet-erp-woocommerce-integration')
+      ) . '</p>';
+
+      $arr['file' . $index] = array(
+        'title' => esc_html__('Log file', 'linet-erp-woocommerce-integration') . '<br /><code>' . esc_html($file) . '</code>',
+        'default' => '',
+        'type' => 'maint',
+        'html' => $html,
+      );
+    }
+
+    return $arr;
+  }
+
+  /**
+   * Group products by a meta value that should be unique.
+   *
+   * @param string $meta_key
+   *
+   * @return array Objects with value, num and ids.
+   */
+  private function findDuplicateMeta($meta_key)
+  {
+    global $wpdb;
+
+    $groups = $wpdb->get_results(
+      $wpdb->prepare(
+        "SELECT pm.meta_value AS value, COUNT(*) AS num
+           FROM {$wpdb->postmeta} pm
+     INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+          WHERE pm.meta_key = %s
+            AND pm.meta_value <> ''
+            AND p.post_type IN ('product', 'product_variation')
+            AND p.post_status NOT IN ('trash', 'auto-draft')
+       GROUP BY pm.meta_value
+         HAVING num > 1
+       ORDER BY num DESC, pm.meta_value ASC
+          LIMIT %d",
+        $meta_key,
+        self::MAINTENANCE_LIMIT + 1
+      )
+    );
+
+    if (empty($groups)) {
+      return array();
+    }
+
+    $values = wp_list_pluck($groups, 'value');
+    $placeholders = implode(',', array_fill(0, count($values), '%s'));
+
+    $rows = $wpdb->get_results(
+      $wpdb->prepare(
+        "SELECT pm.post_id, pm.meta_value AS value
+           FROM {$wpdb->postmeta} pm
+     INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+          WHERE pm.meta_key = %s
+            AND pm.meta_value IN ($placeholders)
+            AND p.post_type IN ('product', 'product_variation')
+            AND p.post_status NOT IN ('trash', 'auto-draft')
+       ORDER BY pm.post_id ASC",
+        array_merge(array($meta_key), $values)
+      )
+    );
+
+    $ids = array();
+    foreach ($rows as $row) {
+      $ids[$row->value][] = (int) $row->post_id;
+    }
+
+    foreach ($groups as $group) {
+      $group->num = (int) $group->num;
+      $group->ids = isset($ids[$group->value]) ? $ids[$group->value] : array();
+    }
+
+    return $groups;
+  }
+
+  /**
+   * Variations of the same parent that share the same attribute combination.
+   *
+   * @return array Objects with parent, variation, num and ids.
+   */
+  private function findDuplicateVariations()
+  {
+    global $wpdb;
+
+    $groups = $wpdb->get_results(
+      $wpdb->prepare(
+        "SELECT p.post_parent AS parent,
+                MIN(p.post_excerpt) AS variation,
+                COUNT(*) AS num,
+                GROUP_CONCAT(p.ID ORDER BY p.ID ASC) AS ids
+           FROM {$wpdb->posts} p
+     INNER JOIN (
+                SELECT pm.post_id,
+                       GROUP_CONCAT(CONCAT(pm.meta_key, '=', pm.meta_value) ORDER BY pm.meta_key SEPARATOR '|') AS attributes
+                  FROM {$wpdb->postmeta} pm
+                 WHERE pm.meta_key LIKE 'attribute\_%%'
+              GROUP BY pm.post_id
+                ) a ON a.post_id = p.ID
+          WHERE p.post_type = 'product_variation'
+            AND p.post_parent <> 0
+            AND p.post_status NOT IN ('trash', 'auto-draft')
+       GROUP BY p.post_parent, a.attributes
+         HAVING num > 1
+       ORDER BY p.post_parent ASC
+          LIMIT %d",
+        self::MAINTENANCE_LIMIT + 1
+      )
+    );
+
+    foreach ($groups as $group) {
+      $group->parent = (int) $group->parent;
+      $group->num = (int) $group->num;
+      $group->ids = $this->validVariationIds($group->ids, $group->parent);
+    }
+
+    return $groups;
+  }
+
+  /**
+   * Keep only the IDs that really are variations of the given parent.
+   *
+   * GROUP_CONCAT is capped by group_concat_max_len, so the last ID of a very
+   * long list can come back truncated. Never hand such an ID to a delete link.
+   *
+   * @param string $ids
+   * @param int    $parent
+   *
+   * @return array
+   */
+  private function validVariationIds($ids, $parent)
+  {
+    $valid = array();
+
+    foreach (explode(',', (string) $ids) as $id) {
+      $id = (int) $id;
+      $post = $id ? get_post($id) : null;
+
+      if ($post && 'product_variation' === $post->post_type && (int) $post->post_parent === $parent) {
+        $valid[] = $id;
+      }
+    }
+
+    sort($valid);
+
+    return $valid;
+  }
+
+  /**
+   * Products that show the given attachment as their image.
+   *
+   * @param int $attachment_id
+   *
+   * @return array
+   */
+  private function productsUsingAttachment($attachment_id)
+  {
+    global $wpdb;
+
+    $ids = $wpdb->get_col(
+      $wpdb->prepare(
+        "SELECT DISTINCT pm.post_id
+           FROM {$wpdb->postmeta} pm
+     INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+          WHERE p.post_type IN ('product', 'product_variation')
+            AND (
+                 (pm.meta_key = '_thumbnail_id' AND pm.meta_value = %s)
+                 OR (pm.meta_key = '_product_image_gallery' AND (
+                      pm.meta_value = %s
+                      OR pm.meta_value LIKE %s
+                      OR pm.meta_value LIKE %s
+                      OR pm.meta_value LIKE %s
+                 ))
+            )
+          LIMIT 10",
+        $attachment_id,
+        $attachment_id,
+        $wpdb->esc_like($attachment_id . ',') . '%',
+        '%' . $wpdb->esc_like(',' . $attachment_id . ',') . '%',
+        '%' . $wpdb->esc_like(',' . $attachment_id)
+      )
+    );
+
+    return array_map('intval', $ids);
+  }
+
+  /**
+   * A "kept" product followed by the duplicates that can be removed.
+   *
+   * @param int   $keep
+   * @param array $duplicates
+   *
+   * @return string
+   */
+  private function postListHtml($keep, $duplicates)
+  {
+    $html = '<ul class="linet-maint-list">';
+
+    $html .= '<li>' . $this->postSummary($keep, false)
+      . ' <span class="linet-maint-keep">' . esc_html__('kept', 'linet-erp-woocommerce-integration') . '</span></li>';
+
+    foreach ($duplicates as $id) {
+      $html .= '<li>' . $this->postSummary($id, false) . ' '
+        . $this->maintenanceAction('id', $id, __('Delete', 'linet-erp-woocommerce-integration'))
+        . '</li>';
+    }
+
+    return $html . '</ul>';
+  }
+
+  /**
+   * One line describing a post, linked to its edit screen and to the shop.
+   *
+   * @param int  $post_id
+   * @param bool $short
+   *
+   * @return string
+   */
+  private function postSummary($post_id, $short = true)
+  {
+    $post_id = (int) $post_id;
+    $post = get_post($post_id);
+
+    if (!$post) {
+      return '<code>#' . $post_id . '</code> <em>' . esc_html__('this post no longer exists', 'linet-erp-woocommerce-integration') . '</em>';
+    }
+
+    $title = ('' !== $post->post_title) ? $post->post_title : __('(no title)', 'linet-erp-woocommerce-integration');
+    $is_variation = ('product_variation' === $post->post_type);
+    $link_id = ($is_variation && $post->post_parent) ? (int) $post->post_parent : $post_id;
+    $edit_link = get_edit_post_link($link_id, '');
+    $view_link = get_permalink($link_id);
+
+    $html = '<code>#' . $post_id . '</code> ';
+
+    if ($edit_link) {
+      $html .= '<a href="' . esc_url($edit_link) . '" target="_blank" rel="noopener">' . esc_html($title) . '</a>';
+    } else {
+      $html .= esc_html($title);
+    }
+
+    if ($short) {
+      return $html;
+    }
+
+    $meta = array();
+
+    if ($is_variation) {
+      /* translators: %d: ID of the parent product */
+      $meta[] = sprintf(__('variation of #%d', 'linet-erp-woocommerce-integration'), (int) $post->post_parent);
+    } else {
+      $meta[] = $post->post_type;
+    }
+
+    $meta[] = $post->post_status;
+
+    $sku = get_post_meta($post_id, '_sku', true);
+    if ('' !== $sku) {
+      /* translators: %s: product SKU */
+      $meta[] = sprintf(__('SKU %s', 'linet-erp-woocommerce-integration'), $sku);
+    }
+
+    $linet_id = get_post_meta($post_id, '_linet_id', true);
+    if ('' !== $linet_id) {
+      /* translators: %s: item ID in Linet */
+      $meta[] = sprintf(__('Linet ID %s', 'linet-erp-woocommerce-integration'), $linet_id);
+    }
+
+    $html .= ' <span class="description">(' . implode(' &middot; ', array_map('esc_html', $meta)) . ')</span>';
+
+    if ($view_link && 'attachment' !== $post->post_type) {
+      $html .= ' <a href="' . esc_url($view_link) . '" target="_blank" rel="noopener">' . esc_html__('View in shop', 'linet-erp-woocommerce-integration') . '</a>';
+    }
+
+    return $html;
+  }
+
+  /**
+   * A link that asks the browser to run one of the maintenance actions.
+   *
+   * @param string $key    Action the ajax handler understands.
+   * @param string $value  Payload, usually a list of post IDs.
+   * @param string $text   Link text, also used in the confirmation.
+   * @param string $class  Extra css class.
+   *
+   * @return string
+   */
+  private function maintenanceAction($key, $value, $text, $class = '')
+  {
+    return sprintf(
+      '<a class="%1$s" href="#" data-key="%2$s" data-value="%3$s" data-label="%4$s" onclick="linet.deleteProd(event,this);">%5$s</a>',
+      esc_attr(trim('linet-maint-action ' . $class)),
+      esc_attr($key),
+      esc_attr($value),
+      esc_attr($text),
+      esc_html($text)
+    );
   }
 
 
@@ -1100,6 +1793,11 @@ ORDER BY a.post_parent ASC
         'input_' . $option['type']
       ), 'woocommerce_linet', 'wc_linet_settings', array('key' => $key, 'option' => $option));
 
+      // Maintenance rows are reports, they have nothing to store.
+      if ('maint' === $option['type']) {
+        continue;
+      }
+
       // Register setting
       register_setting('woocommerce_linet', self::OPTION_PREFIX . $key, [
         'sanitize_callback' => ['WC_LI_Settings', 'sanitize_input'] // Add appropriate sanitization function
@@ -1286,6 +1984,55 @@ ORDER BY a.post_parent ASC
 
 
         <p class="submit"><input type="submit" class="button-primary" value="Save" /></p>
+
+        <style>
+          .linet-maint p {
+            margin: 0 0 6px;
+          }
+
+          .linet-maint code {
+            background: #f0f0f1;
+          }
+
+          .linet-maint-list {
+            margin: 0 0 10px;
+            padding: 0;
+            list-style: none;
+          }
+
+          .linet-maint-list li {
+            margin: 0;
+            padding: 3px 0;
+            border-bottom: 1px solid #f0f0f1;
+          }
+
+          .linet-maint-list li:last-child {
+            border-bottom: 0;
+          }
+
+          .linet-maint-keep {
+            color: #007017;
+            font-weight: 600;
+          }
+
+          .linet-maint-list .linet-maint-action {
+            color: #b32d2e;
+          }
+
+          .linet-maint-busy {
+            pointer-events: none;
+            opacity: 0.6;
+          }
+
+          .linet-maint-done {
+            color: #007017;
+          }
+
+          .linet-maint-error {
+            color: #b32d2e;
+          }
+        </style>
+
         <script>
           linet = {
             catDet: function (response) {
@@ -1293,120 +2040,112 @@ ORDER BY a.post_parent ASC
             },
 
 
-            deleteAttachment: function (obj) {
-              var id = jQuery(obj).data('id');
-              jQuery(obj).parent().parent().hide();
+            maintText: {
+              confirm: '<?php echo esc_js(__('%s — are you sure? This cannot be undone.', 'linet-erp-woocommerce-integration')); ?>',
+              working: '<?php echo esc_js(__('Working…', 'linet-erp-woocommerce-integration')); ?>',
+              done: '<?php echo esc_js(__('Done.', 'linet-erp-woocommerce-integration')); ?>',
+              failed: '<?php echo esc_js(__('The request failed, nothing was changed.', 'linet-erp-woocommerce-integration')); ?>'
+            },
 
-              var data = {
-                'action': 'LinetDeleteAttachment',
-                'id': id
-              };
-
-              jQuery.ajax({
+            // Every maintenance call goes through here, so the nonce and the
+            // feedback are handled in one place.
+            maintPost: function (data) {
+              return jQuery.ajax({
                 url: ajaxurl,
                 method: 'POST',
+                dataType: 'json',
                 <?php if ($nonce): ?>
-                                                                beforeSend: function (xhr) {
-                    xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
-                  },
+                beforeSend: function (xhr) {
+                  xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
+                },
                 <?php endif; ?>
-                                                         data: data
-              }).done(function (response) {
-                console.log(response);
+                data: data
               });
+            },
 
+            // Ask before deleting anything, using the label on the link.
+            maintConfirm: function (obj) {
+              var label = jQuery(obj).data('label') || jQuery.trim(jQuery(obj).text());
+
+              return window.confirm(linet.maintText.confirm.replace('%s', label));
+            },
+
+            // Replace the clicked link with the result, and fade the row when
+            // the thing it pointed at is gone.
+            maintResult: function (obj, message, ok) {
+              var link = jQuery(obj);
+              var row = link.closest('li');
+
+              if (!row.length) {
+                row = link.closest('tr');
+              }
+
+              link.replaceWith(
+                jQuery('<span/>')
+                  .addClass(ok ? 'linet-maint-done' : 'linet-maint-error')
+                  .text(message)
+              );
+
+              if (ok) {
+                row.css('opacity', 0.5);
+              }
+            },
+
+            maintRun: function (e, obj, data, skipConfirm) {
+              if (e) {
+                e.preventDefault();
+              }
+
+              if (!skipConfirm && !linet.maintConfirm(obj)) {
+                return false;
+              }
+
+              jQuery(obj).addClass('linet-maint-busy').text(linet.maintText.working);
+
+              linet.maintPost(data).done(function (response) {
+                var ok = !(response && response.success === false);
+                var message = (response && response.data && response.data.message)
+                  ? response.data.message
+                  : linet.maintText.done;
+
+                linet.maintResult(obj, message, ok);
+              }).fail(function () {
+                linet.maintResult(obj, linet.maintText.failed, false);
+              });
 
               return false;
             },
-            calcAttachment: function (obj) {
-              var id = jQuery(obj).data('id');
-              var file = jQuery(obj).data('file');
 
-              jQuery(obj).parent().parent().hide();
-
-              var data = {
-                'action': 'LinetCalcAttachment',
-                'file': file,
-                'id': id
-              };
-
-
-
-              jQuery.ajax({
-                url: ajaxurl,
-                method: 'POST',
-
-                <?php if ($nonce): ?>
-                                                          beforeSend: function (xhr) {
-                    xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
-                  },
-                <?php endif; ?>
-                                          data: data
-              }).done(function (response) {
-                console.log(response);
+            deleteAttachment: function (e, obj) {
+              return linet.maintRun(e, obj, {
+                'action': 'LinetDeleteAttachment',
+                'id': jQuery(obj).data('id')
               });
+            },
 
-
-
-              return false;
+            // Rebuilding image sizes changes nothing that cannot be redone,
+            // so it does not ask for a confirmation.
+            calcAttachment: function (e, obj) {
+              return linet.maintRun(e, obj, {
+                'action': 'LinetCalcAttachment',
+                'file': jQuery(obj).data('file'),
+                'id': jQuery(obj).data('id')
+              }, true);
             },
 
             deleteProd: function (e, obj) {
-
-              e.preventDefault();
-
-
-              var key = jQuery(obj).data('key');
-              var value = jQuery(obj).data('value');
-              jQuery(obj).parent().parent().hide();
-
-              var data = {
+              return linet.maintRun(e, obj, {
                 'action': 'LinetDeleteProd',
-                'key': key,
-                'value': value
-              };
-
-              jQuery.ajax({
-                url: ajaxurl,
-                method: 'POST',
-
-                <?php if ($nonce): ?>
-                                                          beforeSend: function (xhr) {
-                    xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
-                  },
-                <?php endif; ?>
-                                          data: data
-              }).done(function (response) {
-                console.log(response);
+                'key': jQuery(obj).data('key'),
+                'value': String(jQuery(obj).data('value'))
               });
-
-              return false;
             },
+
             deleteFile: function (e, obj) {
-              e.preventDefault();
-
-              var name = jQuery(obj).data('name');
-              jQuery(obj).parent().parent().hide();
-              var data = {
+              return linet.maintRun(e, obj, {
                 'action': 'LinetDeleteFile',
-                'name': name
-              };
-
-              jQuery.ajax({
-                url: ajaxurl,
-                method: 'POST',
-
-                <?php if ($nonce): ?>
-                                                          beforeSend: function (xhr) {
-                    xhr.setRequestHeader('X-WP-Nonce', wpApiSettings.nonce);
-                  },
-                <?php endif; ?>
-                                        data: data
-              }).done(function (response) {
-                console.log(response);
+                'name': jQuery(obj).data('name')
               });
-
-              return false;
             },
             getFile: function (name) {
               var data = {
@@ -1822,6 +2561,19 @@ ORDER BY a.post_parent ASC
   {
     //echo '';
     echo '<h3 class="description">' . wp_kses($args['option']['description'], WC_Linet::ALLOWD_TAGS) . '</h3>';
+  }
+
+  /**
+   * One row of the maintenance tab. The html is built by maintenance() and is
+   * already escaped, wp_kses only keeps the markup down to what is expected.
+   *
+   * @param array $args
+   */
+  public function input_maint($args)
+  {
+    $html = isset($args['option']['html']) ? $args['option']['html'] : '';
+
+    echo '<div class="linet-maint">' . wp_kses($html, self::MAINTENANCE_TAGS) . '</div>';
   }
 
   /**

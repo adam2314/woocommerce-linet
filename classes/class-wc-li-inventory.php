@@ -923,7 +923,7 @@ class WC_LI_Inventory
         $metas['_thumbnail_id'][0] &&
         $metas['_thumbnail_id'][0] != ""
       ) {
-        self::savePicToLinet($item_id, $metas['_thumbnail_id'][0], true);
+        self::savePicToLinet($item_id, $metas['_thumbnail_id'][0], true, $logger);
       }
 
       if (
@@ -933,7 +933,7 @@ class WC_LI_Inventory
       ) {
         $images_id = explode(",", $metas['_product_image_gallery'][0]);
         foreach ($images_id as $img_id)
-          self::savePicToLinet($item_id, $img_id, false);
+          self::savePicToLinet($item_id, $img_id, false, $logger);
       }
     }
 
@@ -941,8 +941,12 @@ class WC_LI_Inventory
   }
 
 
-  public static function savePicToLinet($linet_item_id, $post_id, $thumb = false)
+  public static function savePicToLinet($linet_item_id, $post_id, $thumb = false, $logger = null)
   {
+    if (!$logger) {
+      $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
+    }
+
     $metas = get_post_meta($post_id);
 
     if (
@@ -968,9 +972,21 @@ class WC_LI_Inventory
       $fileExsits = WC_LI_Settings::sendAPI('search/file', $body);
 
       //var_dump($fileExsits);exit;
+      // A timeout, a gateway error or missing credentials all come back as
+      // false or null, so there is nothing to look at.
+      if (!is_object($fileExsits)) {
+        $logger->write("savePicToLinet($linet_item_id/$post_id): no answer from search/file for $filename");
+
+        return false;
+      }
+
+      // The API answers with an object, but not always the one expected here.
+      $searchStatus = isset($fileExsits->status) ? $fileExsits->status : 0;
+      $searchError = isset($fileExsits->errorCode) ? $fileExsits->errorCode : -1;
+
       if (
-        $fileExsits->status == 200 &&
-        $fileExsits->errorCode == 1000
+        $searchStatus == 200 &&
+        $searchError == 1000
       ) {
         $pic = base64_encode(file_get_contents($basePath . $wp_attached_file));
 
@@ -978,17 +994,36 @@ class WC_LI_Inventory
         $body["base64content"] = $pic;
 
         $file = WC_LI_Settings::sendAPI('create/file', $body);
+
+        if (!is_object($file)) {
+          $logger->write("savePicToLinet($linet_item_id/$post_id): no answer from create/file for $filename");
+
+          return false;
+        }
       } else {
-        $file = $fileExsits;
+        if (empty($fileExsits->body) || !is_array($fileExsits->body)) {
+          $logger->write("savePicToLinet($linet_item_id/$post_id): search/file answered status $searchStatus errorCode $searchError with no file for $filename");
+
+          return false;
+        }
+
+        // Keep the search result intact, only the first match is used here.
+        $file = clone $fileExsits;
         $file->body = $fileExsits->body[0];
       }
 
       if (
         $thumb &&
-        $file->status == 200 &&
-        $file->errorCode == 0
+        isset($file->status) && $file->status == 200 &&
+        isset($file->errorCode) && $file->errorCode == 0
 
       ) {
+        if (!isset($file->body) || !is_object($file->body) || empty($file->body->hash)) {
+          $logger->write("savePicToLinet($linet_item_id/$post_id): $filename has no hash, item image not updated");
+
+          return false;
+        }
+
         $body = array(
           'pic' => $file->body->hash
         );
@@ -996,7 +1031,11 @@ class WC_LI_Inventory
         //var_dump($linItem);exit;
         //update item image
       }
+
+      return true;
     }
+
+    return false;
   }
 
   public static function syncStockURL()
