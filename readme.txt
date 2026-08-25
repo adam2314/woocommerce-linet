@@ -3,7 +3,7 @@ Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 6.0
 Tested up to: 6.9.4
-Stable tag: 3.6.22
+Stable tag: 3.6.23
 License: GPLv2 or later
 Requires PHP: 8.0
 Donate link: http://www.linet.org.il
@@ -48,6 +48,11 @@ No answer to that question.
 
 == Changelog ==
 
+= 2026.08.25 - version 3.6.23 =
+
+* Fix: the per-product sync actions now check the admin nonce, so a third-party page can no longer drive a logged-in administrator's browser into syncing a product
+* Updated: when Sync Items is set to Off, the "Sync Item From Linet" button is hidden and the request is refused, instead of pulling from Linet anyway
+
 = 2026.08.19 - version 3.6.22 =
 
 * New: the Maintenance tab now lists every product behind a problem, each one linked to its WooCommerce edit screen and to the shop
@@ -59,6 +64,9 @@ No answer to that question.
 * Fix: duplicate variations are matched on their real attribute values rather than on the attribute summary text
 * Fix: clearing a duplicate Linet ID no longer removes it from the product that keeps it
 * Fix: a failed search/file or create/file call during WC->Linet sync no longer crashes with "Attempt to assign property body on null" - the image is skipped, logged, and the sync batch carries on
+* Fix: the log no longer shows percent-encoded slugs - "%d7%9e%d7%99%d7%93%d7%94" is written as the Hebrew it stands for, while a %20 inside a logged url is left alone
+* Fix: requests and answers are logged as readable text instead of \u05de escapes
+* Fix: downloading a log file returns it as it was written, instead of html-escaping every quote to &quot;
 * Fix: maintenance actions now require the manage_woocommerce capability
 * Updated: each section lists at most 100 groups and says so, instead of building an unbounded page
 

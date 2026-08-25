@@ -100,6 +100,48 @@ class WC_LI_Settings
     return $headers;
   }
 
+  /**
+   * Is Linet -> WC item sync turned on at all?
+   *
+   * wc_linet_sync_items picks how items are pulled from Linet: 'on' (hourly
+   * cron), 'sns' (webhook) or 'off' (neither). When it is 'off' the manual
+   * per-product pull is disabled too.
+   */
+  public static function items_sync_enabled()
+  {
+    return get_option('wc_linet_sync_items') !== 'off';
+  }
+
+  /**
+   * Shared gate for the plugin's admin-ajax handlers.
+   *
+   * The wp_ajax_* hooks are only registered for administrators (see the
+   * constructor), so the capability half is defence in depth. The half that
+   * actually adds protection is the nonce, which stops a third-party page from
+   * driving a logged-in admin's browser into a sync (CSRF).
+   *
+   * Honours the same wc_linet_nonce=off escape hatch the constructor uses,
+   * because the admin JS omits the header entirely when that option is set.
+   */
+  public static function verify_ajax_request()
+  {
+    if (!is_user_logged_in() || !current_user_can('administrator')) {
+      wp_send_json(array('status' => 'forbidden'), 403);
+    }
+
+    if (get_option('wc_linet_nonce') === 'off') {
+      return;
+    }
+
+    $headers = self::getRequestHeaders();
+    if (
+      !isset($headers['X-Wp-Nonce']) ||
+      !wp_verify_nonce($headers['X-Wp-Nonce'], 'wp_rest')
+    ) {
+      wp_send_json(array('status' => 'bad_nonce'), 403);
+    }
+  }
+
   public static function add_variation_custom_sku_input_field($loop, $variation_data, $post)
   {
     //$variation = wc_get_product($post->ID);
@@ -553,7 +595,19 @@ class WC_LI_Settings
     $filtered = preg_replace('/[^A-Za-z0-9.-]/', '', $_POST['name']);
     $filtered = preg_replace('/\.+/', '.', $filtered);
 
-    echo esc_html(file_get_contents(WC_LOG_DIR . $filtered));
+    $path = WC_LOG_DIR . $filtered;
+
+    if (!$filtered || !is_readable($path)) {
+      wp_die(esc_html__('The log file was not found.', 'linet-erp-woocommerce-integration'), '', array('response' => 404));
+    }
+
+    // Sent as a download, not as a page, so the log stays exactly as it was
+    // written. Escaping it here would put &quot; around every json string.
+    header('Content-Type: text/plain; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filtered . '"');
+    header('X-Content-Type-Options: nosniff');
+
+    echo file_get_contents($path); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- plain text download of a log file
     wp_die();
   }
 
@@ -1680,10 +1734,12 @@ class WC_LI_Settings
       <?php echo esc_html(isset($metas['_linet_id']) && $metas['_linet_id']['0'] ? $metas['_linet_id']["0"] : "No Linet ID") ?><br />
       Linet Last Upate:
       <?php echo esc_html(isset($metas['_linet_last_update']) && $metas['_linet_last_update']['0'] ? $metas['_linet_last_update']["0"] : "unkown") ?><br />
+      <?php if (self::items_sync_enabled()): ?>
       <a class="button" data-post_id="<?php echo esc_attr($post->ID); ?>"
         onclick="linet.singleSync(<?php echo esc_attr($post->ID); ?>);">Sync
         Item From
         Linet</a>
+      <?php endif; ?>
       <a class="button hidden" data-post_id="<?php echo esc_attr($post->ID); ?>"
         onclick="linet.singleToSync(<?php echo esc_attr($post->ID); ?>);">Sync Item To
         Linet</a>
@@ -2675,7 +2731,8 @@ class WC_LI_Settings
 
 
     $url = $server . "/api/" . $req;
-    $logger->write('OWER REQUEST(' . $url . ")\n" . json_encode($body));
+    // The flags are for the log only, the request itself is encoded below.
+    $logger->write('OWER REQUEST(' . $url . ")\n" . json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
     $args = array(
       'method' => 'POST',
@@ -2702,8 +2759,10 @@ class WC_LI_Settings
 
     $body = wp_remote_retrieve_body($response);
 
+    $decoded = json_decode($body);
 
-    $logger->write('LINET RESPONSE:' . $body . "\n");
+    // Linet answers with \u05de style escapes, re-encode so the log is readable.
+    $logger->write('LINET RESPONSE:' . (null === $decoded ? $body : json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) . "\n");
 
     //unset($body);
     unset($login_id);
@@ -2712,7 +2771,7 @@ class WC_LI_Settings
     unset($ch);
     unset($server);
     unset($req);
-    return json_decode($body);
+    return $decoded;
   }
 
   public static function TestAjax()

@@ -1598,6 +1598,8 @@ class WC_LI_Inventory
 
   public static function singleProdAjax()
   { //wp to linet
+    WC_LI_Settings::verify_ajax_request();
+
     $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
 
     $post_id = intval($_POST['post_id']);
@@ -1650,6 +1652,12 @@ class WC_LI_Inventory
 
   public static function singleSyncAjax()
   { //linet to wp
+    WC_LI_Settings::verify_ajax_request();
+
+    if (!WC_LI_Settings::items_sync_enabled()) {
+      wp_send_json(array('status' => 'items sync is off'), 403);
+    }
+
     $post_id = intval($_POST['post_id']);
     $result = self::singleSync($post_id);
     if ($result)
