@@ -82,6 +82,7 @@ class WC_LI_Linet_Elementor extends \ElementorPro\Modules\Forms\Classes\Action_B
     if (isset($obj["fields"]))
       $fields = $obj["fields"];
 
+    $fields = WC_LI_Invoice::limitFields($fields, WC_LI_Invoice::ACCOUNT_LIMITS);
     $newLinItem = WC_LI_Settings::sendAPI('create/account', $fields);
 
     return true;

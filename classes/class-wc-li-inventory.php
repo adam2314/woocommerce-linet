@@ -6,6 +6,15 @@ if (!defined('ABSPATH')) {
 
 class WC_LI_Inventory
 {
+  /** Pictures already pushed to Linet, kept on the attachment. */
+  const PIC_SYNC_META = '_linet_pic_sync';
+
+  /** How long a recorded push is trusted, in seconds (30 days). */
+  const PIC_SYNC_TTL = 2592000;
+
+  /** Versions of one attachment remembered before the oldest are dropped. */
+  const PIC_SYNC_KEEP = 20;
+
   const IMAGE_DIR = 'images';
 
   const SKU_PREFIX = 'SKU';
@@ -21,6 +30,9 @@ class WC_LI_Inventory
 
     //add_action('admin_init', array($this, 'register_settings'));
     //add_action('admin_menu', array($this, 'add_menu_item'));
+
+    // Write down what this request learned about Linet, once, at the end.
+    add_action('shutdown', array('WC_LI_Sync_Cache', 'flush'));
 
     add_filter('manage_edit-product_cat_columns', array($this, 'category_columns_head'));
     add_filter('manage_product_cat_custom_column', array($this, 'category_columns'), 10, 3);
@@ -323,7 +335,7 @@ class WC_LI_Inventory
 
     $arr = array(
       'id' => $cat_id,
-      'linet_count' => count($products->body),
+      'linet_count' => count(WC_LI_Settings::apiRows($products)),
       'wc_count' => 'na'
     );
 
@@ -351,16 +363,7 @@ class WC_LI_Inventory
 
     } elseif ($mode == 0) {
       //phase 2: count items to sync
-      $counts = $wpdb->get_col($wpdb->prepare("SELECT count(ID) FROM {$wpdb->posts} as p " .
-        "WHERE " .
-        "(p.post_type='product' OR p.post_type='product_variation') AND " .
-        "p.post_status = 'publish'"));
-      //var_dump($counts);
-      $count = 0;
-
-      if (count($counts) != 0) {
-        $count = $counts[0] * 1;
-      }
+      $count = self::publishedProductCount();
 
       $logger->write("Start WP->Linet Sync:$count");
 
@@ -424,6 +427,7 @@ class WC_LI_Inventory
       'synced' => $synced,
       'offset' => $offset + $synced,
       'done' => ($offset + $synced) >= $total,
+      'waited' => WC_LI_Rate_Limiter::waited(),
     );
   }
 
@@ -539,34 +543,132 @@ class WC_LI_Inventory
     return array_unique($cats);
   }
 
+  /**
+   * How many products and variations a push has to get through.
+   */
+  public static function publishedProductCount()
+  {
+    global $wpdb;
+
+    return (int) $wpdb->get_var("SELECT count(ID) FROM {$wpdb->posts} as p " .
+      "WHERE " .
+      "(p.post_type='product' OR p.post_type='product_variation') AND " .
+      "p.post_status = 'publish'");
+  }
+
   public static function WpSmallItemsSyncAjax($offset, $logger)
   {
     global $wpdb;
     //$parent_id=$item->item->parent_item_id;
-    $products = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$wpdb->posts} as p " .
+    // Ordered, because the browser walks this with an offset: without an order
+    // by, the same offset is not promised to mean the same row twice, and a
+    // product can be pushed twice or missed altogether.
+    $product_ids = $wpdb->get_col($wpdb->prepare("SELECT p.ID FROM {$wpdb->posts} as p " .
       //"INNER JOIN $wpdb->postmeta ON $wpdb->postmeta.post_id=" . "$wpdb->posts.ID ".
       "WHERE " .
       "(p.post_type='product' OR p.post_type='product_variation') AND " .
       "p.post_status = 'publish' " .
+      "ORDER BY p.ID ASC " .
       "LIMIT %d OFFSET %d;", WC_LI_Settings::STOCK_LIMIT, $offset));
+
+    // Nothing at this offset: the run is over. Said plainly, because the total
+    // was counted before the run started and anything unpublished since would
+    // otherwise leave the browser asking for the same empty page for ever.
+    if (!count($product_ids)) {
+      $logger->write("WpSmallItemsSyncAjax: nothing left at offset $offset");
+
+      return array(
+        'status' => 'Success',
+        'synced' => 0,
+        'offset' => $offset,
+        'total' => self::publishedProductCount(),
+        'done' => true,
+        'waited' => WC_LI_Rate_Limiter::waited(),
+      );
+    }
+
     $sync_count = 0;
     $runtime = microtime(true);
 
-    foreach ($products as $product) {
-      if (microtime(true) - $runtime < WC_LI_Settings::RUNTIME_LIMIT) {
-        self::wpItemSync($product->ID, $logger);
-        $sync_count++;
-
+    foreach ($product_ids as $product_id) {
+      // Out of time: stop, and let the next pulse pick these up. The browser
+      // moves on by however many were done, so nothing is skipped.
+      if (microtime(true) - $runtime >= WC_LI_Settings::RUNTIME_LIMIT) {
+        break;
       }
+
+      self::wpItemSync($product_id, $logger);
+      $sync_count++;
     }
     //foreach
     //sleep(1);
-    return $sync_count;
+    return array(
+      'status' => 'Success',
+      'synced' => $sync_count,
+      'offset' => $offset + $sync_count,
+      // Counted fresh every pulse, so the bar follows a catalogue that changed
+      // while the run was going.
+      'total' => self::publishedProductCount(),
+      'done' => false,
+      'waited' => WC_LI_Rate_Limiter::waited(),
+    );
 
   }
 
-  public static function linetSaveRuler($attr, $item_id, $line)
+  /**
+   * Make sure one unit of a ruler is in Linet.
+   *
+   * The ruler and its units are the same for every product that uses the
+   * attribute, so once a unit is known to be there the lookup is skipped: a
+   * twelve size ruler was costing twelve calls per product, on every push.
+   *
+   * @return bool False when Linet did not answer, so nothing is noted down.
+   */
+  private static function linetSaveRulerUnit($rulerId, $name, $slug, $order, $logger)
   {
+    $signature = md5(implode('|', array($rulerId, $name, $slug, $order)));
+
+    if (WC_LI_Sync_Cache::known('rulerunit', $signature)) {
+      return true;
+    }
+
+    $rulerUnitBody = array(
+      'ruler_id' => $rulerId,
+      'name' => $name,
+      'value' => $slug,
+      'uValue' => $order,
+      'slug' => $slug
+    );
+
+    $linItem = WC_LI_Settings::sendAPI('search/MutexRulerUnit', $rulerUnitBody);
+
+    if (!WC_LI_Settings::apiOk($linItem)) {
+      $logger->write("linetSaveRuler: no answer from search/MutexRulerUnit for $name");
+
+      return false;
+    }
+
+    if ($linItem->errorCode == 1000) {
+      $newLinItem = WC_LI_Settings::sendAPI('create/MutexRulerUnit', $rulerUnitBody);
+
+      if (!WC_LI_Settings::apiOk($newLinItem)) {
+        $logger->write("linetSaveRuler: no answer from create/MutexRulerUnit for $name");
+
+        return false;
+      }
+    }
+
+    WC_LI_Sync_Cache::remember('rulerunit', $signature);
+
+    return true;
+  }
+
+  public static function linetSaveRuler($attr, $item_id, $line, $logger = null)
+  {
+    if (!$logger) {
+      $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
+    }
+
     $typeBody = array('name' => str_replace("pa_", "", $attr->get_taxonomy())); //name
 
     $attribute_data = $attr->get_data();
@@ -576,43 +678,72 @@ class WC_LI_Inventory
 
     $rulerBody = array('name' => $name, 'slug' => $name); //name
 
-    $linItem = WC_LI_Settings::sendAPI('search/MutexRuler', $rulerBody);
-    $rulerId = false;
-    if ($linItem->errorCode == 1000) {
-      //create body pic?
-      $newLinItem = WC_LI_Settings::sendAPI('create/MutexRuler', $rulerBody);
-      if ($newLinItem->errorCode == 0) {
-        $rulerId = $newLinItem->body->id;
+    // Rulers are global in Linet, so the id found for "Size" once holds for
+    // every product that has a size.
+    $rulerId = WC_LI_Sync_Cache::get('ruler', md5($name));
+
+    if (!$rulerId) {
+      $linItem = WC_LI_Settings::sendAPI('search/MutexRuler', $rulerBody);
+
+      if (!WC_LI_Settings::apiOk($linItem)) {
+        $logger->write("linetSaveRuler: no answer from search/MutexRuler for $name");
+
+        return false;
       }
-    } else {
-      $rulerId = $linItem->body[0]->id;
+
+      if ($linItem->errorCode == 1000) {
+        //create body pic?
+        $newLinItem = WC_LI_Settings::sendAPI('create/MutexRuler', $rulerBody);
+        if (WC_LI_Settings::apiOk($newLinItem) && $newLinItem->errorCode == 0) {
+          $rulerId = $newLinItem->body->id;
+        }
+      } else {
+        $rulerId = isset($linItem->body[0]->id) ? $linItem->body[0]->id : false;
+      }
+
+      if (!$rulerId) {
+        $logger->write("linetSaveRuler: no ruler id for $name, attribute skipped");
+
+        return false;
+      }
+
+      WC_LI_Sync_Cache::remember('ruler', md5($name), $rulerId);
     }
 
+    // This one really is per item, but a push repeats it for every product on
+    // every run, so it is worth noting down too.
     $typeMapBody = array(
       'item_id' => $item_id,
       'ruler_id' => $rulerId,
       'line' => $line
     );
 
-    $linItem = WC_LI_Settings::sendAPI('search/MutexTypeMap', $typeMapBody);
-    $typeMapId = false;
-    if ($linItem->errorCode == 1000) {
-      $newLinItem = WC_LI_Settings::sendAPI('create/MutexTypeMap', $typeMapBody);
-      if ($newLinItem->errorCode == 0) {
-        //$typeMapId = $newLinItem->body->id;
-      }
-    } else {
-      //$typeMapId = $linItem->body[0]->id;
+    $typeMapSig = md5(implode('|', array($item_id, $rulerId, $line)));
 
+    if (!WC_LI_Sync_Cache::known('typemap', $typeMapSig)) {
+      $linItem = WC_LI_Settings::sendAPI('search/MutexTypeMap', $typeMapBody);
+
+      if (WC_LI_Settings::apiOk($linItem)) {
+        $mapped = true;
+
+        if ($linItem->errorCode == 1000) {
+          $newLinItem = WC_LI_Settings::sendAPI('create/MutexTypeMap', $typeMapBody);
+          $mapped = WC_LI_Settings::apiOk($newLinItem) && $newLinItem->errorCode == 0;
+        }
+
+        if ($mapped) {
+          WC_LI_Sync_Cache::remember('typemap', $typeMapSig);
+        }
+      } else {
+        $logger->write("linetSaveRuler: no answer from search/MutexTypeMap for $name");
+      }
     }
 
     $terms = $attr->get_terms();
+    $order = 0;
+
     if (is_null($terms)) {
-      $terms = $attribute_data["options"];
-
-      $order=0;
-
-      foreach ($terms as $term) {
+      foreach ($attribute_data["options"] as $term) {
         $order++;
 
         $slug = str_replace(" ", "", urldecode($term));
@@ -620,58 +751,19 @@ class WC_LI_Inventory
         $slug = str_replace("(", "", $slug);
         $slug = str_replace(")", "", $slug);
 
-        $rulerUnitBody = array(
-          'ruler_id' => $rulerId,
-          'name' => $term,
-          'value' => $slug,
-          'uValue' => $order,
-          'slug' => $slug
-        );
-
-        $linItem = WC_LI_Settings::sendAPI('search/MutexRulerUnit', $rulerUnitBody);
-        $rulerUnitId = false;
-        if ($linItem->errorCode == 1000) {
-          //create body pic?
-          $newLinItem = WC_LI_Settings::sendAPI('create/MutexRulerUnit', $rulerUnitBody);
-          if ($newLinItem->errorCode == 0) {
-            $rulerUnitId = $newLinItem->body->id;
-          }
-        } else {
-          $rulerUnitId = $linItem->body[0]->id;
-        }
+        self::linetSaveRulerUnit($rulerId, $term, $slug, $order, $logger);
       }
-
-
     } else {
-      $order=0;
-      foreach ($attr->get_terms() as $term) {
+      foreach ($terms as $term) {
         $order++;
+
         $slug = str_replace(" ", "", urldecode($term->slug));
         $slug = str_replace("-", "", $slug);
         $slug = str_replace("(", "", $slug);
         $slug = str_replace(")", "", $slug);
 
-        $rulerUnitBody = array(
-          'ruler_id' => $rulerId,
-          'name' => $term->name,
-          'value' => $slug,
-          'uValue' => $order,
-          'slug' => $slug
-        );
-
-        $linItem = WC_LI_Settings::sendAPI('search/MutexRulerUnit', $rulerUnitBody);
-        $rulerUnitId = false;
-        if ($linItem->errorCode == 1000) {
-          //create body pic?
-          $newLinItem = WC_LI_Settings::sendAPI('create/MutexRulerUnit', $rulerUnitBody);
-          if ($newLinItem->errorCode == 0) {
-            $rulerUnitId = $newLinItem->body->id;
-          }
-        } else {
-          $rulerUnitId = $linItem->body[0]->id;
-        }
+        self::linetSaveRulerUnit($rulerId, $term->name, $slug, $order, $logger);
       }
-
     }
 
     //var_dump();exit;
@@ -899,7 +991,7 @@ class WC_LI_Inventory
         $line = 1;
         foreach ($attrs as $attr) {
           if ($attr->get_variation()) {
-            $typeId = self::linetSaveRuler($attr, $item_id, $line);
+            $typeId = self::linetSaveRuler($attr, $item_id, $line, $logger);
             $line++;
             //$fields[] = $typeId;
             //$template[] = "{{".$typeId."}}";
@@ -941,6 +1033,91 @@ class WC_LI_Inventory
   }
 
 
+  /**
+   * Fingerprint of one picture as it was last pushed to Linet.
+   *
+   * Everything that would make the push different is in here: which Linet item
+   * it hangs off, which file it is, whether the bytes changed, and whether it
+   * went up as the item thumbnail (filetype 10) or as a gallery image (15).
+   *
+   * @return string
+   */
+  private static function picSignature($linet_item_id, $wp_attached_file, $path, $thumb)
+  {
+    return md5(implode('|', array(
+      $linet_item_id,
+      $wp_attached_file,
+      (string) @filesize($path),
+      (string) @filemtime($path),
+      $thumb ? 'thumb' : 'gallery',
+    )));
+  }
+
+  /**
+   * How long a recorded push is trusted before the picture is looked up in
+   * Linet again. Re-checking is what heals a file deleted at the Linet end, so
+   * the filter is the way to make that quicker (or 0 to always ask).
+   *
+   * @return int
+   */
+  private static function picSyncTtl()
+  {
+    return (int) apply_filters('woocommerce_linet_pic_sync_ttl', self::PIC_SYNC_TTL);
+  }
+
+  /**
+   * Has this exact picture already been pushed, recently enough to trust?
+   *
+   * @return bool
+   */
+  private static function picAlreadySynced($post_id, $signature)
+  {
+    $ttl = self::picSyncTtl();
+
+    if ($ttl <= 0) {
+      return false;
+    }
+
+    $seen = get_post_meta($post_id, self::PIC_SYNC_META, true);
+
+    if (!is_array($seen) || !isset($seen[$signature])) {
+      return false;
+    }
+
+    return (time() - (int) $seen[$signature]) < $ttl;
+  }
+
+  /**
+   * Record a picture that is now known to be in Linet.
+   */
+  private static function rememberPicSynced($post_id, $signature)
+  {
+    $seen = get_post_meta($post_id, self::PIC_SYNC_META, true);
+
+    if (!is_array($seen)) {
+      $seen = array();
+    }
+
+    // Drop what has aged out, so an attachment that keeps being re-cropped
+    // does not collect a row per version for ever.
+    $cut = time() - max(self::picSyncTtl(), 0);
+
+    foreach ($seen as $key => $when) {
+      if ((int) $when < $cut) {
+        unset($seen[$key]);
+      }
+    }
+
+    $seen[$signature] = time();
+
+    if (count($seen) > self::PIC_SYNC_KEEP) {
+      asort($seen);
+      $seen = array_slice($seen, -self::PIC_SYNC_KEEP, null, true);
+    }
+
+    update_post_meta($post_id, self::PIC_SYNC_META, $seen);
+  }
+
   public static function savePicToLinet($linet_item_id, $post_id, $thumb = false, $logger = null)
   {
     if (!$logger) {
@@ -961,6 +1138,20 @@ class WC_LI_Inventory
 
       if (!file_exists($basePath . $wp_attached_file))
         return false;
+
+      // A push costs a search/file, often a create/file and, for the
+      // thumbnail, an update/item on top. That is most of the 60 calls a
+      // minute Linet allows, spent again on every run on pictures that have
+      // not changed since the last one, so a picture already known to be in
+      // Linet is left alone until its fingerprint or the ttl says otherwise.
+      $signature = self::picSignature($linet_item_id, $wp_attached_file, $basePath . $wp_attached_file, $thumb);
+
+      if (self::picAlreadySynced($post_id, $signature)) {
+        $logger->write("savePicToLinet($linet_item_id/$post_id): $filename unchanged, not sent again");
+
+        return true;
+      }
+
       $body = [
         "name" => $filename,
         "path" => "pics/",
@@ -1031,6 +1222,8 @@ class WC_LI_Inventory
         //var_dump($linItem);exit;
         //update item image
       }
+
+      self::rememberPicSynced($post_id, $signature);
 
       return true;
     }
@@ -1111,7 +1304,7 @@ class WC_LI_Inventory
       $catFilter = self::syncCatParams();
 
       $cats = WC_LI_Settings::sendAPI('newsearch/itemcategory', $catFilter);
-      $cats = self::linetCatSyncOrder($cats->body);
+      $cats = self::linetCatSyncOrder(WC_LI_Settings::apiRows($cats));
 
       foreach ($cats as $cat) {
         self::singleCatSync($cat, $logger);
@@ -1120,7 +1313,8 @@ class WC_LI_Inventory
       echo json_encode(
         array(
           'status' => 'Success',
-          'cats' => count($cats)
+          'cats' => count($cats),
+          'waited' => WC_LI_Rate_Limiter::waited(),
         )
       );
       wp_die();
@@ -1134,9 +1328,7 @@ class WC_LI_Inventory
       $params['offset'] = $offset;
       $params['since'] = get_option('wc_linet_last_update');
 
-      $products = WC_LI_Settings::sendAPI(self::syncStockURL(), $params);
-      //if isset..
-      $products = $products->body;
+      $products = WC_LI_Settings::apiRows(WC_LI_Settings::sendAPI(self::syncStockURL(), $params));
 
       $runtime = microtime(true);
       $sync_count = 0;
@@ -1151,7 +1343,9 @@ class WC_LI_Inventory
       echo json_encode(
         array(
           'status' => 'Success',
-          'items' => $sync_count
+          'items' => $sync_count,
+          'offset' => $offset + $sync_count,
+          'waited' => WC_LI_Rate_Limiter::waited(),
         )
       );
 
@@ -2155,7 +2349,7 @@ class WC_LI_Inventory
 
     $product->update_meta_data('_linet_id', $item->item->id);
 
-    $product = self::updateStock($product, $item, $logger); //by parent_item_id
+    $product = self::updateStock($product, $item, $logger, false); //by parent_item_id, saved once at the end
 
 
 
@@ -2171,24 +2365,41 @@ class WC_LI_Inventory
 
       }
 
-      //$imgs//get files concted to item with type
-      $params = array(
-        'nparent_type' => 5,
-        'filetype' => 15,
-        'parent_id' => $item->item->id
-      );
+      // has_pictures is Linet's own count of files on the item. When it is 0
+      // there is nothing for search/file to find, and that call was being made
+      // for every product on every run: on a 1000 product catalogue it is the
+      // whole minute's budget, sixteen times over.
+      if ($item->has_pictures != "0") {
+        //$imgs//get files concted to item with type
+        $params = array(
+          'nparent_type' => 5,
+          'filetype' => 15,
+          'parent_id' => $item->item->id
+        );
 
-      $galleryImgs = WC_LI_Settings::sendAPI('search/file', $params);
-      $imgs = array();
-      if (is_array($galleryImgs->body)) {
-        foreach ($galleryImgs->body as $img) {
-          $newImg = self::getImage($img->hash, $logger);
-          if ($newImg)
-            $imgs[] = $newImg;
+        $galleryImgs = WC_LI_Settings::sendAPI('search/file', $params);
+
+        // Only touch the gallery when Linet actually answered. A refused or
+        // failed call used to come back as nothing to show, which emptied the
+        // product's gallery - across the catalogue, once the minute's budget
+        // was spent.
+        if (WC_LI_Settings::apiOk($galleryImgs)) {
+          $imgs = array();
+
+          foreach (WC_LI_Settings::apiRows($galleryImgs) as $img) {
+            $newImg = self::getImage($img->hash, $logger);
+            if ($newImg)
+              $imgs[] = $newImg;
+          }
+
+          $logger->write("Linet GalleryImgs: " . implode(",", $imgs));
+          $product->set_gallery_image_ids($imgs);
+        } else {
+          $logger->write("Linet GalleryImgs: no answer from search/file, gallery left as it is");
         }
+      } else {
+        $product->set_gallery_image_ids(array());
       }
-      $logger->write("Linet GalleryImgs: " . implode(",", $imgs));
-      $product->set_gallery_image_ids($imgs);
     }
 
     $itemFields = get_option('wc_linet_itemFields');
@@ -2251,13 +2462,23 @@ class WC_LI_Inventory
     $logger->write("singleProdSync product save: " . $product->save());
     $logger->write("singleProdSync status: " . $product->get_status());
 
+    // The stock update used to do this halfway through, before the rest of the
+    // item had even been written.
+    wc_delete_product_transients($product->get_id());
+    clean_post_cache($product->get_id());
+
     $logger->write("singleProdSync: done");
 
     return 0;
 
   }
 
-  public static function updateStock($product, $item, $logger)
+  /**
+   * @param bool $save Write the product out here. singleProdSync passes false
+   *                   because it carries on editing and saves once at the end;
+   *                   saving twice doubled the db writes of a whole sync.
+   */
+  public static function updateStock($product, $item, $logger, $save = true)
   {
 
     $stockManage = get_option('wc_linet_stock_manage');
@@ -2269,10 +2490,15 @@ class WC_LI_Inventory
     } else {
       $product->set_manage_stock('no');
     }
-    $logger->write("updateStock product save: $qty " . $product->save());
 
-    wc_delete_product_transients($product->get_id());
-    clean_post_cache($product->get_id());
+    if ($save) {
+      $logger->write("updateStock product save: $qty " . $product->save());
+
+      wc_delete_product_transients($product->get_id());
+      clean_post_cache($product->get_id());
+    } else {
+      $logger->write("updateStock qty: $qty");
+    }
 
     return $product;
   }
@@ -2313,9 +2539,29 @@ class WC_LI_Inventory
     $params['offset'] = 0;
     $params['since'] = get_option('wc_linet_last_update');
 
-    $products = WC_LI_Settings::sendAPI(self::syncStockURL(), $params);
-    $products = $products->body;
-    while (count($products)) {
+    $status['failed'] = false;
+
+    while (true) {
+      $res = WC_LI_Settings::sendAPI(self::syncStockURL(), $params);
+
+      // A page that never came back is not the same as the last page. A 429
+      // that outlived its retries used to end the loop quietly, and fullSync
+      // then moved wc_linet_last_update forward as if everything had been
+      // seen, so the items behind the failed page were skipped for good.
+      // Linet answers a refusal with a whole envelope, so this has to look at
+      // the envelope status, not just at whether anything was decoded.
+      if (!WC_LI_Settings::apiOk($res)) {
+        $status['failed'] = true;
+        $logger->write("prodSync: no answer at offset " . $params['offset'] . ", stopping short");
+        break;
+      }
+
+      $products = WC_LI_Settings::apiRows($res);
+
+      if (!count($products)) {
+        break;
+      }
+
       foreach ($products as $item) {
         $logger->write("Linet Item Id: " . $item->item->id . " start sync");
         $result = self::singleProdSync($item, $logger);
@@ -2328,16 +2574,8 @@ class WC_LI_Inventory
       $params['offset'] += count($products);
 
       wp_cache_set('linet_fullSync_status', $status);
-
-      $products = WC_LI_Settings::sendAPI(self::syncStockURL(), $params);
-      //$logger->write(json_encode($products));
-      if (isset($products->body))
-        $products = $products->body;
-      else
-        $products = array();
     }
     unset($user_id);
-    unset($offset);
     unset($products);
     $logger->write("prodSync end");
     return $status;
@@ -2364,7 +2602,7 @@ class WC_LI_Inventory
     $cats = WC_LI_Settings::sendAPI('newsearch/itemcategory', $catFilter);
 
 
-    $cats = self::linetCatSyncOrder($cats->body);
+    $cats = self::linetCatSyncOrder(WC_LI_Settings::apiRows($cats));
 
     $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
 
@@ -2385,7 +2623,12 @@ class WC_LI_Inventory
     wp_cache_set('linet_fullSync_status', $status);
 
     //update_option('wc_linet_last_update', "2018-06-01 00:00:00");
-    update_option('wc_linet_last_update', gmdate('Y-m-d') . " 00:00:00"); //date('Y-m-d H:m:i')
+    if (empty($status['failed'])) {
+      update_option('wc_linet_last_update', gmdate('Y-m-d') . " 00:00:00"); //date('Y-m-d H:m:i')
+    } else {
+      // Leave the mark where it was so the next run picks the items up again.
+      $logger->write("Sync stopped short, wc_linet_last_update stays at " . get_option('wc_linet_last_update'));
+    }
     $logger->write("End Linet Cat Sync");
   } //end func
 }

@@ -7,7 +7,7 @@
  * Author URI: http://www.linet.org.il
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Version: 3.6.23
+ * Version: 3.6.24
  * Tested up to: 7.0
  * Requires at least: 6.0
  * Requires PHP: 8.0
@@ -40,7 +40,7 @@ require_once 'woo-includes/woo-functions.php';
  */
 class WC_Linet
 {
-  const VERSION = '3.6.23';
+  const VERSION = '3.6.24';
 
 
 
@@ -69,8 +69,10 @@ class WC_Linet
     ),
     'label' => array(),
     'a' => array('class' => true, 'href' => true, 'onclick' => true, "target" => true, "data-id" => true, "data-key" => true, "data-value" => true),
-    'progress' => array('class' => true, 'id' => true),
+    'progress' => array('class' => true, 'id' => true, 'max' => true, 'value' => true),
     'div' => array('class' => true, 'id' => true, 'style' => true),
+    'span' => array('class' => true, 'id' => true, 'style' => true),
+    'br' => array(),
 
     'tr' => array(),
     'td' => array('class' => true),

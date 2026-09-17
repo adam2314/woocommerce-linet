@@ -14,6 +14,10 @@ class WC_LI_Settings
   const STOCK_LIMIT = 5;
   const RUNTIME_LIMIT = 21;
 
+  // How many times a call that came back throttled anyway is re-sent before
+  // sendAPI() returns empty handed. See WC_LI_Rate_Limiter for the budget.
+  const API_MAX_RETRIES = 2;
+
   // Settings defaults
   private $settings = array();
   private $override = array();
@@ -462,13 +466,22 @@ class WC_LI_Settings
 
         'description' => __('Manual Items Sync:', 'linet-erp-woocommerce-integration') .
           ' <br /><button type="button" id="linwc-btn" class="button-primary" onclick="linet.fullItemsSync();">Linet->WC</button>' .
-          ' <br /><button type="button" id="wclin-btn" class="button hidden" onclick="linet.fullProdSync();">WC->Linet</button>' .
-          "<div id='mItems' class='hidden'>" .
+          // The WC->Linet button stays out of the way: it pushes the whole
+          // catalogue. Clicking the empty space it would sit in brings it back.
+          ' <br /><span id="wclin-slot" class="linet-slot"></span>' .
+          '<button type="button" id="wclin-btn" class="button hidden" onclick="linet.fullProdSync();">WC->Linet</button>' .
+          '<span id="wclin-warn" class="linet-warn hidden">' .
+          esc_html__('pushes every published product and variation to Linet', 'linet-erp-woocommerce-integration') .
+          '</span>' .
+          "<div id='mItems' class='linet-sync hidden'>" .
           '
+      <div id="linet-phase" class="linet-phase"></div>
       <div id="target"></div>
       <progress id="targetBar" max="100" value="0"></progress>
       <div id="subTarget"></div>
-      <input text="hidden" id="subTargetBar" value="0" />' .
+      <progress id="subTargetBar" max="100" value="0"></progress>
+      <div id="linet-meta" class="linet-meta"></div>
+      <div id="linet-note" class="linet-note"></div>' .
           "</div>"
         ,
       ),
@@ -1574,6 +1587,12 @@ class WC_LI_Settings
         'description' => self::get_option("last_sns"),
 
       ),
+      'rate_limit' => array(
+        'title' => __('API Rate Limit', 'linet-erp-woocommerce-integration'),
+        'default' => (string) WC_LI_Rate_Limiter::DEFAULT_LIMIT,
+        'type' => 'text',
+        'description' => __('Requests per minute the plugin will send to Linet. Linet allows 60; lower it when another site shares the same account, 0 turns the throttle off.', 'linet-erp-woocommerce-integration'),
+      ),
       'debug' => array(
         'title' => __('Debug', 'linet-erp-woocommerce-integration'),
         'default' => 'off',
@@ -2087,10 +2106,283 @@ class WC_LI_Settings
           .linet-maint-error {
             color: #b32d2e;
           }
+
+          /* The space the WC->Linet button sits in while it is put away. */
+          .linet-slot {
+            display: inline-block;
+            width: 96px;
+            height: 28px;
+            vertical-align: middle;
+            border-radius: 3px;
+          }
+
+          .linet-slot:hover {
+            border: 1px dashed #c3c4c7;
+          }
+
+          .linet-warn {
+            margin-inline-start: 8px;
+            color: #b32d2e;
+          }
+
+          .linet-sync {
+            max-width: 540px;
+            margin: 10px 0 0;
+            padding: 10px 12px;
+            border: 1px solid #dcdcde;
+            border-inline-start: 4px solid #2271b1;
+            background: #fff;
+          }
+
+          .linet-sync.linet-sync-done {
+            border-inline-start-color: #007017;
+          }
+
+          .linet-sync.linet-sync-error {
+            border-inline-start-color: #b32d2e;
+          }
+
+          .linet-sync progress {
+            display: block;
+            width: 100%;
+            height: 14px;
+            margin: 2px 0 8px;
+          }
+
+          .linet-phase {
+            font-weight: 600;
+            margin-bottom: 6px;
+          }
+
+          .linet-sync #target,
+          .linet-sync #subTarget {
+            font-variant-numeric: tabular-nums;
+          }
+
+          .linet-meta {
+            margin-top: 4px;
+            color: #646970;
+            font-variant-numeric: tabular-nums;
+          }
+
+          .linet-note {
+            margin-top: 4px;
+            min-height: 1.4em;
+          }
+
+          .linet-note-wait {
+            color: #996800;
+          }
+
+          .linet-note-error {
+            color: #b32d2e;
+          }
+
+          .linet-note-done {
+            color: #007017;
+            font-weight: 600;
+          }
         </style>
 
         <script>
           linet = {
+
+            syncText: {
+              cats: '<?php echo esc_js(__('Categories', 'linet-erp-woocommerce-integration')); ?>',
+              items: '<?php echo esc_js(__('Items', 'linet-erp-woocommerce-integration')); ?>',
+              toWc: '<?php echo esc_js(__('Linet → WooCommerce', 'linet-erp-woocommerce-integration')); ?>',
+              toLinet: '<?php echo esc_js(__('WooCommerce → Linet', 'linet-erp-woocommerce-integration')); ?>',
+              elapsed: '<?php echo esc_js(__('elapsed', 'linet-erp-woocommerce-integration')); ?>',
+              left: '<?php echo esc_js(__('about %s left', 'linet-erp-woocommerce-integration')); ?>',
+              perSec: '<?php echo esc_js(__('%s / sec', 'linet-erp-woocommerce-integration')); ?>',
+              perMin: '<?php echo esc_js(__('%s / min', 'linet-erp-woocommerce-integration')); ?>',
+              remaining: '<?php echo esc_js(__('%d to go', 'linet-erp-woocommerce-integration')); ?>',
+              waiting: '<?php echo esc_js(__('Waiting for Linet: the last call was held %ss to stay inside the 60 a minute limit.', 'linet-erp-woocommerce-integration')); ?>',
+              retry: '<?php echo esc_js(__('No answer from the last call, trying again…', 'linet-erp-woocommerce-integration')); ?>',
+              failed: '<?php echo esc_js(__('The sync stopped: %s. Nothing already synced is lost, start it again to carry on.', 'linet-erp-woocommerce-integration')); ?>',
+              done: '<?php echo esc_js(__('Finished — %d in %s, %r.', 'linet-erp-woocommerce-integration')); ?>',
+              reveal: '<?php echo esc_js(__('Click again to push the whole catalogue to Linet', 'linet-erp-woocommerce-integration')); ?>'
+            },
+
+            // Everything the two syncs show goes through here, so a run always
+            // says which way it is going, how far it has got, how fast, and
+            // why it is sitting still.
+            ui: {
+              started: 0,
+              done: 0,
+              total: 0,
+              phase: '',
+              armed: false,
+              timer: 0,
+              samples: [],
+
+              start: function (phase) {
+                linet.ui.started = Date.now();
+                // A pulse can sit for a minute waiting out the rate limit, so
+                // the clock has to run on its own, not only on an answer.
+                window.clearInterval(linet.ui.timer);
+                linet.ui.timer = window.setInterval(linet.ui.meta, 1000);
+                linet.ui.done = 0;
+                linet.ui.total = 0;
+                linet.ui.phase = phase;
+                linet.ui.samples = [{ t: linet.ui.started, done: 0 }];
+
+                jQuery('#mItems').removeClass('hidden linet-sync-done linet-sync-error');
+                jQuery('#linet-phase').text(phase);
+                jQuery('#target').text('');
+                jQuery('#subTarget').text('');
+                jQuery('#linet-note').removeClass('linet-note-wait linet-note-error linet-note-done').text('');
+                jQuery('#targetBar').val(0).prop('max', 100);
+                jQuery('#subTargetBar').val(0).prop('max', 100);
+                jQuery('#linwc-btn, #wclin-btn').prop('disabled', true);
+              },
+
+              // $bar/$label are the pair to write into: the top one for the
+              // phase in hand, the bottom one for items inside it.
+              tick: function (label, done, total, bar, text) {
+                var line = label + ':  ' + done + (total ? ' / ' + total : '');
+
+                jQuery(text || '#target').text(line);
+
+                if (total) {
+                  jQuery(bar || '#targetBar').prop('max', total).val(done).removeClass('linet-indeterminate');
+                } else {
+                  // No total to count towards: leave the bar indeterminate
+                  // rather than pretend to know how far along it is.
+                  jQuery(bar || '#targetBar').removeAttr('value');
+                }
+
+                linet.ui.done = done;
+                linet.ui.total = total || 0;
+                linet.ui.sample(done);
+                linet.ui.meta();
+              },
+
+              // One reading per answered pulse. The last minute of them is
+              // what the speed is worked out from: a run that spent its first
+              // pulse waiting out the rate limit would otherwise carry that
+              // stall in its average, and its eta, to the very end.
+              sample: function (done) {
+                var now = Date.now();
+
+                linet.ui.samples.push({ t: now, done: done });
+
+                // The last minute, or the last 60 readings when the pulses are
+                // coming faster than one a second. Always at least two, or
+                // there is nothing to measure between.
+                while (linet.ui.samples.length > 2 &&
+                  ((now - linet.ui.samples[0].t) > 60000 || linet.ui.samples.length > 60)) {
+                  linet.ui.samples.shift();
+                }
+              },
+
+              // Products a second, over the readings still in the window.
+              rate: function () {
+                var pts = linet.ui.samples;
+                var first = pts[0];
+                var last = pts[pts.length - 1];
+                var secs, count;
+
+                if (pts.length >= 2 && last.t > first.t) {
+                  secs = (last.t - first.t) / 1000;
+                  count = last.done - first.done;
+                } else {
+                  // Not enough readings yet, fall back to the whole run.
+                  secs = (Date.now() - linet.ui.started) / 1000;
+                  count = linet.ui.done;
+                }
+
+                return secs > 0 && count > 0 ? count / secs : 0;
+              },
+
+              // Per second once it is worth saying that way, per minute while
+              // a product still takes longer than a second.
+              rateText: function (perSec) {
+                return perSec >= 1
+                  ? linet.syncText.perSec.replace('%s', perSec.toFixed(1))
+                  : linet.syncText.perMin.replace('%s', (perSec * 60).toFixed(1));
+              },
+
+              meta: function () {
+                var secs = (Date.now() - linet.ui.started) / 1000;
+                var bits = [linet.syncText.elapsed + ' ' + linet.ui.clock(secs)];
+                var perSec = linet.ui.rate();
+
+                if (linet.ui.done > 0 && perSec > 0) {
+                  bits.push(linet.ui.rateText(perSec));
+
+                  if (linet.ui.total > linet.ui.done) {
+                    var togo = linet.ui.total - linet.ui.done;
+
+                    bits.push(linet.syncText.remaining.replace('%d', togo));
+                    bits.push(linet.syncText.left.replace('%s', linet.ui.clock(togo / perSec)));
+                  }
+                }
+
+                jQuery('#linet-meta').text(bits.join('  ·  '));
+              },
+
+              clock: function (secs) {
+                secs = Math.max(0, Math.round(secs));
+                var m = Math.floor(secs / 60);
+                var s = secs % 60;
+
+                return m ? m + 'm ' + (s < 10 ? '0' : '') + s + 's' : s + 's';
+              },
+
+              // The server says how long it was held back by the rate limit,
+              // so a run that looks stuck can say why.
+              waited: function (response) {
+                var held = response && response.waited ? response.waited * 1 : 0;
+
+                if (held >= 1) {
+                  linet.ui.note(linet.syncText.waiting.replace('%s', held.toFixed(0)), 'wait');
+                } else if (jQuery('#linet-note').hasClass('linet-note-wait')) {
+                  linet.ui.note('');
+                }
+              },
+
+              note: function (message, kind) {
+                jQuery('#linet-note')
+                  .removeClass('linet-note-wait linet-note-error linet-note-done')
+                  .addClass(kind ? 'linet-note-' + kind : '')
+                  .text(message);
+              },
+
+              finish: function (count) {
+                var secs = (Date.now() - linet.ui.started) / 1000;
+
+                window.clearInterval(linet.ui.timer);
+                jQuery('#mItems').addClass('linet-sync-done');
+                jQuery('#linwc-btn, #wclin-btn').prop('disabled', false);
+                var total = count || linet.ui.done;
+
+                linet.ui.note(
+                  linet.syncText.done
+                    .replace('%d', total)
+                    .replace('%s', linet.ui.clock(secs))
+                    .replace('%r', linet.ui.rateText(secs > 0 ? total / secs : 0)),
+                  'done'
+                );
+              },
+
+              fail: function (reason) {
+                window.clearInterval(linet.ui.timer);
+                jQuery('#mItems').addClass('linet-sync-error');
+                jQuery('#linwc-btn, #wclin-btn').prop('disabled', false);
+                linet.ui.note(linet.syncText.failed.replace('%s', reason || 'error'), 'error');
+              }
+            },
+
+            // The WC->Linet button is kept out of the way because it pushes the
+            // whole catalogue. Clicking the gap where it belongs brings it
+            // back, and it then wants a second click before it runs.
+            revealPush: function () {
+              jQuery('#wclin-slot').addClass('hidden');
+              jQuery('#wclin-btn').removeClass('hidden').focus();
+              jQuery('#wclin-warn').removeClass('hidden');
+            },
+
             catDet: function (response) {
               jQuery('#catValue' + response.id).html(response.wc_count + "/" + response.linet_count);
             },
@@ -2286,7 +2578,16 @@ class WC_LI_Settings
 
             fullProdSync: function () {
               //event.preventDefault();
-              jQuery('#mItems').removeClass('hidden');
+              // First click only arms it, see armPush().
+              if (!linet.ui.armed) {
+                linet.armPush();
+
+                return false;
+              }
+
+              linet.ui.armed = false;
+              jQuery('#wclin-warn').text('');
+              linet.ui.start(linet.syncText.toLinet);
               linet.timeoutErrorCount = 0;
 
               //phase 1: all categories, then the items
@@ -2306,6 +2607,7 @@ class WC_LI_Settings
 
               linet.resumeTimeOut = setTimeout(
                 () => {
+                  linet.ui.note(linet.syncText.retry, 'wait');
                   linet.wpCatSync(offset);
                   linet.timeoutErrorCount++
                 }, 1000 * 60
@@ -2323,9 +2625,8 @@ class WC_LI_Settings
                 <?php endif; ?>
                                         data: data
               }).done(function (response) {
-                jQuery('#target').html("Categories:  " + response.offset + "/" + response.total);
-                jQuery('#targetBar').prop('max', response.total || 1);
-                jQuery('#targetBar').val(response.offset);
+                linet.ui.tick(linet.syncText.cats, response.offset, response.total);
+                linet.ui.waited(response);
 
                 if (!response.done && response.synced > 0) {
                   linet.wpCatSync(response.offset);
@@ -2334,6 +2635,9 @@ class WC_LI_Settings
                   linet.timeoutErrorCount = 0;
                   linet.prodSyncStart();
                 }
+              }).fail(function (xhr) {
+                clearTimeout(linet.resumeTimeOut);
+                linet.ui.fail(linet.reason(xhr));
               });
             },
 
@@ -2354,14 +2658,19 @@ class WC_LI_Settings
                 <?php endif; ?>
                                         data: data
               }).done(function (response) {
-                jQuery('#target').html("Items:  0/" + response);
-                jQuery('#targetBar').prop('max', response);
-                jQuery('#targetBar').val(0);
-                linet.timeoutErrorCount = 0;
-                if (response) {
-                  linet.prodSync(0);
+                var total = response * 1;
 
+                linet.ui.start(linet.syncText.toLinet);
+                linet.ui.tick(linet.syncText.items, 0, total);
+                linet.timeoutErrorCount = 0;
+
+                if (total) {
+                  linet.prodSync(0);
+                } else {
+                  linet.ui.finish(0);
                 }
+              }).fail(function (xhr) {
+                linet.ui.fail(linet.reason(xhr));
               });
 
               return false
@@ -2378,16 +2687,16 @@ class WC_LI_Settings
 
               linet.resumeTimeOut = setTimeout(
                 () => {
+                  linet.ui.note(linet.syncText.retry, 'wait');
                   linet.prodSync(offset);
                   linet.timeoutErrorCount++
                 }, 1000 * 60
               )
 
-              num = jQuery('#targetBar').prop('max');
-
               jQuery.ajax({
                 url: ajaxurl,
                 method: 'POST',
+                dataType: "json",
 
                 <?php if ($nonce): ?>
                                                           beforeSend: function (xhr) {
@@ -2398,15 +2707,24 @@ class WC_LI_Settings
               }).done(function (response) {
 
                 //console.log(response);
-                bar = offset + response * 1;
+                clearTimeout(linet.resumeTimeOut);
+                linet.timeoutErrorCount = 0;
 
-                jQuery('#target').html("Items:  " + bar + "/" + num);
-                jQuery('#targetBar').val(bar);
+                linet.ui.tick(linet.syncText.items, response.offset, response.total);
+                linet.ui.waited(response);
 
-                if (num - bar > 0)
-                  linet.prodSync(bar);
-                //linet.subCall(num - 1, 1);
-                //count
+                // The server says when there is nothing left, so a catalogue
+                // that shrank mid-run cannot leave this asking for ever.
+                if (response.done) {
+                  linet.ui.finish(response.offset);
+
+                  return;
+                }
+
+                linet.prodSync(response.offset);
+              }).fail(function (xhr) {
+                clearTimeout(linet.resumeTimeOut);
+                linet.ui.fail(linet.reason(xhr));
               });
 
             },
@@ -2460,7 +2778,7 @@ class WC_LI_Settings
 
             fullItemsSync: function () {
               //event.preventDefault();
-              jQuery('#mItems').show();
+              linet.ui.start(linet.syncText.toWc);
 
               var data = {
                 'action': 'LinetItemSync',
@@ -2480,11 +2798,13 @@ class WC_LI_Settings
                 <?php endif; ?>
                                         data: data
               }).done(function (response) {
-                console.log(response)
-                jQuery('#target').html("Categories:  " + response.cats + "");
+                linet.ui.tick(linet.syncText.cats, response.cats, response.cats);
+                linet.ui.waited(response);
                 linet.timeoutErrorCount = 0;
 
                 linet.itemSync(0);
+              }).fail(function (xhr) {
+                linet.ui.fail(linet.reason(xhr));
               });
               return false
             },
@@ -2503,12 +2823,12 @@ class WC_LI_Settings
 
               linet.resumeTimeOut = setTimeout(
                 () => {
+                  linet.ui.note(linet.syncText.retry, 'wait');
                   linet.itemSync(offset);
                   linet.timeoutErrorCount++
                 }, 1000 * 60
               )
 
-              var items = jQuery('#subTargetBar').val() * 1;
               jQuery.ajax({
                 url: ajaxurl,
                 method: 'POST',
@@ -2522,22 +2842,43 @@ class WC_LI_Settings
                 <?php endif; ?>
                                               data: data
               }).done(function (response) {
+                clearTimeout(linet.resumeTimeOut);
+                linet.timeoutErrorCount = 0;
 
-                jQuery('#subTarget').html("Items: " + (offset + response.items));
-                jQuery('#subTargetBar').val(offset + response.items);
+                var done = offset + response.items;
+
+                // Linet does not say how many items are coming, so this half
+                // counts up rather than counting down.
+                linet.ui.tick(linet.syncText.items, done, 0, '#subTargetBar', '#subTarget');
+                linet.ui.waited(response);
 
                 if (response.items) {
-                  linet.itemSync(offset + response.items);
+                  linet.itemSync(done);
 
                 } else {
-                  linet.lastCall();
+                  linet.lastCall(done);
 
                 }
+              }).fail(function (xhr) {
+                clearTimeout(linet.resumeTimeOut);
+                linet.ui.fail(linet.reason(xhr));
               });
 
               //next cat
             },
-            lastCall: function () {
+            // Two clicks to start a full push: the first only says what it
+            // will do, so a stray click cannot send the catalogue.
+            armPush: function () {
+              linet.ui.armed = true;
+              jQuery('#wclin-warn').text(linet.syncText.reveal);
+
+              window.setTimeout(function () {
+                linet.ui.armed = false;
+                jQuery('#wclin-warn').text('');
+              }, 8000);
+            },
+
+            lastCall: function (count) {
 
               var data = {
                 'action': 'LinetItemSync',
@@ -2555,15 +2896,51 @@ class WC_LI_Settings
                 <?php endif; ?>
                                           data: data
               }).done(function (response) {                //done!
-                jQuery('#wclin-btn').prop('disabled', false);
-                jQuery('#linwc-btn').prop('disabled', false);
+                clearTimeout(linet.resumeTimeOut);
+                linet.ui.finish(count);
+              }).fail(function (xhr) {
+                clearTimeout(linet.resumeTimeOut);
+                linet.ui.fail(linet.reason(xhr));
               })
 
+            },
+
+            // Something readable out of a failed call, for the panel.
+            reason: function (xhr) {
+              if (!xhr || !xhr.status) {
+                return '<?php echo esc_js(__('no answer from the site', 'linet-erp-woocommerce-integration')); ?>';
+              }
+
+              if (xhr.status === 403) {
+                return '<?php echo esc_js(__('the page has been open too long, reload it', 'linet-erp-woocommerce-integration')); ?>';
+              }
+
+              return 'HTTP ' + xhr.status;
             },
 
 
           };
 
+          jQuery(function ($) {
+            $('#wclin-slot').on('click', function () {
+              linet.revealPush();
+            });
+
+            // Nothing about the gap says "button", so anyone who knows it is
+            // there can also reach it from the keyboard.
+            $(document).on('keydown', function (e) {
+              if (e.altKey && e.shiftKey && (e.key === 'L' || e.key === 'l')) {
+                linet.revealPush();
+              }
+            });
+
+            // Leaving mid-run would strand the sync half done.
+            $(window).on('beforeunload', function () {
+              if (linet.ui.started && !$('#mItems').hasClass('linet-sync-done') && !$('#mItems').hasClass('linet-sync-error')) {
+                return '<?php echo esc_js(__('A sync is still running.', 'linet-erp-woocommerce-integration')); ?>';
+              }
+            });
+          });
 
         </script>
 
@@ -2750,16 +3127,39 @@ class WC_LI_Settings
       'body' => json_encode($body),
     );
 
-    $response = wp_remote_post($url, $args);
+    // Linet allows 60 requests a minute and answers 429 once that is spent, so
+    // wait for a free slot instead of firing straight into the limit.
+    for ($attempt = 0; ; $attempt++) {
+      WC_LI_Rate_Limiter::reserve($logger);
 
-    if (is_wp_error($response)) {
-      $error_message = $response->get_error_message();
-      $logger->write('Request failed:' . " $error_message\n");
+      $response = wp_remote_post($url, $args);
+
+      if (is_wp_error($response)) {
+        $error_message = $response->get_error_message();
+        $logger->write('Request failed:' . " $error_message\n");
+        $decoded = null;
+        break;
+      }
+
+      $code = wp_remote_retrieve_response_code($response);
+      $decoded = json_decode(wp_remote_retrieve_body($response));
+
+      if (!WC_LI_Rate_Limiter::is_throttled($code, $response, $decoded)) {
+        break;
+      }
+
+      // Hold every process back, not just this one.
+      $delay = WC_LI_Rate_Limiter::back_off(WC_LI_Rate_Limiter::retry_after($response), $logger, $attempt);
+
+      if ($attempt >= self::API_MAX_RETRIES) {
+        $logger->write("LINET RATE LIMIT: refused by $url, giving up after " . ($attempt + 1) . " attempts\n");
+        break;
+      }
+
+      $logger->write(sprintf("LINET RATE LIMIT: refused by %s, retrying in %.1fs\n", $url, $delay));
     }
 
     $body = wp_remote_retrieve_body($response);
-
-    $decoded = json_decode($body);
 
     // Linet answers with \u05de style escapes, re-encode so the log is readable.
     $logger->write('LINET RESPONSE:' . (null === $decoded ? $body : json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) . "\n");
@@ -2772,6 +3172,54 @@ class WC_LI_Settings
     unset($server);
     unset($req);
     return $decoded;
+  }
+
+  /**
+   * The rows of an api answer, or an empty list when the call did not come back.
+   *
+   * sendAPI() returns null on a network error, on an answer that is not json,
+   * and on a 429 that outlived its retries. Callers that walk the result have
+   * to cope with that rather than fatal on count(null).
+   *
+   * @param mixed $res
+   *
+   * @return array
+   */
+  /**
+   * Did the call come back with an answer Linet is happy with?
+   *
+   * Linet wraps everything in {status, text, body, errorCode} and only ever
+   * means success by status 200, so a rate limited call arrives as a perfectly
+   * well formed object whose body is the string "Rate limit exceeded". Callers
+   * that page through results have to tell that apart from a last, empty page.
+   *
+   * @param mixed $res
+   *
+   * @return bool
+   */
+  public static function apiOk($res)
+  {
+    if (!is_object($res)) {
+      return false;
+    }
+
+    // Endpoints that answer without an envelope are taken at face value.
+    if (!isset($res->status)) {
+      return true;
+    }
+
+    $status = (int) $res->status;
+
+    return $status >= 200 && $status < 300;
+  }
+
+  public static function apiRows($res)
+  {
+    if (!is_object($res) || !isset($res->body) || !is_array($res->body)) {
+      return array();
+    }
+
+    return $res->body;
   }
 
   public static function TestAjax()

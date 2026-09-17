@@ -22,13 +22,13 @@ class WC_LI_Sns
 
 
     $products = WC_LI_Settings::sendAPI(WC_LI_Inventory::syncStockURL(), $params);
-    foreach ($products->body as $item) {
+    foreach (WC_LI_Settings::apiRows($products) as $item) {
       WC_LI_Inventory::singleProdSync($item, $logger);
     }
     unset($params['id']);
     $params['parent_item_id'] = $item_id;
     $products = WC_LI_Settings::sendAPI(WC_LI_Inventory::syncStockURL(), $params);
-    foreach ($products->body as $item) {
+    foreach (WC_LI_Settings::apiRows($products) as $item) {
       WC_LI_Inventory::singleProdSync($item, $logger);
     }
   }
@@ -37,7 +37,7 @@ class WC_LI_Sns
   {
 
     $cats = WC_LI_Settings::sendAPI('search/itemcategory', array('id' => $cat_id));
-    foreach ($cats->body as $cat) {
+    foreach (WC_LI_Settings::apiRows($cats) as $cat) {
       WC_LI_Inventory::singleCatSync($cat, $logger);
     }
   }

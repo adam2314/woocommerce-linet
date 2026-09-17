@@ -39,6 +39,7 @@ class WC_LI_Linet_Cf7
         }
       }
       try {
+        $contact = WC_LI_Invoice::limitFields($contact, WC_LI_Invoice::ACCOUNT_LIMITS);
         $newLinItem = WC_LI_Settings::sendAPI('create/account', $contact);
         //var_dump($newLinItem);
       } catch (\Exception $e) {

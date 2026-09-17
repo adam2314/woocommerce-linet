@@ -24,6 +24,86 @@ class WC_LI_Invoice
   private $doc = [];
 
   /**
+   * Max field lengths accepted by Linet (min of DB column and model rule).
+   * Longer values fail validation, so they are cut before sending.
+   */
+  const ACCOUNT_LIMITS = [
+    'name' => 80,
+    'contact' => 80,
+    'phone' => 20,
+    'cellular' => 20,
+    'fax' => 20,
+    'address' => 80,
+    'city' => 40,
+    'zip' => 10,
+  ];
+
+  const DOC_LIMITS = [
+    'company' => 80,
+    'address' => 80,
+    'city' => 40,
+    'zip' => 20,
+    'phone' => 100,
+    'refnum_ext' => 255,
+  ];
+
+  const DOC_ADDRESS_LIMITS = [
+    'firstname' => 255,
+    'lastname' => 255,
+    'company' => 255,
+    'street_name' => 255,
+    'phone' => 100,
+    'city' => 80,
+    'zip' => 20,
+    'house_number' => 20,
+    'entrance' => 20,
+    'apartment' => 20,
+    'floor' => 20,
+  ];
+
+  const DOC_DETAIL_LIMITS = [
+    'name' => 255,
+  ];
+
+  public static function limitFields($data, $limits)
+  {
+    if (!is_array($data)) {
+      return $data;
+    }
+
+    foreach ($limits as $field => $max) {
+      if (isset($data[$field]) && is_string($data[$field]) && mb_strlen($data[$field], 'UTF-8') > $max) {
+        $data[$field] = rtrim(mb_substr($data[$field], 0, $max, 'UTF-8'));
+      }
+    }
+
+    return $data;
+  }
+
+  public static function limitDoc($doc)
+  {
+    $doc = self::limitFields($doc, self::DOC_LIMITS);
+
+    foreach (['BillAddress', 'ShipAddress'] as $key) {
+      if (isset($doc[$key])) {
+        $doc[$key] = self::limitFields($doc[$key], self::DOC_ADDRESS_LIMITS);
+      }
+    }
+
+    if (isset($doc['docDet']) && is_array($doc['docDet'])) {
+      foreach ($doc['docDet'] as $i => $detail) {
+        // Linet rejects a line with an empty name
+        if (is_array($detail) && (!isset($detail['name']) || trim((string) $detail['name']) === '')) {
+          $detail['name'] = __('Item', 'linet-erp-woocommerce-integration');
+        }
+        $doc['docDet'][$i] = self::limitFields($detail, self::DOC_DETAIL_LIMITS);
+      }
+    }
+
+    return $doc;
+  }
+
+  /**
    * Construct
    *
    * @param WC_LI_Settings $settings
@@ -133,6 +213,10 @@ class WC_LI_Invoice
       } else {
         $item_id = self::getLinetItemId($product);
         $name = $item['name'];
+      }
+
+      if (trim((string) $name) === '' && $product) {
+        $name = $product->get_name();
       }
 
 
@@ -636,6 +720,7 @@ class WC_LI_Invoice
 
   public function updateAcc($id, $body)
   {
+    $body = self::limitFields($body, self::ACCOUNT_LIMITS);
     $res = WC_LI_Settings::sendAPI('update/account?id=' . $id, $body);
     return ($res->status == 200);
   }
@@ -643,6 +728,7 @@ class WC_LI_Invoice
   public function createAcc($body)
   {
     $body['type'] = 0;
+    $body = self::limitFields($body, self::ACCOUNT_LIMITS);
 
     $res = WC_LI_Settings::sendAPI('create/account', $body);
 
@@ -845,7 +931,7 @@ class WC_LI_Invoice
     $obj = apply_filters('woocommerce_linet_to_array', $obj);
 
 
-    $this->doc = $obj['doc'];
+    $this->doc = self::limitDoc($obj['doc']);
 
 
     return $this->doc;

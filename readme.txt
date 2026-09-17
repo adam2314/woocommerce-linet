@@ -3,7 +3,7 @@ Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 6.0
 Tested up to: 6.9.4
-Stable tag: 3.6.23
+Stable tag: 3.6.24
 License: GPLv2 or later
 Requires PHP: 8.0
 Donate link: http://www.linet.org.il
@@ -47,6 +47,12 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+
+= 2026.09.17 - version 3.6.24 =
+
+* Fix: account name, phone, address and city are cut to the lengths Linet accepts before the account is created or updated, so a long company name or phone no longer makes Linet reject the account (also for accounts created from Elementor and Contact Form 7 forms)
+* Fix: document company, address, city, phone and the billing and shipping address fields are cut to Linet's limits, so a long value no longer stops the document from being created
+* Fix: document line names (products, variations, coupons, shipping and fees) are cut to 255 characters, and a line with an empty name is sent as "Item" instead of being rejected by Linet
 
 = 2026.08.25 - version 3.6.23 =
 
