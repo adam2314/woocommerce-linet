@@ -3,7 +3,7 @@ Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 6.0
 Tested up to: 6.9.4
-Stable tag: 3.6.24
+Stable tag: 3.6.25
 License: GPLv2 or later
 Requires PHP: 8.0
 Donate link: http://www.linet.org.il
@@ -47,6 +47,10 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+
+= 2026.09.18 - version 3.6.25 =
+
+* Fix: 3.6.24 was released without the rate limiter and sync cache classes, causing "Class not found" errors on API calls, the settings page and inventory sync
 
 = 2026.09.17 - version 3.6.24 =
 
