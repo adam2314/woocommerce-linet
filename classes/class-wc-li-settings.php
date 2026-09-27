@@ -18,6 +18,15 @@ class WC_LI_Settings
   // sendAPI() returns empty handed. See WC_LI_Rate_Limiter for the budget.
   const API_MAX_RETRIES = 2;
 
+  /**
+   * Seconds to wait for Linet before giving the call up.
+   *
+   * A healthy call comes back in well under a second, so thirty was a long
+   * time to hold a php process for an answer that was not coming - three of
+   * them in a row cost a product a minute and a half of the run.
+   */
+  const API_TIMEOUT = 15;
+
   // Settings defaults
   private $settings = array();
   private $override = array();
@@ -485,6 +494,17 @@ class WC_LI_Settings
           "</div>"
         ,
       ),
+      'push_skip_linked' => array(
+        'title' => __('Skip Linked (WC->Linet)', 'linet-erp-woocommerce-integration'),
+        'default' => 'off',
+        'type' => 'select',
+        'options' => array(
+          'off' => __('Off', 'linet-erp-woocommerce-integration'),
+          'on' => __('On', 'linet-erp-woocommerce-integration'),
+        ),
+        'description' => __('The WC->Linet push leaves out products, variations and categories that already carry a Linet ID, so a run only sends what has never been pushed. A single product pushed by hand is sent either way.', 'linet-erp-woocommerce-integration'),
+      ),
+
       'syncField' => array(
         'title' => __('Custom Field ID (Product)', 'linet-erp-woocommerce-integration'),
         'default' => '',
@@ -645,10 +665,11 @@ class WC_LI_Settings
   /**
    * Maintenance actions on products.
    *
-   * key=id      delete one product or variation
-   * key=ids     delete a list of products or variations
-   * key=unlink  keep the products, only drop their _linet_id
-   * key=_sku    legacy: keep the oldest product with that sku, delete the rest
+   * key=id        delete one product or variation
+   * key=ids       delete a list of products or variations
+   * key=unlink    keep the products, only drop their _linet_id
+   * key=unlinkall drop every _linet_id and every category mapping
+   * key=_sku      legacy: keep the oldest product with that sku, delete the rest
    */
   public static function LinetDeleteProd()
   {
@@ -663,6 +684,31 @@ class WC_LI_Settings
 
     if ('' === $value) {
       wp_send_json_error(array('message' => __('Nothing to do, no product was given.', 'linet-erp-woocommerce-integration')));
+    }
+
+    if ('unlinkall' === $key) {
+      $products = self::countLinetIdPosts();
+      $terms = self::countLinetIdTerms();
+
+      // delete_all, so the id goes from every product and every term in one
+      // statement each rather than a query per row on a catalogue this size.
+      delete_metadata('post', 0, '_linet_id', '', true);
+      delete_metadata('term', 0, WC_LI_Inventory::CAT_META, '', true);
+
+      wc_delete_product_transients();
+
+      $logger->write("admin maintenance cleared all linet ids: $products products, $terms categories");
+
+      wp_send_json_success(
+        array(
+          'message' => sprintf(
+            /* translators: 1: number of products, 2: number of categories */
+            __('Linet ID cleared from %1$d products and %2$d categories. The next sync will map them again.', 'linet-erp-woocommerce-integration'),
+            $products,
+            $terms
+          ),
+        )
+      );
     }
 
     if ('unlink' === $key) {
@@ -957,6 +1003,10 @@ class WC_LI_Settings
       );
     }
 
+    // The mappings are listed whether or not anything is wrong with them, so
+    // they go on top and do not count towards "nothing was found".
+    $arr = array_merge($this->maintenanceLinetIds(), $arr);
+
     $arr = array_merge($arr, $this->maintenanceLogFiles());
 
     return $arr;
@@ -1206,6 +1256,96 @@ class WC_LI_Settings
    *
    * @return array
    */
+  /**
+   * The Linet ids stored on products and categories, and a way to drop them.
+   *
+   * A Linet id only means anything inside the company it was made in: every
+   * call is answered inside the company the login names, so an id left over
+   * from somewhere else is not seen as missing here, it quietly means a
+   * different record, and a push writes this shop's product over it. An id
+   * does not say where it came from, so the way out is to drop the lot and let
+   * the next sync map everything again, items by sku and categories by name,
+   * which is what the sync already does for a mapping that no longer resolves.
+   *
+   * @return array
+   */
+  private function maintenanceLinetIds()
+  {
+    $products = (int) self::countLinetIdPosts();
+    $terms = (int) self::countLinetIdTerms();
+
+    if (!$products && !$terms) {
+      return array();
+    }
+
+    $html = '<p class="description">' . sprintf(
+      /* translators: 1: number of products, 2: number of categories */
+      esc_html__('%1$d products and %2$d categories carry a Linet ID.', 'linet-erp-woocommerce-integration'),
+      $products,
+      $terms
+    ) . '</p>';
+
+    $html .= '<p class="description">' . esc_html__('An ID is only meaningful in the Linet company it was made in. If any of these came from anywhere else — another company, an imported catalogue, a copied site — they point at unrelated items and categories, and a sync writes over them.', 'linet-erp-woocommerce-integration') . '</p>';
+
+    $html .= '<p class="description">' . esc_html__('Nothing is deleted in WooCommerce or in Linet: the products and categories stay as they are, only the link between them is dropped. The next sync maps them again, items by SKU and categories by name.', 'linet-erp-woocommerce-integration') . '</p>';
+
+    // Documents are the one thing that does not wait for the next sync.
+    if (get_option('wc_linet_sku_find') !== 'on') {
+      $html .= '<p class="description">' . esc_html__('Run a sync straight afterwards: until a product is mapped again, an order line for it goes on the document as the general item. Turning "SKU Find" on avoids that, as the document then looks the item up by SKU rather than by the stored ID.', 'linet-erp-woocommerce-integration') . '</p>';
+    }
+
+    $html .= '<p>' . $this->maintenanceAction(
+      'unlinkall',
+      'all',
+      __('Clear every Linet ID from products and categories', 'linet-erp-woocommerce-integration'),
+      'button'
+    ) . '</p>';
+
+    return array(
+      'maint_linet_ids' => array(
+        'title' => esc_html__('Linet IDs', 'linet-erp-woocommerce-integration'),
+        'default' => '',
+        'type' => 'maint',
+        'html' => $html,
+      ),
+    );
+  }
+
+  /**
+   * Products and variations carrying a Linet id.
+   *
+   * @return int
+   */
+  private static function countLinetIdPosts()
+  {
+    global $wpdb;
+
+    return (int) $wpdb->get_var(
+      "SELECT COUNT(*) FROM {$wpdb->postmeta} pm
+         INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+              WHERE pm.meta_key = '_linet_id'
+                AND pm.meta_value <> ''
+                AND p.post_type IN ('product', 'product_variation')"
+    );
+  }
+
+  /**
+   * product_cat terms carrying a Linet itemcategory id.
+   *
+   * @return int
+   */
+  private static function countLinetIdTerms()
+  {
+    global $wpdb;
+
+    return (int) $wpdb->get_var(
+      $wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->termmeta} WHERE meta_key = %s AND meta_value <> ''",
+        WC_LI_Inventory::CAT_META
+      )
+    );
+  }
+
   private function maintenanceLogFiles()
   {
     $arr = array();
@@ -2199,9 +2339,96 @@ class WC_LI_Settings
               remaining: '<?php echo esc_js(__('%d to go', 'linet-erp-woocommerce-integration')); ?>',
               waiting: '<?php echo esc_js(__('Waiting for Linet: the last call was held %ss to stay inside the 60 a minute limit.', 'linet-erp-woocommerce-integration')); ?>',
               retry: '<?php echo esc_js(__('No answer from the last call, trying again…', 'linet-erp-woocommerce-integration')); ?>',
+              busy: '<?php echo esc_js(__('An earlier pulse of this push is still running, waiting for it…', 'linet-erp-woocommerce-integration')); ?>',
               failed: '<?php echo esc_js(__('The sync stopped: %s. Nothing already synced is lost, start it again to carry on.', 'linet-erp-woocommerce-integration')); ?>',
               done: '<?php echo esc_js(__('Finished — %d in %s, %r.', 'linet-erp-woocommerce-integration')); ?>',
-              reveal: '<?php echo esc_js(__('Click again to push the whole catalogue to Linet', 'linet-erp-woocommerce-integration')); ?>'
+              reveal: '<?php echo esc_js(__('Click again to push the whole catalogue to Linet', 'linet-erp-woocommerce-integration')); ?>',
+              stalled: '<?php echo esc_js(__('the last calls never came back', 'linet-erp-woocommerce-integration')); ?>',
+              stuck: '<?php echo esc_js(__('an earlier pulse of this sync never finished', 'linet-erp-woocommerce-integration')); ?>',
+              noAnswer: '<?php echo esc_js(__('Linet did not answer', 'linet-erp-woocommerce-integration')); ?>'
+            },
+
+            // The call the running pulse is waiting on. A pulse that has gone
+            // quiet is asked again, and the one that went quiet has to be
+            // dropped first: two pulses at once push the same products twice,
+            // and Linet keeps only one item per sku.
+            pulse: null,
+
+            // How long a pulse may be quiet before it is given up on. A slow
+            // pulse is not a stuck one: the throttle alone can hold a single
+            // call back for two minutes, and a pulse makes several calls. A
+            // minute was below what a pulse honestly takes once Linet starts
+            // rate limiting, so the page was dropping pulses that were still
+            // working and asking for the same products again - more weight on
+            // Linet at the one moment Linet is asking for less. This sits
+            // alongside the ttl the server side locks use, so a pulse is
+            // given up on at about the time its lock may be taken over.
+            pulseTimeout: 1000 * 300,
+
+            // Watchdog retries in a row. A pulse that keeps going quiet is a
+            // sync that is not getting anywhere, so the run is stopped instead
+            // of asking again for ever.
+            timeoutErrorCount: 0,
+            timeoutErrorLimit: 3,
+
+            // Pulses turned away because an earlier one still holds the lock.
+            // Enough of them to outlast a lock left behind by a pulse that
+            // died, which may be taken over once its ttl is up.
+            busyRetries: 0,
+            busyRetryLimit: 20,
+
+            dropPulse: function () {
+              var pulse = linet.pulse;
+
+              linet.pulse = null;
+
+              if (pulse) {
+                pulse.abort();
+              }
+            },
+
+            // A call this page dropped itself is not something to report.
+            dropped: function (xhr) {
+              return !!xhr && xhr.statusText === 'abort';
+            },
+
+            // Watch the pulse just sent, and ask for it again if it goes quiet.
+            // `again` is always the same pulse over: a pulse that never came
+            // back did not say how far it got, so the offset cannot move on.
+            watch: function (again) {
+              clearTimeout(linet.resumeTimeOut);
+
+              linet.resumeTimeOut = setTimeout(function () {
+                linet.dropPulse();
+
+                if (linet.timeoutErrorCount >= linet.timeoutErrorLimit) {
+                  linet.ui.fail(linet.syncText.stalled);
+
+                  return;
+                }
+
+                linet.timeoutErrorCount++;
+                linet.ui.note(linet.syncText.retry, 'wait');
+                again();
+              }, linet.pulseTimeout);
+            },
+
+            // Ask again for a pulse that was turned away because an earlier
+            // one still holds the lock, after a wait that grows: a run held up
+            // for minutes should not be asking twelve times a minute the whole
+            // way through.
+            waitForBusy: function (again) {
+              clearTimeout(linet.resumeTimeOut);
+
+              if (linet.busyRetries >= linet.busyRetryLimit) {
+                linet.ui.fail(linet.syncText.stuck);
+
+                return;
+              }
+
+              linet.busyRetries++;
+              linet.ui.note(linet.syncText.busy, 'wait');
+              window.setTimeout(again, Math.min(5000 * linet.busyRetries, 30000));
             },
 
             // Everything the two syncs show goes through here, so a run always
@@ -2589,6 +2816,7 @@ class WC_LI_Settings
               jQuery('#wclin-warn').text('');
               linet.ui.start(linet.syncText.toLinet);
               linet.timeoutErrorCount = 0;
+              linet.busyRetries = 0;
 
               //phase 1: all categories, then the items
               linet.wpCatSync(0);
@@ -2603,17 +2831,11 @@ class WC_LI_Settings
                 'offset': offset
               };
 
-              clearTimeout(linet.resumeTimeOut);
+              linet.watch(function () {
+                linet.wpCatSync(offset);
+              });
 
-              linet.resumeTimeOut = setTimeout(
-                () => {
-                  linet.ui.note(linet.syncText.retry, 'wait');
-                  linet.wpCatSync(offset);
-                  linet.timeoutErrorCount++
-                }, 1000 * 60
-              )
-
-              jQuery.ajax({
+              linet.pulse = jQuery.ajax({
                 url: ajaxurl,
                 method: 'POST',
                 dataType: "json",
@@ -2625,17 +2847,44 @@ class WC_LI_Settings
                 <?php endif; ?>
                                         data: data
               }).done(function (response) {
+                clearTimeout(linet.resumeTimeOut);
+                linet.pulse = null;
+                linet.timeoutErrorCount = 0;
+
+                // An earlier pulse of this push still holds the lock. Nothing
+                // was done, so this offset is asked for again rather than read
+                // as the end of the categories.
+                if (response.busy) {
+                  linet.waitForBusy(function () {
+                    linet.wpCatSync(response.offset);
+                  });
+
+                  return;
+                }
+
+                linet.busyRetries = 0;
+
+                // Linet stopped answering and the run was handed back rather
+                // than walked to the end a timeout at a time.
+                if (response.status === 'Error') {
+                  linet.ui.fail(response.error || linet.syncText.noAnswer);
+
+                  return;
+                }
+
                 linet.ui.tick(linet.syncText.cats, response.offset, response.total);
                 linet.ui.waited(response);
 
                 if (!response.done && response.synced > 0) {
                   linet.wpCatSync(response.offset);
                 } else {
-                  clearTimeout(linet.resumeTimeOut);
-                  linet.timeoutErrorCount = 0;
                   linet.prodSyncStart();
                 }
               }).fail(function (xhr) {
+                if (linet.dropped(xhr)) {
+                  return;
+                }
+
                 clearTimeout(linet.resumeTimeOut);
                 linet.ui.fail(linet.reason(xhr));
               });
@@ -2683,17 +2932,11 @@ class WC_LI_Settings
                 'mode': 1
               };
 
-              clearTimeout(linet.resumeTimeOut);
+              linet.watch(function () {
+                linet.prodSync(offset);
+              });
 
-              linet.resumeTimeOut = setTimeout(
-                () => {
-                  linet.ui.note(linet.syncText.retry, 'wait');
-                  linet.prodSync(offset);
-                  linet.timeoutErrorCount++
-                }, 1000 * 60
-              )
-
-              jQuery.ajax({
+              linet.pulse = jQuery.ajax({
                 url: ajaxurl,
                 method: 'POST',
                 dataType: "json",
@@ -2709,6 +2952,28 @@ class WC_LI_Settings
                 //console.log(response);
                 clearTimeout(linet.resumeTimeOut);
                 linet.timeoutErrorCount = 0;
+                linet.pulse = null;
+
+                // A pulse that went quiet is still working at the site's end,
+                // so the one that replaced it is told to wait rather than push
+                // the same products alongside it.
+                if (response.busy) {
+                  linet.waitForBusy(function () {
+                    linet.prodSync(response.offset);
+                  });
+
+                  return;
+                }
+
+                linet.busyRetries = 0;
+
+                // Linet stopped answering and the run was handed back rather
+                // than walked to the end a timeout at a time.
+                if (response.status === 'Error') {
+                  linet.ui.fail(response.error || linet.syncText.noAnswer);
+
+                  return;
+                }
 
                 linet.ui.tick(linet.syncText.items, response.offset, response.total);
                 linet.ui.waited(response);
@@ -2723,6 +2988,10 @@ class WC_LI_Settings
 
                 linet.prodSync(response.offset);
               }).fail(function (xhr) {
+                if (linet.dropped(xhr)) {
+                  return;
+                }
+
                 clearTimeout(linet.resumeTimeOut);
                 linet.ui.fail(linet.reason(xhr));
               });
@@ -2779,7 +3048,15 @@ class WC_LI_Settings
             fullItemsSync: function () {
               //event.preventDefault();
               linet.ui.start(linet.syncText.toWc);
+              linet.timeoutErrorCount = 0;
+              linet.busyRetries = 0;
 
+              return linet.pullCats();
+            },
+
+            // Phase one of the pull, on its own so that asking for it again
+            // does not put the clock and the bar back to the start.
+            pullCats: function () {
               var data = {
                 'action': 'LinetItemSync',
                 'mode': 'CatSync'
@@ -2798,9 +3075,26 @@ class WC_LI_Settings
                 <?php endif; ?>
                                         data: data
               }).done(function (response) {
+                linet.timeoutErrorCount = 0;
+
+                if (response.busy) {
+                  linet.waitForBusy(function () {
+                    linet.pullCats();
+                  });
+
+                  return;
+                }
+
+                linet.busyRetries = 0;
+
+                if (response.status === 'Error') {
+                  linet.ui.fail(response.error || linet.syncText.noAnswer);
+
+                  return;
+                }
+
                 linet.ui.tick(linet.syncText.cats, response.cats, response.cats);
                 linet.ui.waited(response);
-                linet.timeoutErrorCount = 0;
 
                 linet.itemSync(0);
               }).fail(function (xhr) {
@@ -2819,17 +3113,11 @@ class WC_LI_Settings
               };
 
 
-              clearTimeout(linet.resumeTimeOut);
+              linet.watch(function () {
+                linet.itemSync(offset);
+              });
 
-              linet.resumeTimeOut = setTimeout(
-                () => {
-                  linet.ui.note(linet.syncText.retry, 'wait');
-                  linet.itemSync(offset);
-                  linet.timeoutErrorCount++
-                }, 1000 * 60
-              )
-
-              jQuery.ajax({
+              linet.pulse = jQuery.ajax({
                 url: ajaxurl,
                 method: 'POST',
                 dataType: "json",
@@ -2844,6 +3132,28 @@ class WC_LI_Settings
               }).done(function (response) {
                 clearTimeout(linet.resumeTimeOut);
                 linet.timeoutErrorCount = 0;
+                linet.pulse = null;
+
+                // An earlier pulse is still reading from Linet. Nothing came
+                // back with this one, and an empty answer is what the end of
+                // the run looks like, so it is asked for again instead.
+                if (response.busy) {
+                  linet.waitForBusy(function () {
+                    linet.itemSync(offset);
+                  });
+
+                  return;
+                }
+
+                linet.busyRetries = 0;
+
+                // Linet did not answer, or refused. Again, an empty answer
+                // would otherwise pass for "there is nothing left".
+                if (response.status === 'Error') {
+                  linet.ui.fail(response.error || linet.syncText.noAnswer);
+
+                  return;
+                }
 
                 var done = offset + response.items;
 
@@ -2860,6 +3170,10 @@ class WC_LI_Settings
 
                 }
               }).fail(function (xhr) {
+                if (linet.dropped(xhr)) {
+                  return;
+                }
+
                 clearTimeout(linet.resumeTimeOut);
                 linet.ui.fail(linet.reason(xhr));
               });
@@ -3081,6 +3395,72 @@ class WC_LI_Settings
     );
   }
 
+  /**
+   * Fields holding a file rather than anything worth reading in the log.
+   */
+  const LOG_REDACT = array('base64content');
+
+  /**
+   * A body as the log should see it.
+   *
+   * create/file carries the picture itself, base64 encoded, so the line
+   * written for one picture was the whole file over again, half as long again
+   * for being base64 - megabytes of it per product, and a debug log that was
+   * mostly pictures. What goes to Linet is untouched; only the copy the log
+   * gets has the content swapped for its size.
+   *
+   * Walks nested arrays and objects, because a body can carry the field under
+   * query, and reads the answer as well as the request.
+   *
+   * @param mixed $data
+   *
+   * @return mixed
+   */
+  public static function loggable($data)
+  {
+    if (is_object($data)) {
+      $data = clone $data;
+
+      foreach (get_object_vars($data) as $key => $value) {
+        $data->$key = self::loggableValue($key, $value);
+      }
+
+      return $data;
+    }
+
+    if (is_array($data)) {
+      foreach ($data as $key => $value) {
+        $data[$key] = self::loggableValue($key, $value);
+      }
+
+      return $data;
+    }
+
+    return $data;
+  }
+
+  /**
+   * One field of a body, as the log should see it.
+   *
+   * @param string $key
+   * @param mixed $value
+   *
+   * @return mixed
+   */
+  private static function loggableValue($key, $value)
+  {
+    if (is_array($value) || is_object($value)) {
+      return self::loggable($value);
+    }
+
+    if (is_string($value) && in_array($key, self::LOG_REDACT, true)) {
+      /* translators: %s: size of the file that was left out of the log */
+      return sprintf(__('[%s of base64, not logged]', 'linet-erp-woocommerce-integration'), size_format(strlen($value)));
+    }
+
+    return $value;
+  }
+
   public static function sendAPI($req, $body = array())
   {
 
@@ -3109,12 +3489,12 @@ class WC_LI_Settings
 
     $url = $server . "/api/" . $req;
     // The flags are for the log only, the request itself is encoded below.
-    $logger->write('OWER REQUEST(' . $url . ")\n" . json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    $logger->write('OWER REQUEST(' . $url . ")\n" . json_encode(self::loggable($body), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
     $args = array(
       'method' => 'POST',
       'sslverify' => !$dev,
-      'timeout' => 30,
+      'timeout' => (float) apply_filters('woocommerce_linet_api_timeout', self::API_TIMEOUT),
       'headers' => array(
         'login-id'=> $login_id,
         'login-hash'=> $hash,
@@ -3130,6 +3510,15 @@ class WC_LI_Settings
     // Linet allows 60 requests a minute and answers 429 once that is spent, so
     // wait for a free slot instead of firing straight into the limit.
     for ($attempt = 0; ; $attempt++) {
+      // Linet has stopped answering. The call is not made at all: it would
+      // cost the whole timeout to be told the same thing, and Linet is in no
+      // state to be asked again yet.
+      if (WC_LI_Rate_Limiter::stalled()) {
+        $logger->write("LINET: not answering, $url was not sent\n");
+
+        return null;
+      }
+
       WC_LI_Rate_Limiter::reserve($logger);
 
       $response = wp_remote_post($url, $args);
@@ -3137,9 +3526,19 @@ class WC_LI_Settings
       if (is_wp_error($response)) {
         $error_message = $response->get_error_message();
         $logger->write('Request failed:' . " $error_message\n");
+
+        // A call that never came back holds every process back for a moment,
+        // the same as a 429 does, instead of going straight on to the next.
+        if (WC_LI_Rate_Limiter::is_timeout($response)) {
+          WC_LI_Rate_Limiter::timed_out($logger);
+        }
+
         $decoded = null;
         break;
       }
+
+      // Linet answered, whatever it had to say.
+      WC_LI_Rate_Limiter::answered();
 
       $code = wp_remote_retrieve_response_code($response);
       $decoded = json_decode(wp_remote_retrieve_body($response));
@@ -3162,7 +3561,7 @@ class WC_LI_Settings
     $body = wp_remote_retrieve_body($response);
 
     // Linet answers with \u05de style escapes, re-encode so the log is readable.
-    $logger->write('LINET RESPONSE:' . (null === $decoded ? $body : json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) . "\n");
+    $logger->write('LINET RESPONSE:' . (null === $decoded ? $body : json_encode(self::loggable($decoded), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) . "\n");
 
     //unset($body);
     unset($login_id);
@@ -3220,6 +3619,68 @@ class WC_LI_Settings
     }
 
     return $res->body;
+  }
+
+  /**
+   * Take a named lock, or say that somebody else is holding it.
+   *
+   * A push is walked by the browser, a pulse at a time, and the page re-sends
+   * a pulse that has been quiet for a minute. A slow pulse is not a dead one
+   * though, so the re-send can arrive while the first is still working, and
+   * two runs pushing the same products both look up a sku, both find nothing,
+   * and both create it. One of them then gets the items table saying
+   * "Duplicate entry ... for key 'sku'". This is what keeps them apart.
+   *
+   * The lock is a row of its own in the options table, so the insert that
+   * takes it is one statement and only one process can win it. A pulse that
+   * died without letting go is not allowed to stop the rest of the run, so a
+   * lock older than its ttl may be taken over.
+   *
+   * @param string $name
+   * @param int    $ttl Seconds before a held lock may be taken over.
+   *
+   * @return bool
+   */
+  public static function lock($name, $ttl)
+  {
+    global $wpdb;
+
+    $option = self::OPTION_PREFIX . 'lock_' . $name;
+    $now = time();
+
+    if (add_option($option, (string) $now, '', 'no')) {
+      return true;
+    }
+
+    wp_cache_delete($option, 'options');
+    $held = (int) get_option($option, 0);
+
+    if ($held && ($now - $held) < (int) $ttl) {
+      return false;
+    }
+
+    // Stale. Written with the old value in the where, so of several processes
+    // finding the same stale lock only one takes it over.
+    $taken = $wpdb->query($wpdb->prepare(
+      "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s",
+      (string) $now,
+      $option,
+      (string) $held
+    ));
+
+    wp_cache_delete($option, 'options');
+
+    return 1 === (int) $taken;
+  }
+
+  /**
+   * Let a named lock go. Safe to call when it was never taken.
+   *
+   * @param string $name
+   */
+  public static function unlock($name)
+  {
+    delete_option(self::OPTION_PREFIX . 'lock_' . $name);
   }
 
   public static function TestAjax()

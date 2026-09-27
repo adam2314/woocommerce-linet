@@ -43,6 +43,15 @@ class WC_LI_Rate_Limiter
   /** Seconds to wait for the named lock before giving up on it. */
   const LOCK_TIMEOUT = 10;
 
+  /** Calls in a row that went unanswered, counted across processes. */
+  const TIMEOUT_OPTION = 'wc_linet_api_timeouts';
+
+  /** Unanswered calls in a row before a run is given up on. */
+  const TIMEOUT_LIMIT = 3;
+
+  /** How long every process is held back after one call went unanswered. */
+  const TIMEOUT_BACKOFF = 10;
+
   /** Seconds this request has spent waiting, for the admin screen to show. */
   private static $waited = 0.0;
 
@@ -203,6 +212,144 @@ class WC_LI_Rate_Limiter
 
     return $seconds;
     // The wait itself is counted by reserve(), which is what does the waiting.
+  }
+
+  /**
+   * What a call that never came back looks like, in the transport's own words.
+   *
+   * Two families, and the same thing follows from both - there is no answer to
+   * read a status off, and asking again straight away will be told the same:
+   *
+   * - out of time: curl says "Operation timed out after 15002 milliseconds",
+   *   the socket transport says it in its own words.
+   * - the connection died or was never made: a server that fell over mid
+   *   request answers with nothing at all (curl 52 "Empty reply from server"),
+   *   or drops the socket (curl 56 "Recv failure: Connection reset by peer",
+   *   "OpenSSL SSL_read: Connection reset by peer"), or is not listening at
+   *   all (curl 7 "Failed to connect to ...: Connection refused"). A name that
+   *   will not resolve (curl 6) is the same answer from further away.
+   *
+   * Uploading a picture is what usually finds this: a create/file that Linet
+   * crashes on comes back as an empty reply, and without this the run reads it
+   * as an ordinary failure and walks the whole catalogue asking a server that
+   * is plainly down.
+   */
+  const UNANSWERED_ERRORS = array(
+    'timed out',
+    'timeout',
+    'operation aborted',
+    'empty reply',
+    'connection reset',
+    'recv failure',
+    'send failure',
+    'broken pipe',
+    'connection refused',
+    'failed to connect',
+    'could not connect',
+    'could not resolve host',
+    'name or service not known',
+  );
+
+  /**
+   * Did the call never come back?
+   *
+   * @param WP_Error|array $response Raw wp_remote_* answer.
+   *
+   * @return bool
+   */
+  public static function is_timeout($response)
+  {
+    if (!is_wp_error($response)) {
+      return false;
+    }
+
+    foreach ($response->get_error_messages() as $message) {
+      foreach (self::UNANSWERED_ERRORS as $needle) {
+        if (false !== stripos($message, $needle)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Calls in a row that have gone unanswered.
+   *
+   * @return int
+   */
+  public static function unanswered()
+  {
+    wp_cache_delete(self::TIMEOUT_OPTION, 'options');
+
+    return (int) get_option(self::TIMEOUT_OPTION, 0);
+  }
+
+  /**
+   * Note that a call went unanswered, and hold every process back for a while.
+   *
+   * The wait grows with the count, because the first unanswered call may be
+   * one slow request and the third is Linet saying it cannot keep up.
+   *
+   * @param WC_LI_Logger|false $logger
+   *
+   * @return int The number of unanswered calls in a row, this one included.
+   */
+  public static function timed_out($logger = false)
+  {
+    $count = self::unanswered() + 1;
+
+    update_option(self::TIMEOUT_OPTION, $count, false);
+
+    if ($logger) {
+      $logger->write(sprintf("LINET: %d call(s) in a row went unanswered\n", $count));
+    }
+
+    self::back_off(self::TIMEOUT_BACKOFF * $count, $logger);
+
+    return $count;
+  }
+
+  /**
+   * Note that Linet answered, whatever it had to say.
+   */
+  public static function answered()
+  {
+    if (0 !== self::unanswered()) {
+      update_option(self::TIMEOUT_OPTION, 0, false);
+    }
+  }
+
+  /**
+   * Has Linet stopped answering altogether?
+   *
+   * @return bool
+   */
+  public static function stalled()
+  {
+    if (self::unanswered() < self::TIMEOUT_LIMIT) {
+      return false;
+    }
+
+    // The count on its own would shut Linet out for good if nothing ever got
+    // through again - an order placed an hour later would have its document
+    // refused without Linet ever being asked. So it holds only as long as the
+    // wait the last unanswered call set, and after that one call is let
+    // through to see whether Linet is back. That call either answers, which
+    // clears the count, or does not, which sets a longer wait.
+    $now = microtime(true);
+
+    return self::read_backoff($now) > $now;
+  }
+
+  /**
+   * Start a run with a clean count, so a run is never refused on the strength
+   * of one that ended some time ago.
+   */
+  public static function start_run()
+  {
+    update_option(self::TIMEOUT_OPTION, 0, false);
   }
 
   /**

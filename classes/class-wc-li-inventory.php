@@ -15,9 +15,26 @@ class WC_LI_Inventory
   /** Versions of one attachment remembered before the oldest are dropped. */
   const PIC_SYNC_KEEP = 20;
 
+  /**
+   * Most bytes one picture may weigh before it is sent to Linet (2 MB).
+   *
+   * The file goes up base64 encoded inside the create/file body, which is a
+   * third larger again, so a heavy original is what turns one push into a
+   * request Linet refuses or times out on. Over the limit the smaller
+   * versions WordPress already made are used instead.
+   */
+  const PIC_MAX_BYTES = 2097152;
+
   const IMAGE_DIR = 'images';
 
   const SKU_PREFIX = 'SKU';
+
+  /**
+   * What Linet calls one cell of a matrix. Cells pushed by older versions of
+   * this plugin, and ones made by hand, are 0 instead, so both are read back
+   * as the same thing.
+   */
+  const ITEM_MUTEX_CHILD = 4;
 
   /** Term meta holding the Linet itemcategory id of a product_cat term */
   const CAT_META = '_linet_cat';
@@ -316,7 +333,14 @@ class WC_LI_Inventory
     $cat_id = intval($_POST['id']);
     $catName = sanitize_text_field($_POST['catName']);
 
-    $products = WC_LI_Settings::sendAPI('search/item', array('category_id' => $cat_id));
+    // No limit here, unlike the lookups by sku and by id: the only thing this
+    // answer is used for is how many rows came back, so asking for one row
+    // would make every category read as holding a single item. If Linet ever
+    // carries a total in the envelope, that is what this should ask for with
+    // limit 1 instead of reading the whole category to count it.
+    $products = WC_LI_Settings::sendAPI('newsearch/item', array(
+      'query' => array('category_id' => $cat_id),
+    ));
 
     global $wpdb;
     $term_ids = $wpdb->get_col($wpdb->prepare("SELECT DISTINCT t.term_id
@@ -358,6 +382,12 @@ class WC_LI_Inventory
     if ($mode == 2) {
       //phase 1: push every product_cat to Linet, before any item is touched
       $offset = intval($_POST['offset']);
+
+      // A fresh run is never refused on the strength of one that stalled some
+      // time ago.
+      if (0 === $offset) {
+        WC_LI_Rate_Limiter::start_run();
+      }
       $logger->write("WP->Linet Cat Sync Pulse:$offset");
       echo json_encode(self::WpSmallCatsSyncAjax($offset, $logger));
 
@@ -407,18 +437,78 @@ class WC_LI_Inventory
    */
   public static function WpSmallCatsSyncAjax($offset, $logger)
   {
+    // The same lock as the item push: the two are phases of one run, both
+    // write to Linet, and a pulse the page gave up on is still working.
+    if (!WC_LI_Settings::lock('wp_push', self::PUSH_LOCK_TTL)) {
+      $logger->write("WpSmallCatsSyncAjax: another push is running, offset $offset left alone");
+
+      return array(
+        'status' => 'Success',
+        'busy' => true,
+        'synced' => 0,
+        'offset' => $offset,
+        'total' => count(self::wpCatSyncOrder()),
+        'done' => false,
+        'waited' => WC_LI_Rate_Limiter::waited(),
+      );
+    }
+
+    try {
+      return self::WpSmallCatsSyncRun($offset, $logger);
+    } finally {
+      WC_LI_Settings::unlock('wp_push');
+    }
+  }
+
+  /**
+   * One pulse of the category push, under the lock WpSmallCatsSyncAjax() holds.
+   */
+  private static function WpSmallCatsSyncRun($offset, $logger)
+  {
     $term_ids = self::wpCatSyncOrder();
     $total = count($term_ids);
 
     $synced = 0;
+    $skipped = 0;
+    $skip_linked = self::pushSkipsLinked();
     $runtime = microtime(true);
 
     for ($i = $offset; $i < $total; $i++) {
+      // Linet has stopped answering. Walking the rest of the run would cost a
+      // timeout a call and knock at a door that is plainly shut, so it is
+      // handed back to the page with the reason instead.
+      if (WC_LI_Rate_Limiter::stalled()) {
+        $logger->write("WpSmallCatsSyncAjax: Linet is not answering, the push stops at offset " . ($offset + $synced));
+
+        return array(
+          'status' => 'Error',
+          'error' => __('Linet stopped answering', 'linet-erp-woocommerce-integration'),
+          'synced' => $synced,
+          'offset' => $offset + $synced,
+          'total' => $total,
+          'done' => false,
+          'waited' => WC_LI_Rate_Limiter::waited(),
+        );
+      }
+
       if (microtime(true) - $runtime >= WC_LI_Settings::RUNTIME_LIMIT) {
         break;
       }
+      // Mapped to a Linet category already, and the run was told to leave
+      // those alone. Counted like any other, both because the page follows
+      // the offset and because the phase stops on a pulse that did nothing.
+      if ($skip_linked && (int) get_term_meta($term_ids[$i], self::CAT_META, true)) {
+        $synced++;
+        $skipped++;
+        continue;
+      }
+
       self::WpSingleCatSync($term_ids[$i], $logger);
       $synced++;
+    }
+
+    if ($skipped) {
+      $logger->write("WpSmallCatsSyncAjax: $skipped categories at offset $offset are already mapped, left alone");
     }
 
     return array(
@@ -556,7 +646,75 @@ class WC_LI_Inventory
       "p.post_status = 'publish'");
   }
 
+  /**
+   * How long a push pulse may hold the lock before the next one takes it over.
+   * A pulse gives up its own work after RUNTIME_LIMIT, the rest is the room
+   * that waiting out Linet's rate limit needs.
+   */
+  const PUSH_LOCK_TTL = 300;
+
+  /**
+   * Most files to read off one item when building its gallery.
+   *
+   * A product gallery is a handful of pictures; this is only here so that an
+   * item which has gathered a great many files in Linet cannot turn one
+   * product into a very large answer.
+   */
+  const GALLERY_LIMIT = 50;
+
+  /** The lock one pull holds, so a second does not read Linet alongside it. */
+  const PULL_LOCK = 'linet_pull';
+
+  /** How long a pull pulse may hold the lock before the next one takes over. */
+  const PULL_LOCK_TTL = 300;
+
+  /**
+   * Does the WC->Linet run leave out what is already linked?
+   *
+   * A catalogue that has been pushed once is mostly products Linet already
+   * knows, and every one of them still costs the run a search and an update.
+   * With this on, anything carrying a Linet id is passed over and the run is
+   * only about what has never been sent. It is the whole-catalogue run this
+   * speaks for: a product pushed by hand, or on save, is meant to go up
+   * whatever its id says, and is sent either way.
+   *
+   * @return bool
+   */
+  public static function pushSkipsLinked()
+  {
+    return get_option('wc_linet_push_skip_linked') === 'on';
+  }
+
   public static function WpSmallItemsSyncAjax($offset, $logger)
+  {
+    // Only one pulse pushes at a time. Two at once look up the same sku, both
+    // find nothing, and both create it, which is the duplicate sku the items
+    // table refuses.
+    if (!WC_LI_Settings::lock('wp_push', self::PUSH_LOCK_TTL)) {
+      $logger->write("WpSmallItemsSyncAjax: another push is running, offset $offset left alone");
+
+      return array(
+        'status' => 'Success',
+        'busy' => true,
+        'synced' => 0,
+        'offset' => $offset,
+        'total' => self::publishedProductCount(),
+        'done' => false,
+        'waited' => WC_LI_Rate_Limiter::waited(),
+      );
+    }
+
+    try {
+      return self::WpSmallItemsSyncRun($offset, $logger);
+    } finally {
+      WC_LI_Settings::unlock('wp_push');
+    }
+  }
+
+  /**
+   * One pulse of the item push, under the lock WpSmallItemsSyncAjax() holds.
+   */
+  private static function WpSmallItemsSyncRun($offset, $logger)
   {
     global $wpdb;
     //$parent_id=$item->item->parent_item_id;
@@ -588,19 +746,52 @@ class WC_LI_Inventory
     }
 
     $sync_count = 0;
+    $skipped = 0;
+    $skip_linked = self::pushSkipsLinked();
     $runtime = microtime(true);
 
     foreach ($product_ids as $product_id) {
+      // Linet has stopped answering. Walking the rest of the run would cost a
+      // timeout a call and knock at a door that is plainly shut, so it is
+      // handed back to the page with the reason instead.
+      if (WC_LI_Rate_Limiter::stalled()) {
+        $logger->write("WpSmallItemsSyncAjax: Linet is not answering, the push stops at offset " . ($offset + $sync_count));
+
+        return array(
+          'status' => 'Error',
+          'error' => __('Linet stopped answering', 'linet-erp-woocommerce-integration'),
+          'synced' => $sync_count,
+          'offset' => $offset + $sync_count,
+          'total' => self::publishedProductCount(),
+          'done' => false,
+          'waited' => WC_LI_Rate_Limiter::waited(),
+        );
+      }
+
       // Out of time: stop, and let the next pulse pick these up. The browser
       // moves on by however many were done, so nothing is skipped.
       if (microtime(true) - $runtime >= WC_LI_Settings::RUNTIME_LIMIT) {
         break;
       }
 
+      // Already in Linet, and the run was told to leave those alone. It still
+      // counts towards the offset: the page walks the catalogue by that, so a
+      // product passed over has to move the run along like any other.
+      if ($skip_linked && self::getLinetIdFromPost($product_id)) {
+        $sync_count++;
+        $skipped++;
+        continue;
+      }
+
       self::wpItemSync($product_id, $logger);
       $sync_count++;
     }
     //foreach
+    // One line for the pulse, rather than one per product: a catalogue that is
+    // almost all linked would otherwise write thousands of them.
+    if ($skipped) {
+      $logger->write("WpSmallItemsSyncAjax: $skipped products at offset $offset already have a Linet id, left alone");
+    }
     //sleep(1);
     return array(
       'status' => 'Success',
@@ -616,26 +807,33 @@ class WC_LI_Inventory
   }
 
   /**
-   * Make sure one unit of a ruler is in Linet.
+   * Make sure one unit of a ruler is in Linet, and say which one it is.
    *
    * The ruler and its units are the same for every product that uses the
    * attribute, so once a unit is known to be there the lookup is skipped: a
    * twelve size ruler was costing twelve calls per product, on every push.
    *
-   * @return bool False when Linet did not answer, so nothing is noted down.
+   * What is noted down is the unit's id, not merely that the unit is there:
+   * the id is how a variation says which cell of the matrix it is, so a note
+   * without one is no use. Notes left by an older version say only "it is
+   * there", and are looked up again.
+   *
+   * @return int|false False when Linet did not answer, so nothing is noted down.
    */
-  private static function linetSaveRulerUnit($rulerId, $name, $slug, $order, $logger)
+  private static function linetSaveRulerUnit($rulerId, $name, $slug, $value, $order, $logger)
   {
-    $signature = md5(implode('|', array($rulerId, $name, $slug, $order)));
+    $signature = md5(implode('|', array($rulerId, $name, $slug, $value, $order)));
 
-    if (WC_LI_Sync_Cache::known('rulerunit', $signature)) {
-      return true;
+    $unitId = WC_LI_Sync_Cache::get('rulerunit', $signature);
+
+    if ($unitId && is_numeric($unitId)) {
+      return (int) $unitId;
     }
 
     $rulerUnitBody = array(
       'ruler_id' => $rulerId,
       'name' => $name,
-      'value' => $slug,
+      'value' => $value,
       'uValue' => $order,
       'slug' => $slug
     );
@@ -648,6 +846,8 @@ class WC_LI_Inventory
       return false;
     }
 
+    $unitId = false;
+
     if ($linItem->errorCode == 1000) {
       $newLinItem = WC_LI_Settings::sendAPI('create/MutexRulerUnit', $rulerUnitBody);
 
@@ -656,11 +856,202 @@ class WC_LI_Inventory
 
         return false;
       }
+
+      if (isset($newLinItem->body->id)) {
+        $unitId = (int) $newLinItem->body->id;
+      }
+    } elseif (isset($linItem->body[0]->id)) {
+      $unitId = (int) $linItem->body[0]->id;
     }
 
-    WC_LI_Sync_Cache::remember('rulerunit', $signature);
+    if (!$unitId) {
+      $logger->write("linetSaveRuler: no unit id for $name on ruler $rulerId");
 
-    return true;
+      return false;
+    }
+
+    WC_LI_Sync_Cache::remember('rulerunit', $signature, $unitId);
+
+    return $unitId;
+  }
+
+  /**
+   * The name an attribute's ruler goes under in Linet.
+   *
+   * @return string
+   */
+  private static function rulerName($attr)
+  {
+    $name = str_replace("pa_", "", $attr->get_taxonomy());
+
+    if ($name == "") {
+      $attribute_data = $attr->get_data();
+      $name = $attribute_data['name'];
+    }
+
+    return $name;
+  }
+
+  /**
+   * The id of the ruler an attribute maps to, made if it is not there yet.
+   *
+   * Rulers are global in Linet, so the id found for "Size" once holds for
+   * every product that has a size.
+   *
+   * @return int|false
+   */
+  private static function rulerId($name, $logger)
+  {
+    $rulerId = WC_LI_Sync_Cache::get('ruler', md5($name));
+
+    if ($rulerId) {
+      return (int) $rulerId;
+    }
+
+    $rulerBody = array('name' => $name, 'slug' => $name); //name
+
+    $linItem = WC_LI_Settings::sendAPI('search/MutexRuler', $rulerBody);
+
+    if (!WC_LI_Settings::apiOk($linItem)) {
+      $logger->write("linetSaveRuler: no answer from search/MutexRuler for $name");
+
+      return false;
+    }
+
+    $rulerId = false;
+
+    if ($linItem->errorCode == 1000) {
+      $newLinItem = WC_LI_Settings::sendAPI('create/MutexRuler', $rulerBody);
+
+      if (WC_LI_Settings::apiOk($newLinItem) && $newLinItem->errorCode == 0 && isset($newLinItem->body->id)) {
+        $rulerId = (int) $newLinItem->body->id;
+      }
+    } elseif (isset($linItem->body[0]->id)) {
+      $rulerId = (int) $linItem->body[0]->id;
+    }
+
+    if (!$rulerId) {
+      $logger->write("linetSaveRuler: no ruler id for $name, attribute skipped");
+
+      return false;
+    }
+
+    WC_LI_Sync_Cache::remember('ruler', md5($name), $rulerId);
+
+    return $rulerId;
+  }
+
+  /**
+   * How a ruler unit's value is spelled in Linet.
+   *
+   * @return string
+   */
+  private static function rulerUnitSlug($value)
+  {
+    $slug = str_replace(" ", "", urldecode($value));
+    $slug = str_replace("-", "", $slug);
+    $slug = str_replace("(", "", $slug);
+    $slug = str_replace(")", "", $slug);
+
+    return $slug;
+  }
+
+  /**
+   * The code Linet files a ruler unit under.
+   *
+   * Linet will only take Code 39 here - digits, capitals, space and - . $ / +
+   * % - so a Hebrew value is refused outright ("Only Code39 characters are
+   * allowed"), and until it is given something it accepts the unit is never
+   * made at all. A value that is already Code 39 once shouted is kept, so a
+   * Latin shop still reads as itself; anything else falls back to a code that
+   * is merely stable and unique. The unit's name and slug are untouched, so
+   * what is read in Linet is still the word itself.
+   *
+   * @param string $slug     The unit's value as WooCommerce spells it.
+   * @param string $fallback Used when that spelling is not Code 39.
+   *
+   * @return string
+   */
+  private static function rulerUnitValue($slug, $fallback)
+  {
+    $value = strtoupper($slug);
+
+    if ($value !== '' && !preg_match('/[^0-9A-Z \-.$\/+%]/', $value)) {
+      return $value;
+    }
+
+    return $fallback;
+  }
+
+  /**
+   * A Code 39 code for an option that has no term id to fall back on.
+   *
+   * Local attributes are not terms, so there is no id to lean on. The code has
+   * to be the same every run or the unit is made again beside itself, and it
+   * has to tell two options of one ruler apart, which a digest of both does.
+   *
+   * @return string
+   */
+  private static function rulerUnitCode($rulerName, $option)
+  {
+    return 'U' . strtoupper(base_convert((string) crc32($rulerName . '|' . $option), 10, 36));
+  }
+
+  /**
+   * One attribute's options, in the order its ruler units are numbered from.
+   *
+   * The units are made from this list and a variation is placed against it,
+   * so both have to walk the very same list in the very same order, or a
+   * variation ends up on a unit that means something else.
+   *
+   * Each option carries the name and value Linet holds the unit under, its
+   * 1-based position, and the spellings the option can be written in - what a
+   * variation holds is the term slug, which is not what Linet is given.
+   *
+   * @return array
+   */
+  private static function rulerOptions($attr)
+  {
+    $options = array();
+    $terms = $attr->get_terms();
+    $order = 0;
+
+    if (is_null($terms)) {
+      $attribute_data = $attr->get_data();
+      $rulerName = self::rulerName($attr);
+
+      foreach ($attribute_data["options"] as $term) {
+        $order++;
+
+        $slug = self::rulerUnitSlug($term);
+
+        $options[] = array(
+          'name' => $term,
+          'slug' => $slug,
+          'value' => self::rulerUnitValue($slug, self::rulerUnitCode($rulerName, $term)),
+          'order' => $order,
+          'match' => array($term),
+        );
+      }
+
+      return $options;
+    }
+
+    foreach ($terms as $term) {
+      $order++;
+
+      $slug = self::rulerUnitSlug($term->slug);
+
+      $options[] = array(
+        'name' => $term->name,
+        'slug' => $slug,
+        'value' => self::rulerUnitValue($slug, (string) $term->term_id),
+        'order' => $order,
+        'match' => array($term->slug, $term->name),
+      );
+    }
+
+    return $options;
   }
 
   public static function linetSaveRuler($attr, $item_id, $line, $logger = null)
@@ -669,45 +1060,12 @@ class WC_LI_Inventory
       $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
     }
 
-    $typeBody = array('name' => str_replace("pa_", "", $attr->get_taxonomy())); //name
+    $name = self::rulerName($attr);
 
-    $attribute_data = $attr->get_data();
-
-    $name = $typeBody['name'] == "" ? $attribute_data['name'] : $typeBody['name'];
-
-
-    $rulerBody = array('name' => $name, 'slug' => $name); //name
-
-    // Rulers are global in Linet, so the id found for "Size" once holds for
-    // every product that has a size.
-    $rulerId = WC_LI_Sync_Cache::get('ruler', md5($name));
+    $rulerId = self::rulerId($name, $logger);
 
     if (!$rulerId) {
-      $linItem = WC_LI_Settings::sendAPI('search/MutexRuler', $rulerBody);
-
-      if (!WC_LI_Settings::apiOk($linItem)) {
-        $logger->write("linetSaveRuler: no answer from search/MutexRuler for $name");
-
-        return false;
-      }
-
-      if ($linItem->errorCode == 1000) {
-        //create body pic?
-        $newLinItem = WC_LI_Settings::sendAPI('create/MutexRuler', $rulerBody);
-        if (WC_LI_Settings::apiOk($newLinItem) && $newLinItem->errorCode == 0) {
-          $rulerId = $newLinItem->body->id;
-        }
-      } else {
-        $rulerId = isset($linItem->body[0]->id) ? $linItem->body[0]->id : false;
-      }
-
-      if (!$rulerId) {
-        $logger->write("linetSaveRuler: no ruler id for $name, attribute skipped");
-
-        return false;
-      }
-
-      WC_LI_Sync_Cache::remember('ruler', md5($name), $rulerId);
+      return false;
     }
 
     // This one really is per item, but a push repeats it for every product on
@@ -739,31 +1097,8 @@ class WC_LI_Inventory
       }
     }
 
-    $terms = $attr->get_terms();
-    $order = 0;
-
-    if (is_null($terms)) {
-      foreach ($attribute_data["options"] as $term) {
-        $order++;
-
-        $slug = str_replace(" ", "", urldecode($term));
-        $slug = str_replace("-", "", $slug);
-        $slug = str_replace("(", "", $slug);
-        $slug = str_replace(")", "", $slug);
-
-        self::linetSaveRulerUnit($rulerId, $term, $slug, $order, $logger);
-      }
-    } else {
-      foreach ($terms as $term) {
-        $order++;
-
-        $slug = str_replace(" ", "", urldecode($term->slug));
-        $slug = str_replace("-", "", $slug);
-        $slug = str_replace("(", "", $slug);
-        $slug = str_replace(")", "", $slug);
-
-        self::linetSaveRulerUnit($rulerId, $term->name, $slug, $order, $logger);
-      }
+    foreach (self::rulerOptions($attr) as $option) {
+      self::linetSaveRulerUnit($rulerId, $option['name'], $option['slug'], $option['value'], $option['order'], $logger);
     }
 
     //var_dump();exit;
@@ -787,33 +1122,384 @@ class WC_LI_Inventory
   }
 
 
+  /**
+   * Where a variation's value sits in the parent's list of options.
+   *
+   * The position is what tells one variation's sku from its siblings', so a
+   * value that cannot be placed has to stay unplaced: answering with a
+   * position anyway gives every variation of the product the same sku, and
+   * the sku is what the push looks items up by, so the whole set ends up on
+   * one Linet item.
+   *
+   * @param int    $product_id     Parent product.
+   * @param string $attribute_name Attribute name, without the attribute_ prefix.
+   * @param string $value          Value as the variation holds it.
+   * @param object $logger
+   *
+   * @return int|false 1-based position, or false if the value is not an option.
+   */
   public static function get_product_attribute_index( $product_id, $attribute_name, $value,$logger ) {
     $product = wc_get_product( $product_id );
+
+    if ( ! $product ) {
+      return false;
+    }
+
     $attributes = $product->get_attributes();
     //$logger->write(print_r($attributes,true));
 
     if ( ! isset( $attributes[$attribute_name] ) ) {
+        $logger->write("get_product_attribute_index: $attribute_name is not an attribute of product $product_id");
+
         return false;
     }
 
     $attribute = $attributes[$attribute_name];
 
-    // Get full option list
-    if ( $attribute->is_taxonomy() ) {
-      $terms = wc_get_product_terms( $product_id, $attribute_name, ['fields' => 'all'] );
-      $options = wp_list_pluck( $terms, 'slug' );
-    } else {
-      $options = $attribute->get_options();
-      $options = array_map( 'sanitize_title', $options );
+    // Get full option list. A variation holds the slug of the term, but a
+    // term whose slug was not made by WordPress itself does not always spell
+    // it the way sanitizing the name would - Hebrew terms in particular are
+    // sometimes kept as they were typed - so the name counts as a spelling
+    // of the option too.
+    // The position has to be counted off the very list that linetSaveRuler()
+    // numbers the ruler units from, which is the attribute's own option order
+    // as the product saved it. wc_get_product_terms() answers in alphabetical
+    // order instead, so counting from it put the variation on a different unit
+    // of the ruler than the one it means whenever the two orders disagreed.
+    $options = array();
+
+    foreach ( self::rulerOptions( $attribute ) as $option ) {
+      $options[] = $option['match'];
     }
 
-    // Normalize
-    $value = sanitize_title( $value );
-    $logger->write("get_product_attribute_index $value");
+    $logger->write("get_product_attribute_index " . urldecode( $value ));
     //$logger->write(print_r($options,true));
 
-    return array_search( $value, $options )+1;
+    $index = self::attributeOptionIndex( $value, $options );
+
+    if ( false === $index ) {
+      $logger->write("get_product_attribute_index: " . urldecode( $value ) . " is not one of the options of $attribute_name on product $product_id");
+
+      return false;
+    }
+
+    return $index + 1;
 }
+
+  /**
+   * Position of a value among a parent's options, counting from zero.
+   *
+   * @param string $value
+   * @param array  $options One entry per option, each the spellings it has.
+   *
+   * @return int|false
+   */
+  private static function attributeOptionIndex( $value, $options )
+  {
+    $wanted = self::attributeValueForms( $value );
+
+    if ( empty( $wanted ) ) {
+      // An attribute left on "any" has no value to place.
+      return false;
+    }
+
+    foreach ( $options as $index => $spellings ) {
+      foreach ( $spellings as $spelling ) {
+        if ( array_intersect( $wanted, self::attributeValueForms( $spelling ) ) ) {
+          return $index;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * The spellings one attribute value can be written in.
+   *
+   * What a variation holds and what the attribute offers are both written by
+   * hand often enough that one of them may be percent-encoded, or cased,
+   * differently from the other, so each is compared in every form it can take
+   * rather than in one chosen form.
+   *
+   * @param string $value
+   *
+   * @return array
+   */
+  private static function attributeValueForms( $value )
+  {
+    $value = (string) $value;
+
+    $forms = array(
+      $value,
+      urldecode( $value ),
+      sanitize_title( $value ),
+      sanitize_title( urldecode( $value ) ),
+    );
+
+    $forms = array_filter( $forms, 'strlen' );
+
+    foreach ( $forms as $key => $form ) {
+      $forms[$key] = function_exists( 'mb_strtolower' ) ? mb_strtolower( $form, 'UTF-8' ) : strtolower( $form );
+    }
+
+    return array_values( array_unique( $forms ) );
+  }
+
+  /**
+   * Where a variation sits on its parent's rulers, as Linet wants it told.
+   *
+   * The old way of saying this was the sku: the parent's sku and then one
+   * number per ruler, the position of the value among the parent's options.
+   * Linet reads the cell off the item itself now - eavMTR{ruler_id} holding
+   * the id of the MutexRulerUnit - which is what leaves the sku free.
+   *
+   * An attribute that cannot be placed is left out rather than guessed at: a
+   * wrong cell puts the variation somewhere in the matrix it does not belong,
+   * which is worse than its not being placed at all.
+   *
+   * @param object $product Variation.
+   * @param object $logger
+   *
+   * @return array eavMTR{ruler_id} => unit id. Empty when nothing was placed.
+   */
+  private static function mutexCells($product, $logger)
+  {
+    $cells = array();
+
+    $parent = wc_get_product($product->get_parent_id());
+
+    if (!$parent) {
+      $logger->write("mutexCells: variation " . $product->get_id() . " has no parent product");
+
+      return $cells;
+    }
+
+    $attributes = $parent->get_attributes();
+
+    foreach (wc_get_product_variation_attributes($product->get_id()) as $attr_name => $value) {
+      $attr_name = str_replace("attribute_", "", $attr_name);
+
+      $logger->write("mutexCells " . urldecode($attr_name) . ": " . urldecode($value));
+
+      if (!isset($attributes[$attr_name])) {
+        $logger->write("mutexCells: $attr_name is not an attribute of product " . $parent->get_id());
+
+        continue;
+      }
+
+      $attr = $attributes[$attr_name];
+
+      if (!$attr->get_variation()) {
+        continue;
+      }
+
+      $options = self::rulerOptions($attr);
+      $spellings = array();
+
+      foreach ($options as $option) {
+        $spellings[] = $option['match'];
+      }
+
+      $index = self::attributeOptionIndex($value, $spellings);
+
+      if (false === $index) {
+        // An attribute left on "any" lands here too, and rightly: there is no
+        // one unit of the ruler for it to sit on.
+        $logger->write("mutexCells: " . urldecode($value) . " is not one of the options of $attr_name, no cell for it");
+
+        continue;
+      }
+
+      $rulerId = self::rulerId(self::rulerName($attr), $logger);
+
+      if (!$rulerId) {
+        continue;
+      }
+
+      $option = $options[$index];
+
+      $unitId = self::linetSaveRulerUnit($rulerId, $option['name'], $option['slug'], $option['value'], $option['order'], $logger);
+
+      if (!$unitId) {
+        continue;
+      }
+
+      $cells['eavMTR' . $rulerId] = $unitId;
+    }
+
+    return $cells;
+  }
+
+  /**
+   * The sku a variation was pushed under before the rulers carried the cell.
+   *
+   * Worth knowing only so that an item that went up under it is found and
+   * renamed, rather than created a second time beside itself.
+   *
+   * @return string
+   */
+  private static function legacyVariationSku($product, $logger)
+  {
+    $parent_sku = self::getProdSku($product->get_parent_id());
+    $sku = array($parent_sku);
+    $placed = false;
+
+    foreach (wc_get_product_variation_attributes($product->get_id()) as $attr_name => $value) {
+      $index = self::get_product_attribute_index($product->get_parent_id(), str_replace("attribute_", "", $attr_name), $value, $logger);
+
+      if (false === $index) {
+        $placed = false;
+        break;
+      }
+
+      $sku[] = $index;
+      $placed = true;
+    }
+
+    if (!$placed) {
+      $sku = array($parent_sku, $product->get_id());
+    }
+
+    return implode("-", $sku);
+  }
+
+  /**
+   * Did Linet answer with "there is no such thing"?
+   *
+   * Everything comes back wrapped in {status, text, body, errorCode}, and 1000
+   * is the code for a search that matched nothing. A call that did not come
+   * back at all is not that, which matters: nothing may be created on it.
+   *
+   * @param mixed $res
+   *
+   * @return bool
+   */
+  private static function apiMissing($res)
+  {
+    return is_object($res) && isset($res->errorCode) && (int) $res->errorCode === 1000;
+  }
+
+  /**
+   * Did a create/ call come back with an item?
+   *
+   * @param mixed $res
+   *
+   * @return bool
+   */
+  private static function apiCreated($res)
+  {
+    return WC_LI_Settings::apiOk($res) &&
+      isset($res->errorCode) &&
+      (int) $res->errorCode === 0 &&
+      isset($res->body->id) &&
+      $res->body->id;
+  }
+
+  /**
+   * Whatever Linet said went wrong, short enough for one log line.
+   *
+   * A refused call can arrive as the usual envelope, or, when the items table
+   * itself refused, as a bare yii exception with name and message.
+   *
+   * @param mixed $res
+   *
+   * @return string
+   */
+  private static function apiReason($res)
+  {
+    if (!is_object($res)) {
+      return 'no answer';
+    }
+
+    foreach (array('text', 'message', 'name') as $field) {
+      if (isset($res->$field) && is_string($res->$field) && $res->$field !== '') {
+        return substr($res->$field, 0, 300);
+      }
+    }
+
+    return substr((string) json_encode($res, JSON_UNESCAPED_UNICODE), 0, 300);
+  }
+
+  /**
+   * The id of the Linet item that carries this sku.
+   *
+   * Told apart on purpose: false is Linet saying there is no such item, and
+   * null is Linet not saying anything. Only the first of those is a reason to
+   * create, because the sku column is unique in the items table and an insert
+   * over a sku that is already there comes back as a database error, not as a
+   * refusal the sync can read.
+   *
+   * @param string        $itemSku
+   * @param WC_LI_Logger  $logger
+   * @param bool          $inactive_too Look for switched off items as well.
+   *                                    active 0 means hidden from every
+   *                                    listing, the searches included, while
+   *                                    the sku still holds the unique key, and
+   *                                    the only way to see those is to ask for
+   *                                    active 0 on its own: that query leaves
+   *                                    the live items out in return.
+   *
+   * @return int|false|null
+   */
+  private static function linetItemIdBySku($itemSku, $logger, $inactive_too = false)
+  {
+    // newsearch is where Linet documents filtering: the fields go under query,
+    // and limit/offset page the answer. A sku is unique in the items table, so
+    // one row is all there is to find and asking for more only makes Linet
+    // build a page that is thrown away.
+    $queries = array(array('newsearch/item', array(
+      'limit' => 1,
+      'query' => array('sku' => $itemSku),
+    )));
+
+    if ($inactive_too) {
+      $queries[] = array('newsearch/item', array(
+        'limit' => 1,
+        'query' => array('sku' => $itemSku, 'active' => 0),
+      ));
+    }
+
+    $answered = false;
+    $first_row = false;
+
+    foreach ($queries as $query) {
+      $res = WC_LI_Settings::sendAPI($query[0], $query[1]);
+
+      if (self::apiMissing($res)) {
+        $answered = true;
+        continue;
+      }
+
+      if (!WC_LI_Settings::apiOk($res)) {
+        continue;
+      }
+
+      $answered = true;
+
+      foreach (WC_LI_Settings::apiRows($res) as $row) {
+        if (!isset($row->id) || !$row->id) {
+          continue;
+        }
+
+        // The sku that was asked for wins, so a search that answers more
+        // widely than it was asked cannot hand the product the wrong item.
+        if (isset($row->sku) && 0 === strcasecmp((string) $row->sku, (string) $itemSku)) {
+          return (int) $row->id;
+        }
+
+        if (false === $first_row) {
+          $first_row = (int) $row->id;
+        }
+      }
+    }
+
+    if (false !== $first_row) {
+      return $first_row;
+    }
+
+    return $answered ? false : null;
+  }
 
   public static function WpItemSync($post_id, $logger)
   { //wp->linet
@@ -858,43 +1544,48 @@ class WC_LI_Inventory
       if ($terms[0]->name == 'variable') {
         $isProduct = 3;
         $logger->write("WpItemSync sku(variable): " . $itemSku);
-
-        if (strpos($itemSku, '-') !== false) {
-          $itemSku = str_replace("-", "", $itemSku);
-          $product->set_sku($itemSku);
-          $product->save();
-
-        }
       }
     }
+
+    $is_variation = false;
+    $mutex_cells = array();
 
     if ($product_type == 'product_variation' || $product_type == 'variation') {
-      $isProduct = 0;
-      $sku = array(self::getProdSku($product->get_parent_id()));
-      foreach (wc_get_product_variation_attributes($product->get_id()) as $attr_name=>$val) {
-        $tval = str_replace(" ", "", urldecode($val));
-        $tval = str_replace("-", "", $tval);
-        $tval = str_replace("(", "", $tval);
-        $tval = str_replace(")", "", $tval);
-        $tval = str_replace("/", "", $tval);
-        $tval = str_replace("+", "", $tval);
-        $tval = str_replace("\\", "", $tval);
+      $isProduct = self::ITEM_MUTEX_CHILD;
+      $is_variation = true;
 
-        //$sku[] = $tval;
-        $logger->write("WpItemSync ".urldecode($attr_name).": $val");
+      // Which cell of the parent's matrix this is is said by the ruler unit
+      // ids below, not by numbers packed into the sku the way it used to be,
+      // so the sku is free to be the variation's own.
+      //
+      // get_sku() on a variation that has none of its own answers with the
+      // parent's. The push looks items up by sku, so taking that would hand
+      // the parent's Linet item to the child: what the variation actually
+      // holds is what counts, and a variation holding nothing is told apart
+      // by its id.
+      $parent_sku = self::getProdSku($product->get_parent_id());
 
-        $index = self::get_product_attribute_index( $product->get_parent_id(), str_replace("attribute_","",$attr_name), $val,$logger );
+      $itemSku = $product->get_sku('edit');
 
-        $sku[] = $index;
+      if ($itemSku == '' || $itemSku == $parent_sku) {
+        $itemSku = self::SKU_PREFIX . $post_id;
       }
-      $itemSku = implode("-", $sku);
-      $logger->write("WpItemSync sku($product_type): $itemSku");
+
+      $mutex_cells = self::mutexCells($product, $logger);
+
+      if (!count($mutex_cells)) {
+        $logger->write("WpItemSync: variation " . $product->get_id() . " sits on no ruler, pushed without a cell");
+      }
+
+      $logger->write("WpItemSync sku($product_type): $itemSku " . json_encode($mutex_cells));
 
     }
 
+    // An int, because a parent that has not been pushed yet has no _linet_id
+    // and get_post_meta() answers with '', which went up to Linet as "".
     $parent_item_id = 0;
     if ($product->get_parent_id()) {
-      $parent_item_id = self::getLinetIdFromPost($product->get_parent_id());
+      $parent_item_id = (int) self::getLinetIdFromPost($product->get_parent_id());
     }
 
 
@@ -935,6 +1626,13 @@ class WC_LI_Inventory
       //_manage_stock=yes
       //_stock
     );
+    // Where the variation sits on each of the parent's rulers: the id of the
+    // ruler unit, under the id of the ruler it belongs to. Empty for anything
+    // that is not a variation.
+    foreach ($mutex_cells as $mutex_field => $mutex_unit_id) {
+      $body[$mutex_field] = $mutex_unit_id;
+    }
+
     $sale_pricelist_id = get_option('wc_linet_sale_pricelist_id');
 
     if ($ssprice && $sale_pricelist_id) {
@@ -953,8 +1651,25 @@ class WC_LI_Inventory
     $item_id = self::getLinetIdFromPost($product->get_id());
 
     if ($item_id) {
-      $linItem = WC_LI_Settings::sendAPI('search/item', array('id' => $item_id));
-      if ($linItem->errorCode == 1000) {
+      // This only asks whether the id noted on the product is still in Linet,
+      // so one row is all it wants.
+      $linItem = WC_LI_Settings::sendAPI('newsearch/item', array(
+        'limit' => 1,
+        'query' => array('id' => $item_id),
+      ));
+
+      // Nothing came back for the id. Taken two ways, because search/item says
+      // so with errorCode 1000 while a row count of nought is the other way an
+      // answer has of saying it, and newsearch is not documented either way.
+      // An answer that never arrived is neither: that falls through to the
+      // update, as it did before, rather than unpicking the product's id on
+      // the strength of a call that failed.
+      $nothing = self::apiMissing($linItem) ||
+        (WC_LI_Settings::apiOk($linItem) && !WC_LI_Settings::apiRows($linItem));
+
+      if ($nothing) {
+        // The id noted on the product is not in Linet any more, so the sku is
+        // what decides below, rather than updating something that is gone.
         $item_id = false;
       } else {
         $linItem = WC_LI_Settings::sendAPI('update/item?id=' . $item_id, $body);
@@ -963,22 +1678,75 @@ class WC_LI_Inventory
     }
 
     if (!$item_id) {
-      $linItem = WC_LI_Settings::sendAPI('search/item', array('sku' => $itemSku));
+      $found = self::linetItemIdBySku($itemSku, $logger);
 
-      if ($linItem->errorCode == 1000) {
+      // Linet did not answer the search at all (timed out, or the rate limit
+      // ran out): creating now would be creating on a guess, and the guess
+      // that is wrong is exactly the duplicate sku. Left for the next run.
+      if (null === $found) {
+        $logger->write("WpItemSync: sku $itemSku could not be looked up, not pushed");
+
+        return false;
+      }
+
+      // A variation pushed by an older version went up under a sku built of
+      // the parent's sku and one number per ruler. Now that it goes up under
+      // its own, that item has to be found and renamed, or the push makes a
+      // second item beside it.
+      if (false === $found && $is_variation) {
+        $legacy_sku = self::legacyVariationSku($product, $logger);
+
+        if ($legacy_sku != '' && $legacy_sku != $itemSku) {
+          $legacy_id = self::linetItemIdBySku($legacy_sku, $logger);
+
+          if (null === $legacy_id) {
+            $logger->write("WpItemSync: sku $legacy_sku could not be looked up, not pushed");
+
+            return false;
+          }
+
+          if ($legacy_id) {
+            $logger->write("WpItemSync: variation $post_id is item $legacy_id under its old sku $legacy_sku, renaming it to $itemSku");
+
+            $found = $legacy_id;
+          }
+        }
+      }
+
+      if (false === $found) {
         //create body pic?
         $newLinItem = WC_LI_Settings::sendAPI('create/item', $body);
-        if ($newLinItem->errorCode == 0) {
-          $item_id = $newLinItem->body->id;
-          self::smart_update_post_meta($product->get_id(), '_linet_id', $item_id);
+
+        if (self::apiCreated($newLinItem)) {
+          $found = (int) $newLinItem->body->id;
+        } else {
+          // Linet refused the item. The usual reason is that the sku is
+          // already on an item the plain search does not hand back: one that
+          // was switched off in Linet, or one another pulse of this same run
+          // made a moment ago. Either way the items table answers with a raw
+          // "Duplicate entry ... for key 'sku'", and adopting whatever holds
+          // the sku is what stops the product failing the same way for ever.
+          $logger->write("WpItemSync: create refused for sku $itemSku: " . self::apiReason($newLinItem));
+
+          $found = self::linetItemIdBySku($itemSku, $logger, true);
+
+          if (!$found) {
+            $logger->write("WpItemSync: sku $itemSku was neither created nor found, nothing pushed");
+
+            return false;
+          }
+
+          $logger->write("WpItemSync: sku $itemSku is item $found in Linet, updating it instead");
+
+          WC_LI_Settings::sendAPI('update/item?id=' . $found, $body);
         }
       } else {
-        $item_id = $linItem->body[0]->id;
         //update body pic?
-        $linItem = WC_LI_Settings::sendAPI('update/item?id=' . $item_id, $body);
-
-        self::smart_update_post_meta($product->get_id(), '_linet_id', $item_id);
+        WC_LI_Settings::sendAPI('update/item?id=' . $found, $body);
       }
+
+      $item_id = $found;
+      self::smart_update_post_meta($product->get_id(), '_linet_id', $item_id);
     }
 
     if ($item_id) {
@@ -992,7 +1760,13 @@ class WC_LI_Inventory
         foreach ($attrs as $attr) {
           if ($attr->get_variation()) {
             $typeId = self::linetSaveRuler($attr, $item_id, $line, $logger);
-            $line++;
+
+            // Only a ruler that was actually mapped takes up an axis. Counting
+            // on regardless left a gap - 1, then 3 - and the axis a ruler sits
+            // on is what orders the matrix, so the gap was not harmless.
+            if ($typeId) {
+              $line++;
+            }
             //$fields[] = $typeId;
             //$template[] = "{{".$typeId."}}";
           }
@@ -1118,6 +1892,96 @@ class WC_LI_Inventory
     update_post_meta($post_id, self::PIC_SYNC_META, $seen);
   }
 
+  /**
+   * Most bytes one picture may weigh, filter included.
+   *
+   * 0 or less turns the limit off and sends the original whatever its size.
+   *
+   * @return int
+   */
+  private static function picMaxBytes()
+  {
+    return (int) apply_filters('woocommerce_linet_pic_max_bytes', self::PIC_MAX_BYTES);
+  }
+
+  /**
+   * The largest version of an attachment that is still under the size limit.
+   *
+   * The original is used when it fits. When it does not, the sizes WordPress
+   * generated on upload sit next to it on disk, so the widest of those that
+   * fits goes up instead of the original - a smaller picture in Linet being
+   * better than none. An attachment with no version small enough (a huge file
+   * uploaded before its sizes were made, say) has nothing to send.
+   *
+   * @return string|false absolute path of the file to send
+   */
+  private static function picSourceFile($post_id, $path, $logger)
+  {
+    $max = self::picMaxBytes();
+
+    if ($max <= 0) {
+      return $path;
+    }
+
+    $size = @filesize($path);
+
+    // An unreadable size is not a reason to drop the picture; the original is
+    // what would have been sent before this limit existed.
+    if ($size === false || $size <= $max) {
+      return $path;
+    }
+
+    $meta = wp_get_attachment_metadata($post_id);
+    $sizes = (isset($meta['sizes']) && is_array($meta['sizes'])) ? $meta['sizes'] : array();
+
+    // Widest first, so the best picture that fits is the one that is taken.
+    uasort($sizes, function ($a, $b) {
+      $aw = isset($a['width']) ? (int) $a['width'] : 0;
+      $bw = isset($b['width']) ? (int) $b['width'] : 0;
+
+      return $bw <=> $aw;
+    });
+
+    $dir = trailingslashit(dirname($path));
+
+    foreach ($sizes as $name => $size_meta) {
+      if (empty($size_meta['file'])) {
+        continue;
+      }
+
+      $candidate = $dir . $size_meta['file'];
+
+      if (!file_exists($candidate)) {
+        continue;
+      }
+
+      $candidate_size = @filesize($candidate);
+
+      if ($candidate_size === false || $candidate_size > $max) {
+        continue;
+      }
+
+      $logger->write(sprintf(
+        'savePicToLinet: %s is %s, over the %s limit, sending the %s version instead',
+        basename($path),
+        size_format($size),
+        size_format($max),
+        $name
+      ));
+
+      return $candidate;
+    }
+
+    $logger->write(sprintf(
+      'savePicToLinet: %s is %s, over the %s limit and no smaller version fits, not sent',
+      basename($path),
+      size_format($size),
+      size_format($max)
+    ));
+
+    return false;
+  }
+
   public static function savePicToLinet($linet_item_id, $post_id, $thumb = false, $logger = null)
   {
     if (!$logger) {
@@ -1139,12 +2003,20 @@ class WC_LI_Inventory
       if (!file_exists($basePath . $wp_attached_file))
         return false;
 
+      // Whatever is actually sent: the original when it is light enough, one
+      // of its generated sizes when it is not, nothing when none of them is.
+      $sourceFile = self::picSourceFile($post_id, $basePath . $wp_attached_file, $logger);
+
+      if (!$sourceFile) {
+        return false;
+      }
+
       // A push costs a search/file, often a create/file and, for the
       // thumbnail, an update/item on top. That is most of the 60 calls a
       // minute Linet allows, spent again on every run on pictures that have
       // not changed since the last one, so a picture already known to be in
       // Linet is left alone until its fingerprint or the ttl says otherwise.
-      $signature = self::picSignature($linet_item_id, $wp_attached_file, $basePath . $wp_attached_file, $thumb);
+      $signature = self::picSignature($linet_item_id, $wp_attached_file, $sourceFile, $thumb);
 
       if (self::picAlreadySynced($post_id, $signature)) {
         $logger->write("savePicToLinet($linet_item_id/$post_id): $filename unchanged, not sent again");
@@ -1160,7 +2032,14 @@ class WC_LI_Inventory
         "parent_id" => $linet_item_id,
         "nparent_type" => 5,
       ];
-      $fileExsits = WC_LI_Settings::sendAPI('search/file', $body);
+      // The body doubles as the search: the same fields go to create/file
+      // below, so the criteria go under query and $body is left as it is.
+      // One row is all this asks for, because all it wants to know is whether
+      // the picture is there.
+      $fileExsits = WC_LI_Settings::sendAPI('newsearch/file', array(
+        'limit' => 1,
+        'query' => $body,
+      ));
 
       //var_dump($fileExsits);exit;
       // A timeout, a gateway error or missing credentials all come back as
@@ -1175,11 +2054,15 @@ class WC_LI_Inventory
       $searchStatus = isset($fileExsits->status) ? $fileExsits->status : 0;
       $searchError = isset($fileExsits->errorCode) ? $fileExsits->errorCode : -1;
 
-      if (
-        $searchStatus == 200 &&
-        $searchError == 1000
-      ) {
-        $pic = base64_encode(file_get_contents($basePath . $wp_attached_file));
+      // The picture is not in Linet yet. search/file said so with errorCode
+      // 1000; an answer carrying no rows is the other way of saying it, and
+      // newsearch is not documented either way. Both have to mean "create it",
+      // or a picture that is not there is never sent.
+      $missing = ($searchStatus == 200 && $searchError == 1000) ||
+        (WC_LI_Settings::apiOk($fileExsits) && !WC_LI_Settings::apiRows($fileExsits));
+
+      if ($missing) {
+        $pic = base64_encode(file_get_contents($sourceFile));
 
         $body["parent_type"] = "app\models\Item";
         $body["base64content"] = $pic;
@@ -1193,7 +2076,7 @@ class WC_LI_Inventory
         }
       } else {
         if (empty($fileExsits->body) || !is_array($fileExsits->body)) {
-          $logger->write("savePicToLinet($linet_item_id/$post_id): search/file answered status $searchStatus errorCode $searchError with no file for $filename");
+          $logger->write("savePicToLinet($linet_item_id/$post_id): newsearch/file answered status $searchStatus errorCode $searchError with no file for $filename");
 
           return false;
         }
@@ -1301,22 +2184,24 @@ class WC_LI_Inventory
     $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
 
     if ($mode === "CatSync") {
-      $catFilter = self::syncCatParams();
+      // Phase one of a pull, so the count starts clean.
+      WC_LI_Rate_Limiter::start_run();
 
-      $cats = WC_LI_Settings::sendAPI('newsearch/itemcategory', $catFilter);
-      $cats = self::linetCatSyncOrder(WC_LI_Settings::apiRows($cats));
-
-      foreach ($cats as $cat) {
-        self::singleCatSync($cat, $logger);
+      if (!WC_LI_Settings::lock(self::PULL_LOCK, self::PULL_LOCK_TTL)) {
+        $logger->write("catSyncAjax: another pull is running, the categories are left alone");
+        echo json_encode(self::pullBusy());
+        wp_die();
       }
 
-      echo json_encode(
-        array(
-          'status' => 'Success',
-          'cats' => count($cats),
-          'waited' => WC_LI_Rate_Limiter::waited(),
-        )
-      );
+      // wp_die() is kept outside, because it exits and a finally does not run
+      // on the way out.
+      try {
+        $payload = self::linetCatSyncRun($logger);
+      } finally {
+        WC_LI_Settings::unlock(self::PULL_LOCK);
+      }
+
+      echo json_encode($payload);
       wp_die();
     }
 
@@ -1324,31 +2209,19 @@ class WC_LI_Inventory
     if ($mode === "ItemSync") {
       $offset = intval($_POST['offset']);
 
-      $params = self::syncParams();
-      $params['offset'] = $offset;
-      $params['since'] = get_option('wc_linet_last_update');
+      if (!WC_LI_Settings::lock(self::PULL_LOCK, self::PULL_LOCK_TTL)) {
+        $logger->write("catSyncAjax: another pull is running, offset $offset left alone");
+        echo json_encode(self::pullBusy($offset));
+        wp_die();
+      }
 
-      $products = WC_LI_Settings::apiRows(WC_LI_Settings::sendAPI(self::syncStockURL(), $params));
+      try {
+        $payload = self::linetItemSyncRun($offset, $logger);
+      } finally {
+        WC_LI_Settings::unlock(self::PULL_LOCK);
+      }
 
-      $runtime = microtime(true);
-      $sync_count = 0;
-      if (is_array($products))
-        foreach ($products as $prod) {
-          if (microtime(true) - $runtime < WC_LI_Settings::RUNTIME_LIMIT) {
-            self::singleProdSync($prod, $logger);
-            $sync_count++;
-          }
-        }
-
-      echo json_encode(
-        array(
-          'status' => 'Success',
-          'items' => $sync_count,
-          'offset' => $offset + $sync_count,
-          'waited' => WC_LI_Rate_Limiter::waited(),
-        )
-      );
-
+      echo json_encode($payload);
       wp_die();
     }
 
@@ -1363,6 +2236,131 @@ class WC_LI_Inventory
     echo json_encode(array('status' => 'nothing'));
 
     wp_die();
+  }
+
+  /**
+   * Pull every category from Linet, under the lock catSyncAjax() holds.
+   */
+  private static function linetCatSyncRun($logger)
+  {
+    $res = WC_LI_Settings::sendAPI('newsearch/itemcategory', self::syncCatParams());
+
+    if (self::pullFailed($res)) {
+      $logger->write("LinetItemSync: no answer for the categories, the pull is stopped\n");
+
+      return self::pullError();
+    }
+
+    $cats = self::linetCatSyncOrder(WC_LI_Settings::apiRows($res));
+
+    foreach ($cats as $cat) {
+      self::singleCatSync($cat, $logger);
+    }
+
+    return array(
+      'status' => 'Success',
+      'cats' => count($cats),
+      'waited' => WC_LI_Rate_Limiter::waited(),
+    );
+  }
+
+  /**
+   * One pulse of the item pull, under the lock catSyncAjax() holds.
+   */
+  private static function linetItemSyncRun($offset, $logger)
+  {
+    $params = self::syncParams();
+    $params['offset'] = $offset;
+    $params['since'] = get_option('wc_linet_last_update');
+
+    $res = WC_LI_Settings::sendAPI(self::syncStockURL(), $params);
+
+    if (self::pullFailed($res)) {
+      $logger->write("LinetItemSync: no answer for offset $offset, the pull is stopped\n");
+
+      return self::pullError($offset);
+    }
+
+    $products = WC_LI_Settings::apiRows($res);
+
+    $runtime = microtime(true);
+    $sync_count = 0;
+
+    if (is_array($products)) {
+      foreach ($products as $prod) {
+      // Linet has stopped answering. Walking the rest of the run would cost a
+      // timeout a call and knock at a door that is plainly shut, so it is
+      // handed back to the page with the reason instead.
+      if (WC_LI_Rate_Limiter::stalled()) {
+          $logger->write("LinetItemSync: Linet is not answering, the pull stops at offset " . ($offset + $sync_count));
+
+          return self::pullError($offset + $sync_count, $sync_count);
+        }
+
+        if (microtime(true) - $runtime < WC_LI_Settings::RUNTIME_LIMIT) {
+          self::singleProdSync($prod, $logger);
+          $sync_count++;
+        }
+      }
+    }
+
+    return array(
+      'status' => 'Success',
+      'items' => $sync_count,
+      'offset' => $offset + $sync_count,
+      'waited' => WC_LI_Rate_Limiter::waited(),
+    );
+  }
+
+  /**
+   * Did a pull call come back with something that can be walked?
+   *
+   * An answer that is not there is not the same as an answer with no rows in
+   * it. sendAPI() returns null on a network error, on a rate limit that
+   * outlived its retries, and on an html error page where json was meant to
+   * be; all three reach apiRows() as an empty list, which the page reads as
+   * "there is nothing left in Linet" and ends the run calling it a success.
+   *
+   * @return bool True when the call did not come back, so the run has to stop.
+   */
+  private static function pullFailed($res)
+  {
+    // An endpoint that answers with a bare list instead of Linet's envelope.
+    if (is_array($res)) {
+      return false;
+    }
+
+    return !WC_LI_Settings::apiOk($res);
+  }
+
+  /**
+   * The answer a pulse gets when another one is already talking to Linet.
+   */
+  private static function pullBusy($offset = 0)
+  {
+    return array(
+      'status' => 'Success',
+      'busy' => true,
+      'items' => 0,
+      'cats' => 0,
+      'offset' => $offset,
+      'waited' => WC_LI_Rate_Limiter::waited(),
+    );
+  }
+
+  /**
+   * The answer a pulse gets when Linet did not answer it.
+   */
+  private static function pullError($offset = 0, $items = 0)
+  {
+    return array(
+      'status' => 'Error',
+      'error' => __('Linet did not answer', 'linet-erp-woocommerce-integration'),
+      'items' => $items,
+      'cats' => 0,
+      'offset' => $offset,
+      'waited' => WC_LI_Rate_Limiter::waited(),
+    );
   }
 
   /**
@@ -1496,7 +2494,6 @@ class WC_LI_Inventory
     }
 
     update_term_meta($term_id, self::CAT_META, $cat->id);
-
     $picsync = get_option('wc_linet_picsync');
     if ($picsync == 'on') {
       $thumbed = self::getImage($cat->pic, $logger);
@@ -1710,16 +2707,6 @@ class WC_LI_Inventory
   public static function getLinetIdFromPost($post_id)
   {
     return get_post_meta($post_id, '_linet_id', true);
-
-    global $wpdb;
-    $post = $wpdb->get_col($wpdb->prepare("SELECT meta_value FROM {$wpdb->posts} as p LEFT JOIN {$wpdb->postmeta} as pm ON pm.post_id=p.ID WHERE " .
-      "(p.post_type='product' OR p.post_type='product_variation') AND " .
-      "pm.meta_key='_linet_id' AND p.ID=%d LIMIT 1;", $post_id));
-
-    if (count($post) == 1) {
-      return $post[0];
-    }
-    return 0;
   }
 
 
@@ -1764,15 +2751,22 @@ class WC_LI_Inventory
 
 
 
-  public static function findParentBySku($item)
+  /**
+   * Is this Linet item one cell of a matrix, rather than a product of its own?
+   *
+   * @param object $item The item as Linet hands it back.
+   *
+   * @return bool
+   */
+  public static function isMutexChild($item)
   {
-    if ($item->isProduct == 0 && $item->parent_item_id != 0) {
-      $calc_sku = explode('-', $item->sku);
-      if (is_array($calc_sku) && count($calc_sku) >= 1) {
-        return self::findByProdSku($calc_sku[0]);
-      }
+    if (!isset($item->parent_item_id) || !$item->parent_item_id) {
+      return false;
     }
-    return false;
+
+    $type = (int) $item->isProduct;
+
+    return 0 === $type || self::ITEM_MUTEX_CHILD === $type;
   }
 
   public static function updateTaxonomy($item, $product)
@@ -2059,7 +3053,7 @@ class WC_LI_Inventory
     if ($product)
       $post_id = $product->get_id();
 
-    if ($item->item->isProduct == 0 && $item->item->parent_item_id != 0) {
+    if (self::isMutexChild($item->item)) {
       $product_type = "product_variation";
       $product_fc_type = "variation";
 
@@ -2181,11 +3175,18 @@ class WC_LI_Inventory
           $attribute->set_visible(1);
           $attribute->set_variation(1);
 
+          // What this ruler's attribute is filed under. Each branch below
+          // sets its own: keying them all off one variable left every ruler
+          // after the first writing into the slot of the one before it, so a
+          // parent with three rulers came back carrying one attribute.
+          $key = '';
+
           if ($global_attr ) {
             if(isset($item->slugmutex[$mutexIndex])){
               $cutRoler = $item->slugmutex[$mutexIndex];
 
               $taxonomy = wc_attribute_taxonomy_name($cutRoler->rulerSlug);
+              $key = $taxonomy;
   
               $tmparray = array();
   
@@ -2219,10 +3220,20 @@ class WC_LI_Inventory
             $attribute->set_id(0);
             $attribute->set_name($fullRuler->name);
             $attribute->set_options($fullRuler->unitnames);
+            $key = sanitize_title($fullRuler->name);
 
           }
 
-          $attributes[$taxonomy] = $attribute;
+          // Nothing was found to build this ruler's attribute from, so there
+          // is nothing to file: better one attribute short than one standing
+          // in another's place.
+          if ($key === '') {
+            $logger->write("singleProdSync mutex: ruler $mutexIndex gave no attribute, left out");
+
+            continue;
+          }
+
+          $attributes[$key] = $attribute;
 
         }
 
@@ -2245,7 +3256,7 @@ class WC_LI_Inventory
         //delete_transient()
       }
     } else {
-      if ($item->item->isProduct == 0 && $item->item->parent_item_id != 0) {
+      if (self::isMutexChild($item->item)) {
 
         $parent_product = self::findByProdId($item->item->parent_item_id);
 
@@ -2366,7 +3377,7 @@ class WC_LI_Inventory
       }
 
       // has_pictures is Linet's own count of files on the item. When it is 0
-      // there is nothing for search/file to find, and that call was being made
+      // there is nothing for newsearch/file to find, and that call was being made
       // for every product on every run: on a 1000 product catalogue it is the
       // whole minute's budget, sixteen times over.
       if ($item->has_pictures != "0") {
@@ -2377,7 +3388,13 @@ class WC_LI_Inventory
           'parent_id' => $item->item->id
         );
 
-        $galleryImgs = WC_LI_Settings::sendAPI('search/file', $params);
+        // A gallery, so this one is not after a single row. It is bounded all
+        // the same, rather than reading however many files an item has
+        // gathered in Linet to build a gallery out of the first handful.
+        $galleryImgs = WC_LI_Settings::sendAPI('newsearch/file', array(
+          'limit' => (int) apply_filters('woocommerce_linet_gallery_limit', self::GALLERY_LIMIT),
+          'query' => $params,
+        ));
 
         // Only touch the gallery when Linet actually answered. A refused or
         // failed call used to come back as nothing to show, which emptied the
@@ -2395,7 +3412,7 @@ class WC_LI_Inventory
           $logger->write("Linet GalleryImgs: " . implode(",", $imgs));
           $product->set_gallery_image_ids($imgs);
         } else {
-          $logger->write("Linet GalleryImgs: no answer from search/file, gallery left as it is");
+          $logger->write("Linet GalleryImgs: no answer from newsearch/file, gallery left as it is");
         }
       } else {
         $product->set_gallery_image_ids(array());

@@ -686,10 +686,19 @@ class WC_LI_Invoice
         $sku = $product->get_meta('_sku');
 
         if ($sku != "") {
-          $res = WC_LI_Settings::sendAPI('search/item', ['sku' => $sku]);
-          if (is_array($res->body)) {
-            //echo "id(by sku):" . $res->body[0]->id;exit;
-            return $res->body[0]->id;
+          // A sku is unique in Linet's items table, so one row is all there is
+          // to find. Read through apiRows() as well, because a call that went
+          // unanswered comes back as null and reading ->body off it stopped
+          // the document with a php error.
+          $res = WC_LI_Settings::sendAPI('newsearch/item', array(
+            'limit' => 1,
+            'query' => array('sku' => $sku),
+          ));
+
+          $rows = WC_LI_Settings::apiRows($res);
+
+          if (isset($rows[0]->id)) {
+            return $rows[0]->id;
           }
         }
       } else {

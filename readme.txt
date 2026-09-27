@@ -3,7 +3,7 @@ Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 6.0
 Tested up to: 6.9.4
-Stable tag: 3.6.25
+Stable tag: 3.6.29
 License: GPLv2 or later
 Requires PHP: 8.0
 Donate link: http://www.linet.org.il
@@ -47,6 +47,43 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+
+= 2026.09.21 - version 3.6.29 =
+
+* New: three calls in a row that never come back stop the run and say so, instead of walking the rest of the catalogue a timeout at a time. When Linet stopped answering, one product could spend a minute and a half on three calls that were never going to arrive, and the run went on knocking for as long as the page was open. Calls that time out now and again, with answers in between, are not enough to stop anything
+* New: a call that goes unanswered holds every process back before the next one is sent - ten seconds, then twenty, then thirty - the same as a refusal for going over the rate limit already does. A call that never came back is the plainest word Linet has for "not now", and the plugin was answering it by asking again straight away
+* New: the hold lets go by itself once its wait is up, and the next call through decides whether Linet is back. A sync that gave up in the afternoon can never leave an order that evening with its document refused unasked
+* Updated: every item and file lookup now goes through newsearch, which is where Linet documents filtering, rather than search/item and search/file. A lookup by sku or by Linet id asks for a single row, because that is all there is to find; the count of items in a category still reads the category, because a row count is the answer it is after
+* Updated: asking whether a picture is already on an item asks for a single row, and reading an item's gallery asks for at most 50 files, instead of reading every file the item has gathered. The number can be changed with the woocommerce_linet_gallery_limit filter
+* Fix: a picture is created when the answer carries no rows as well as when Linet says so with errorCode 1000, so a picture that is not in Linet yet is still sent whichever way the answer is worded A sku is unique in Linet's items table, so one row is all there is to find, and this is the call the sync makes most - once per product on a push, and again for every line of a document when items are matched by sku
+* Fix: a document whose sku lookup went unanswered no longer stops with a php error from reading the answer that never came
+* Fix: the check for whether the Linet id noted on a product is still there now reads an empty answer as "not there" as well as the not-found reply search/item sends, so an id that points at a deleted item is let go of rather than updated. A lookup that went unanswered is neither, and is left alone as before
+* Updated: a call is given 15 seconds to answer rather than 30. A healthy call comes back in well under a second, so thirty was a long time to hold a php process open for an answer that was not coming
+
+= 2026.09.21 - version 3.6.28 =
+
+* Fix: a sync pulse that has not come back is now given up on after five minutes rather than one, and is asked for again at most three times before the run is stopped. A minute was under what a pulse honestly takes once Linet starts holding calls back, so the page was dropping pulses that were still working and asking for the same products over again - and the pulse it dropped carried on talking to Linet at the site's end. The count of retries was already being kept, but nothing was reading it, so this could go on for as long as the page was left open
+* Fix: only one pulse of a Linet->WooCommerce pull runs at a time. The pull had no lock of its own, so every pulse the page gave up on left another reader behind it, and the number of them talking to Linet at once grew for as long as the sync was left running. The category half of a push is under the same lock as the items
+* Fix: a pulse turned away because an earlier one is still running now waits longer each time instead of asking every five seconds for ever, and gives up after twenty tries
+* Fix: a pull whose call to Linet went unanswered - a network error, a rate limit that outlived its retries, or an error page where the answer was meant to be - now stops the run and says so. An answer that was not there reads exactly like an answer with nothing left in it, so the sync was ending early and reporting that it had finished
+
+= 2026.09.21 - version 3.6.27 =
+
+* New: a variation is placed in its Linet matrix by the ruler unit it sits on, sent on the item itself, instead of by numbers packed into its SKU, and goes up as a matrix cell (item type 4). A variation that went up under the old numbered SKU is found and renamed rather than created a second time beside itself
+* New: a variation keeps its own SKU in Linet, and one that has no SKU of its own is given one rather than taking the parent's. A variable product's SKU is no longer rewritten in WooCommerce to take the dashes out of it
+* New: a variable product can carry more than two attributes in both directions
+* Fix: a variable product coming back from Linet with more than one ruler now carries an attribute for each of them; every ruler after the first was writing over the one before it, leaving the product with a single attribute
+* Fix: a ruler that could not be mapped no longer takes up an axis of the matrix, which was leaving a gap in the order the rulers sit in
+* Fix: the code a ruler unit is filed under in Linet is sent in Code 39, which is all Linet accepts there. A Hebrew attribute value was refused outright ("Only Code39 characters are allowed") and the unit was never created, so no variation could be placed on its ruler. The unit's name and slug are unchanged, so it still reads as the word itself in Linet; only the code falls back, to the WooCommerce term ID
+* Fix: a variation whose parent product has not reached Linet yet sends a parent item of 0 rather than an empty value
+
+= 2026.09.20 - version 3.6.26 =
+
+* Fix: pushing a product whose SKU is already on a Linet item no longer ends the push with a database error from Linet ("Duplicate entry ... for key 'sku'"); the existing item is found and updated instead, including an item that was switched off in Linet, which is looked up with newsearch/item and active 0 and comes back on as part of the update
+* Fix: only one pulse of a WooCommerce to Linet push runs at a time, so a pulse that is slow because of Linet's rate limit and gets asked again by the page can no longer create the same item twice
+* Fix: a product is no longer created in Linet when the search for its SKU went unanswered (timeout, or the rate limit ran out); it is left for the next run
+* Fix: stripping the dashes out of a variable product's SKU is skipped when another product already uses the stripped SKU, instead of stopping the push with a WooCommerce error
+* New: the Maintenance tab lists how many products and categories carry a Linet ID and clears the lot with one button, for IDs that point at items from somewhere other than the connected company. Nothing is deleted in WooCommerce or in Linet, only the link, and the next sync maps everything again, items by SKU and categories by name
 
 = 2026.09.18 - version 3.6.25 =
 
