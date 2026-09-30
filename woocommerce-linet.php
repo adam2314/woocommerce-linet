@@ -7,10 +7,10 @@
  * Author URI: http://www.linet.org.il
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Version: 3.6.29
+ * Version: 3.6.30
  * Tested up to: 7.0
  * Requires at least: 6.0
- * Requires PHP: 8.0
+ * Requires PHP: 7.4
  */
 
 
@@ -19,7 +19,7 @@
 Text Domain: linet-erp-woocommerce-integration
 Domain Path: /languages/
 WC requires at least: 7.0
-WC tested up to: 10.7.0
+WC tested up to: 10.9.4
 
 Copyright 2020  Adam Ben Hour
 
@@ -40,7 +40,7 @@ require_once 'woo-includes/woo-functions.php';
  */
 class WC_Linet
 {
-  const VERSION = '3.6.29';
+  const VERSION = '3.6.30';
 
 
 

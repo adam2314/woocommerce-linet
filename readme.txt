@@ -2,10 +2,10 @@
 Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 6.0
-Tested up to: 6.9.4
-Stable tag: 3.6.29
+Tested up to: 7.0
+Stable tag: 3.6.30
 License: GPLv2 or later
-Requires PHP: 8.0
+Requires PHP: 7.4
 Donate link: http://www.linet.org.il
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -47,6 +47,15 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+
+= 2026.09.30 - version 3.6.30 =
+
+* New: an option that leaves every product, variation and category that already carries a Linet id out of a WC->Linet run, so a run sends only what has never been pushed. A catalogue that has been pushed once is mostly items Linet already knows, and each of them still cost the run a lookup and an update. Off by default, and a product pushed by hand or on save still goes up whatever its id says
+* New: a picture over 2 MB goes up as the largest of the sizes WordPress made for it that fits under the limit, rather than as the original. The file is sent base64 encoded inside the create/file body, half as long again for being encoded, which is what turned one heavy picture into a request Linet refused or never answered. A picture with no version small enough is left out and said so in the log. The limit can be changed, or turned off, with the woocommerce_linet_pic_max_bytes filter
+* New: the J5 fields of a document carry the card token and the approval number of the hold for PayPlus orders, which is what a held J5 is charged against - the same pair a zcredit order already sent. An order with no token sends the transaction uid as before
+* Updated: the picture itself is left out of the log. One create/file wrote the whole file into the debug log, base64 and all, so a run over a catalogue of pictures wrote a log of mostly pictures; the line now says how big the file was instead
+* Updated: the plugin asks for php 7.4 rather than 8.0. Nothing in it needs 8.0 - the newest thing the code uses is from 7.0 - and WooCommerce itself asks for no more than 7.4, so the higher number was only keeping the plugin off sites it runs on perfectly well, and off the update WordPress would otherwise offer them. Tested against php 8.4, WordPress 7.0 and WooCommerce 10.9
+* Fix: a call that died mid request - an empty reply, a connection reset, a refused connection, a name that will not resolve - counts as Linet not answering, the same as a call that ran out of time already did. A create/file that Linet fell over on read as an ordinary failure, so the run went on to ask the same dead server once per product for the rest of the catalogue
 
 = 2026.09.21 - version 3.6.29 =
 
