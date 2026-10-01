@@ -36,6 +36,43 @@ class WC_LI_Inventory
    */
   const ITEM_MUTEX_CHILD = 4;
 
+  /**
+   * What isProduct has to say for a search to leave isProduct alone.
+   *
+   * A newsearch that says nothing about isProduct is answered only out of the
+   * items whose isProduct is not 0, and one cell of a matrix is an item with
+   * isProduct 0 - what Linet writes when the matrix is built there - or 4,
+   * what this plugin sends. So a lookup that leaves the field out cannot see
+   * the cells Linet made itself: a variation that is in Linet reads as
+   * missing, and the push goes on to create it, which Linet then refuses
+   * because the sku is taken. Said out loud, no filter is put on it at all and
+   * every item is looked through, which is what a lookup by a unique key wants.
+   */
+  const ITEM_SEARCH_ALL = -10;
+
+  /**
+   * What active has to say for a search to see a switched off item too.
+   *
+   * There is no "all" to say here the way isProduct has one: a newsearch that
+   * leaves active out is answered out of the live items, and one that names a
+   * state is answered out of that state. A list of both is answered out of
+   * either, which is what a lookup by sku wants - active 0 hides an item from
+   * every listing while its sku still holds the unique key of the items table,
+   * so an item that cannot be seen is exactly the one a create will trip over.
+   */
+  const ITEM_ANY_ACTIVE = array(0, 1);
+
+  /**
+   * Rows to ask for when looking an item up by its sku.
+   *
+   * The sku is unique, so there is only ever one item to find - but Linet
+   * matches it with a LIKE, so a sku that reads as part of another one is
+   * answered with that other item as well, newest first. One row would be
+   * that other item and the sku that was asked for would never be seen, so a
+   * handful are read and the exact one is picked out of them.
+   */
+  const SKU_SEARCH_LIMIT = 20;
+
   /** Term meta holding the Linet itemcategory id of a product_cat term */
   const CAT_META = '_linet_cat';
 
@@ -1432,49 +1469,35 @@ class WC_LI_Inventory
    *
    * @param string        $itemSku
    * @param WC_LI_Logger  $logger
-   * @param bool          $inactive_too Look for switched off items as well.
-   *                                    active 0 means hidden from every
-   *                                    listing, the searches included, while
-   *                                    the sku still holds the unique key, and
-   *                                    the only way to see those is to ask for
-   *                                    active 0 on its own: that query leaves
-   *                                    the live items out in return.
    *
    * @return int|false|null
    */
-  private static function linetItemIdBySku($itemSku, $logger, $inactive_too = false)
+  private static function linetItemIdBySku($itemSku, $logger)
   {
     // newsearch is where Linet documents filtering: the fields go under query,
-    // and limit/offset page the answer. A sku is unique in the items table, so
-    // one row is all there is to find and asking for more only makes Linet
-    // build a page that is thrown away.
-    $queries = array(array('newsearch/item', array(
-      'limit' => 1,
-      'query' => array('sku' => $itemSku),
-    )));
-
-    if ($inactive_too) {
-      $queries[] = array('newsearch/item', array(
-        'limit' => 1,
-        'query' => array('sku' => $itemSku, 'active' => 0),
-      ));
-    }
+    // and limit/offset page the answer. The sku is unique in the items table,
+    // so there is one item to find - but the unique key covers every row of
+    // that table, and a newsearch that says nothing is answered only out of
+    // the live items whose isProduct is not 0. Both are said out loud, so a
+    // switched off item and a cell of a matrix are found by the one call
+    // rather than by a second one that only asked about them.
+    $query = array(
+      'limit' => self::SKU_SEARCH_LIMIT,
+      'query' => array(
+        'sku' => $itemSku,
+        'active' => self::ITEM_ANY_ACTIVE,
+        'isProduct' => self::ITEM_SEARCH_ALL,
+      ),
+    );
 
     $answered = false;
     $first_row = false;
 
-    foreach ($queries as $query) {
-      $res = WC_LI_Settings::sendAPI($query[0], $query[1]);
+    $res = WC_LI_Settings::sendAPI('newsearch/item', $query);
 
-      if (self::apiMissing($res)) {
-        $answered = true;
-        continue;
-      }
-
-      if (!WC_LI_Settings::apiOk($res)) {
-        continue;
-      }
-
+    if (self::apiMissing($res)) {
+      $answered = true;
+    } elseif (WC_LI_Settings::apiOk($res)) {
       $answered = true;
 
       foreach (WC_LI_Settings::apiRows($res) as $row) {
@@ -1655,7 +1678,7 @@ class WC_LI_Inventory
       // so one row is all it wants.
       $linItem = WC_LI_Settings::sendAPI('newsearch/item', array(
         'limit' => 1,
-        'query' => array('id' => $item_id),
+        'query' => array('id' => $item_id, 'isProduct' => self::ITEM_SEARCH_ALL),
       ));
 
       // Nothing came back for the id. Taken two ways, because search/item says
@@ -1728,7 +1751,7 @@ class WC_LI_Inventory
           // the sku is what stops the product failing the same way for ever.
           $logger->write("WpItemSync: create refused for sku $itemSku: " . self::apiReason($newLinItem));
 
-          $found = self::linetItemIdBySku($itemSku, $logger, true);
+          $found = self::linetItemIdBySku($itemSku, $logger);
 
           if (!$found) {
             $logger->write("WpItemSync: sku $itemSku was neither created nor found, nothing pushed");

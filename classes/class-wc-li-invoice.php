@@ -775,12 +775,28 @@ class WC_LI_Invoice
           // to find. Read through apiRows() as well, because a call that went
           // unanswered comes back as null and reading ->body off it stopped
           // the document with a php error.
+          // isProduct and active are both said out loud, so the lookup is
+          // not answered out of the live products alone: a variation sold off
+          // a matrix is an item with isProduct 0, an item retired after it was
+          // sold is active 0, and a line of a document has to find either.
+          // Linet matches the sku with a LIKE, so a handful of rows are read
+          // and the one whose sku is the one asked for is the one taken.
           $res = WC_LI_Settings::sendAPI('newsearch/item', array(
-            'limit' => 1,
-            'query' => array('sku' => $sku),
+            'limit' => WC_LI_Inventory::SKU_SEARCH_LIMIT,
+            'query' => array(
+              'sku' => $sku,
+              'active' => WC_LI_Inventory::ITEM_ANY_ACTIVE,
+              'isProduct' => WC_LI_Inventory::ITEM_SEARCH_ALL,
+            ),
           ));
 
           $rows = WC_LI_Settings::apiRows($res);
+
+          foreach ($rows as $row) {
+            if (isset($row->id) && isset($row->sku) && 0 === strcasecmp((string) $row->sku, (string) $sku)) {
+              return $row->id;
+            }
+          }
 
           if (isset($rows[0]->id)) {
             return $rows[0]->id;

@@ -3,7 +3,7 @@ Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 6.0
 Tested up to: 7.0
-Stable tag: 3.6.30
+Stable tag: 3.6.31
 License: GPLv2 or later
 Requires PHP: 7.4
 Donate link: http://www.linet.org.il
@@ -47,6 +47,12 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+
+= 2026.10.01 - version 3.6.31 =
+
+* Fix: a lookup by sku, and the check on the Linet id a product carries, now say isProduct out loud so Linet does not answer them out of the products alone. One cell of a matrix built in Linet is an item with isProduct 0, which a newsearch leaves out unless it is asked not to, so a variation that was already in Linet read as missing - and the push went on to create it, which Linet refused because the sku was taken. A document line matched by sku finds a cell of a matrix for the same reason
+* Updated: a lookup by sku asks about both states of active at once, so a switched off item holding the sku is found by the one call. It used to take a second call to see those, and only after Linet had already refused to create the item; the sku is unique across the whole items table, switched off rows included, so the first call is the one that has to see them
+* Fix: a lookup by sku reads a handful of rows rather than one. Linet matches a sku with a LIKE, newest first, so a sku that reads as part of a longer one was answered with that other item alone - and the item actually asked for was never in the answer to be picked out of it
 
 = 2026.09.30 - version 3.6.30 =
 
