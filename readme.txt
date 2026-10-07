@@ -3,7 +3,7 @@ Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 6.0
 Tested up to: 7.0
-Stable tag: 3.6.32
+Stable tag: 3.6.33
 License: GPLv2 or later
 Requires PHP: 7.4
 Donate link: http://www.linet.org.il
@@ -47,6 +47,11 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+
+= 2026.10.07 - version 3.6.33 =
+
+* Fix: a PayPlus order paid in one charge goes up as a credit card receipt rather than as installments of 1. PayPlus writes payplus_number_of_payments as 1 for a regular charge too, and any value at all was taken to mean installments; it now takes more than one
+* Fix: a YITH Gift Card that YITH turned into a fee is no longer taken off twice. The fee line already carries it, so the gift card line is left out for such an order
 
 = 2026.10.07 - version 3.6.32 =
 

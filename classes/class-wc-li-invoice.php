@@ -447,9 +447,10 @@ class WC_LI_Invoice
 
     }
 
-    // YITH Gift Cards are not coupons/fees - they are kept in order meta as code => amount
+    // YITH Gift Cards are not coupons/fees - they are kept in order meta as code => amount,
+    // unless YITH turned them into a negative fee, which the fees loop above already sent
     $gift_cards = $order->get_meta('_ywgc_applied_gift_cards');
-    if (is_array($gift_cards)) {
+    if (is_array($gift_cards) && !$order->get_meta('ywgc_gift_card_updated_as_fee')) {
       foreach ($gift_cards as $code => $amount) {
         // skip empty cards and ones already counted as a regular coupon
         if (!(double) $amount || in_array(wc_strtolower($code), $order->get_coupon_codes())) {
@@ -599,11 +600,12 @@ class WC_LI_Invoice
           $rcpt['last_4_digits']['value'] = $payplus_four_digits;
         }
 
-        $payplus_number_of_payments = $order->get_meta('payplus_number_of_payments');
+        // PayPlus writes 1 here for a regular charge too, so only more than one is installments
+        $payplus_number_of_payments = (int) $order->get_meta('payplus_number_of_payments');
 
 
 
-        if ($payplus_number_of_payments) {
+        if ($payplus_number_of_payments > 1) {
           $rcpt["type"] = 6;
           $rcpt['paymentsNo']['value'] = $payplus_number_of_payments;
         }
