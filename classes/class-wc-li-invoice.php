@@ -337,21 +337,12 @@ class WC_LI_Invoice
     if ($order->get_discount_total()) {
       $names = array();
 
-      $discount_total = 0;
       foreach ($order->get_coupon_codes() as $coupon_code) {
         $names[] = $coupon_code;
-        // Get the WC_Coupon object
-        $coupon = new WC_Coupon($coupon_code);
-        $discount_type = $coupon->get_discount_type(); // Get coupon discount type
-        $discount_amount = $coupon->get_amount(); // Get coupon amount
-        if ($discount_type == 'percent') {
-          $discount_total += $total / $discount_amount;
-        } else {
-          $discount_total += $discount_amount;
-        }
       }
 
-      $discount_total = $order->get_total_discount();
+      // lines are sent with VAT (iItemWithVat), so the discount must include VAT too
+      $discount_total = $order->get_total_discount(false);
 
 
 
@@ -425,18 +416,19 @@ class WC_LI_Invoice
 
     foreach ($order->get_fees() as $fee) {
       //foreach ( WC_Cart::get_fees() as $fee) {
+      $fee_price = (double) $fee->get_total() + (double) $fee->get_total_tax();
 
       $detail = [
         "item_id" => $genral_item,
-        "name" => html_entity_decode($fee['name']),
+        "name" => html_entity_decode($fee->get_name()),
         "description" => "",
-        "qty" => ($fee['total'] < 0) ? -1 : 1,
+        "qty" => ($fee_price < 0) ? -1 : 1,
         "currency_id" => $currency_id,
         //"currency_rate" => "1",
         "vat_cat_id" => ($country_id == "IL") ? 1 : 2,
         "account_id" => ($country_id == "IL") ? $income_acc : $income_acc_novat,
         "unit_id" => 0,
-        "iItem" => abs($fee['total']),
+        "iItem" => abs($fee_price),
         "iItemWithVat" => 1
       ];
 
@@ -453,6 +445,56 @@ class WC_LI_Invoice
 
       $total += $obj['detail']['iItem'] * $obj['detail']['qty'];
 
+    }
+
+    // YITH Gift Cards are not coupons/fees - they are kept in order meta as code => amount
+    $gift_cards = $order->get_meta('_ywgc_applied_gift_cards');
+    if (is_array($gift_cards)) {
+      foreach ($gift_cards as $code => $amount) {
+        // skip empty cards and ones already counted as a regular coupon
+        if (!(double) $amount || in_array(wc_strtolower($code), $order->get_coupon_codes())) {
+          continue;
+        }
+
+        $detail = [
+          "item_id" => $genral_item,
+          "name" => "Gift Card: " . $code,
+          "description" => "",
+          "qty" => -1,
+          "currency_id" => $currency_id,
+          //"currency_rate" => "1",
+          "vat_cat_id" => ($country_id == "IL") ? 1 : 2,
+          "account_id" => ($country_id == "IL") ? $income_acc : $income_acc_novat,
+          "unit_id" => 0,
+          "iItem" => abs((double) $amount),
+          "iItemWithVat" => 1
+        ];
+
+        $obj = array(
+          'doc' => $this->doc,
+          'detail' => $detail,
+          'order' => $order
+        );
+
+        $obj = apply_filters('woocommerce_linet_set_order_giftcard', $obj);
+
+        $this->doc = $obj['doc'];
+        $this->doc['docDet'][] = $obj['detail'];
+
+        $total += $obj['detail']['iItem'] * $obj['detail']['qty'];
+      }
+    }
+
+    // warn when the doc total doesn't match what the customer paid (missing/miscalculated lines)
+    $order_total = (double) $order->get_total();
+    if (abs($total - $order_total) > 0.05) {
+      $order->add_order_note(
+        sprintf(
+          __('LINET: Doc. total (%1$s) does not match order total (%2$s).', 'linet-erp-woocommerce-integration'),
+          round($total, 2),
+          round($order_total, 2)
+        )
+      );
     }
 
 

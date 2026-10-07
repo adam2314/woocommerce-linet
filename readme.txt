@@ -3,7 +3,7 @@ Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 6.0
 Tested up to: 7.0
-Stable tag: 3.6.31
+Stable tag: 3.6.32
 License: GPLv2 or later
 Requires PHP: 7.4
 Donate link: http://www.linet.org.il
@@ -47,6 +47,13 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+
+= 2026.10.07 - version 3.6.32 =
+
+* Fix: a YITH Gift Card used on an order goes on the document as a minus line of its own. YITH keeps the card in the order's meta rather than as a coupon or a fee, so the document never saw it and came out higher than what the customer paid by the whole value of the card. A card whose code is also on the order as a coupon is left to the coupon line, so it is not taken off twice
+* Fix: the coupon line carries the discount with VAT. The lines of a document are sent with VAT, and the discount went without it, so every coupon came off short by its VAT
+* Fix: a fee line carries the fee with its VAT, for the same reason
+* New: an order whose document total does not match the order total gets a note saying so, with both totals. The document is still sent
 
 = 2026.10.01 - version 3.6.31 =
 
