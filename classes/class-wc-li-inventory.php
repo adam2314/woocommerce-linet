@@ -3048,6 +3048,7 @@ class WC_LI_Inventory
 
     $parent_id = false;
     $post_id = false;
+    $created = false;
 
     $product = self::findByProdId($item->item->id);
 
@@ -3164,6 +3165,7 @@ class WC_LI_Inventory
       $logger->write("singleProdSync new product save: " . $product->save());
 
       $post_id = $product->get_id();
+      $created = true;
 
     } else {
 
@@ -3368,11 +3370,15 @@ class WC_LI_Inventory
 
     } catch (Exception $e) {
 
-      $product = self::findByProdId($item->item->id);
+      // another product already carrying this linet id means a second call got here first.
+      // only ever drop the product this call made - never one that was already in the shop
+      $other = self::findByProdId($item->item->id);
 
-      if ($product !== false) {
-        $logger->write("singleProdSync: found linet id assuming double fast call, cancel update");
-        $product->delete(true);
+      if ($other !== false && $other->get_id() != $product->get_id()) {
+        $logger->write("singleProdSync: found linet id on product " . $other->get_id() . " assuming double fast call, cancel update");
+        if ($created) {
+          $product->delete(true);
+        }
         return 0;
       }
 

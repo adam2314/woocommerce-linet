@@ -682,9 +682,9 @@ class WC_LI_Invoice
         if ($authNumber) {
           $rcpt['auth_number']['value'] = $authNumber;
         }
-        $numberOfPayments = $order->get_meta('_numberOfPayments');
+        $numberOfPayments = (int) $order->get_meta('_numberOfPayments');
 
-        if ($numberOfPayments) {
+        if ($numberOfPayments > 1) {
           $rcpt["type"] = 6;
           $rcpt['paymentsNo']['value'] = $numberOfPayments;
         }
@@ -699,9 +699,9 @@ class WC_LI_Invoice
         if ($cardcom_Approval_Num) {
           $rcpt['auth_number']['value'] = $cardcom_Approval_Num;
         }
-        $cardcom_NumOfPayments = $order->get_meta('cardcom_NumOfPayments');
+        $cardcom_NumOfPayments = (int) $order->get_meta('cardcom_NumOfPayments');
 
-        if ($cardcom_NumOfPayments) {
+        if ($cardcom_NumOfPayments > 1) {
           $rcpt["type"] = 6;
           $rcpt['paymentsNo']['value'] = $cardcom_NumOfPayments;
         }

@@ -3,7 +3,7 @@ Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 6.0
 Tested up to: 7.0
-Stable tag: 3.6.33
+Stable tag: 3.6.34
 License: GPLv2 or later
 Requires PHP: 7.4
 Donate link: http://www.linet.org.il
@@ -47,6 +47,12 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+
+= 2026.10.08 - version 3.6.34 =
+
+* Fix: a sync no longer stops with a fatal error when Woo refuses an item's sku. When the sku was taken by another product, the check for a second call that had made the same item already left nothing to work on if there was no such call, and the sku fallback was then called on nothing
+* Fix: that same check no longer deletes a product that was already in the shop. It found the product by its Linet id - which, for a product being updated, is the product itself - and deleted it for good. Only a product the sync had just made in that call is dropped now, and only when another product already carries its Linet id
+* Fix: a CreditGuard or Cardcom order paid in one charge goes up as a credit card receipt rather than as installments of 1, as PayPlus orders already do. Any number of payments at all was taken to mean installments; it now takes more than one
 
 = 2026.10.07 - version 3.6.33 =
 
