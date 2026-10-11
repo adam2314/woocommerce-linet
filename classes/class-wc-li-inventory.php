@@ -2942,10 +2942,12 @@ class WC_LI_Inventory
 
     $ruler_wp_id = 0;
 
+    // Match on the slug alone: it is unique in Woo. Requiring the label too
+    // missed an attribute whose label had drifted from Linet's ruler name, and
+    // the create that followed was refused for the taken slug.
     $post = $wpdb->get_col($wpdb->prepare("SELECT attribute_id FROM {$wpdb->prefix}woocommerce_attribute_taxonomies " .
-      //"LEFT JOIN $wpdb->postmeta ON $wpdb->postmeta.post_id=$wpdb->posts.ID AND $wpdb->postmeta.meta_key='_sku'".
-      " WHERE attribute_name=%s AND attribute_label=%s" .
-      " LIMIT 1;", $slug, $name));
+      " WHERE attribute_name=%s" .
+      " LIMIT 1;", wc_sanitize_taxonomy_name($slug)));
 
     if (count($post) == 1) {
 
@@ -2999,11 +3001,7 @@ class WC_LI_Inventory
       $unitslug = strtolower($unit->slug);
 
       if (!$term = get_term_by('slug', $unitslug, $taxonomy)) {
-        $insert = wp_insert_term($unit->name, $taxonomy, array('slug' => $unitslug));
-        $logger->write("syncRuler slug insert" . json_encode($insert));
-
-        $term = get_term_by('slug', $unitslug, $taxonomy);
-
+        $term = self::ensureUnitTerm($unit->name, $unitslug, $taxonomy, $logger);
       } else {
         wp_update_term($term->term_id, $taxonomy, array('name' => $unit->name));
       }
@@ -3023,6 +3021,53 @@ class WC_LI_Inventory
       $logger->write("syncRuler slug $unit->name $unitslug $term_id");
 
     }
+  }
+
+  /**
+   * Find or create the attribute term for a Linet unit, keeping Linet's slug.
+   *
+   * wp_insert_term()/wp_update_term() test the slug with empty(), so a unit
+   * slugged "0" (מידה 0, צבע כללי) gets a slug derived from its name instead,
+   * and every later get_term_by('slug', '0') misses. For that case the slug is
+   * written directly.
+   */
+  private static function ensureUnitTerm($name, $slug, $taxonomy, $logger = null)
+  {
+    global $wpdb;
+
+    $slug = (string) $slug;
+
+    if ($term = get_term_by('slug', $slug, $taxonomy))
+      return $term;
+
+    $insert = wp_insert_term($name, $taxonomy, array('slug' => $slug));
+    if ($logger)
+      $logger->write("ensureUnitTerm insert $taxonomy $slug " . json_encode($insert));
+
+    if (is_wp_error($insert)) {
+      // Only the "0" case is expected to collide with an existing name-slugged term.
+      $term_id = empty($slug) ? (int) $insert->get_error_data('term_exists') : 0;
+    } else {
+      $term_id = (int) $insert['term_id'];
+    }
+
+    if (!$term_id)
+      return false;
+
+    $term = get_term($term_id, $taxonomy);
+    if (!$term || is_wp_error($term))
+      return false;
+
+    // Any other slug is WP's own sanitized form of what we passed - leave it.
+    if (empty($slug) && $term->slug !== $slug) {
+      $wpdb->update($wpdb->terms, array('slug' => $slug), array('term_id' => $term_id));
+      clean_term_cache($term_id, $taxonomy);
+      if ($logger)
+        $logger->write("ensureUnitTerm reslug $taxonomy term:$term_id {$term->slug} -> $slug");
+      $term = get_term($term_id, $taxonomy);
+    }
+
+    return $term;
   }
 
 
@@ -3219,9 +3264,11 @@ class WC_LI_Inventory
                 $term_name = $rolerUnit->name;
                 $term_slug = sanitize_title(strtolower($rolerUnit->slug));
   
-                if (!$term = get_term_by('slug', $term_slug, $taxonomy)) {
-                  wp_insert_term($term_name, $taxonomy, array('slug' => $term_slug));
-                  $term = get_term_by('slug', $term_slug, $taxonomy);
+                $term = self::ensureUnitTerm($term_name, $term_slug, $taxonomy, $logger);
+
+                if (!$term) {
+                  $logger->write("singleProdSync term missing taxonomy:$taxonomy slug:$term_slug");
+                  continue;
                 }
 
                 $logger->write("singleProdSync term lookup taxonomy:$taxonomy slug:$term_slug -> term_id:{$term->term_id} name:" . $term->name);
@@ -3310,9 +3357,11 @@ class WC_LI_Inventory
 
               //$attributes[$taxonomy] = strtolower(urlencode($attr->slug));
 
-              if (!$term = get_term_by('slug', $slug, $taxonomy)) {
-                wp_insert_term($attr->name, $taxonomy, array('slug' => $slug));
-                $term = get_term_by('slug', $slug, $taxonomy);
+              $term = self::ensureUnitTerm($attr->name, $slug, $taxonomy, $logger);
+
+              if (!$term) {
+                $logger->write("singleProdSync term missing taxonomy:$taxonomy slug:$slug");
+                continue;
               }
 
               $logger->write("singleProdSync term lookup taxonomy:$taxonomy slug:$slug -> term_id:{$term->term_id} name:" . $term->name);

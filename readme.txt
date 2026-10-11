@@ -3,7 +3,7 @@ Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 6.0
 Tested up to: 7.0
-Stable tag: 3.6.34
+Stable tag: 3.6.35
 License: GPLv2 or later
 Requires PHP: 7.4
 Donate link: http://www.linet.org.il
@@ -47,6 +47,12 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+
+= 2026.10.11 - version 3.6.35 =
+
+* Fix: a size or color unit whose Linet slug is 0 (מידה 0, צבע כללי) is linked to its term again. WordPress treats a "0" slug as empty and names the term from its name instead, so every lookup by slug 0 missed: the parent got a 0 option and the size-0 variation no attribute. The existing term now gets slug 0 written to it
+* Fix: a product sync no longer puts a 0 into an attribute's options when a unit's term cannot be found; it is left out and logged
+* Fix: a ruler whose attribute is already in Woo under another label (One-Size, ללא-מידה) is found and updated again rather than failing with "slug already in use". The attribute was looked up by slug and label together; it is now looked up by its slug
 
 = 2026.10.08 - version 3.6.34 =
 
