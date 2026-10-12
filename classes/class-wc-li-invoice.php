@@ -163,54 +163,6 @@ class WC_LI_Invoice
     return false;
   }
 
-  /**
-   * The card token off a PayPlus order, out of the answer kept on it.
-   *
-   * payplus_token_uid is only written when the answer that created the order
-   * carried a token, so the whole answer - kept as json under payplus_response
-   * - is the other place to look. Which name the token goes by there depends
-   * on the call that wrote it, so the handful of shapes it takes are all read.
-   *
-   * @param WC_Order $order
-   *
-   * @return string Empty when the order has no token.
-   */
-  private static function payplusToken($order)
-  {
-    $response = json_decode((string) $order->get_meta('payplus_response'), true);
-
-    if (!is_array($response)) {
-      return '';
-    }
-
-    $paths = array(
-      array('token_uid'),
-      array('token'),
-      array('card_information', 'token'),
-      array('data', 'token_uid'),
-      array('data', 'card_information', 'token'),
-    );
-
-    foreach ($paths as $path) {
-      $value = $response;
-
-      foreach ($path as $key) {
-        if (!is_array($value) || !isset($value[$key])) {
-          $value = null;
-          break;
-        }
-
-        $value = $value[$key];
-      }
-
-      if (is_string($value) && '' !== $value) {
-        return $value;
-      }
-    }
-
-    return '';
-  }
-
   public function set_order($order, $doctype)
   {
     $this->doc['doctype'] = $doctype;
@@ -617,21 +569,8 @@ class WC_LI_Invoice
           $rcpt['auth_number']['value'] = $payplus_approval_num;
         }
 
-        // The number a held J5 is charged against is the approval number of
-        // the hold - what ReferenceNumber is for zcredit above. PayPlus keeps
-        // it as payplus_approval_num; an order whose meta was written without
-        // it falls back to the transaction number, which is what this field
-        // carried until now.
-        if ($j5Number) {
-          $payplus_j5_number = $order->get_meta('payplus_approval_num');
-
-          if (!$payplus_j5_number) {
-            $payplus_j5_number = $payplus_approval_num;
-          }
-
-          if ($payplus_j5_number) {
-            $this->doc[$j5Number] = $payplus_j5_number;
-          }
+        if ($j5Number && $payplus_approval_num) {
+          $this->doc[$j5Number] = $payplus_approval_num;
         }
 
 
@@ -642,28 +581,10 @@ class WC_LI_Invoice
           $rcpt['card_no']['value'] = $payplus_transaction_uid;
         }
 
-        // What Linet charges is the card token, not the transaction the money
-        // was held on: a charge goes against the token, which is why the
-        // zcredit case above puts its Token in this field. PayPlus keeps it as
-        // payplus_token_uid when the answer carried one, and keeps the whole
-        // answer as json besides, so it can be read back from there for an
-        // order written before that key existed. With no token to be had the
-        // transaction uid goes up as it did before, so a shop this already
-        // works for is left alone.
-        if ($j5Token) {
-          $payplus_token = $order->get_meta('payplus_token_uid');
-
-          if (!$payplus_token) {
-            $payplus_token = self::payplusToken($order);
-          }
-
-          if (!$payplus_token) {
-            $payplus_token = $payplus_transaction_uid;
-          }
-
-          if ($payplus_token) {
-            $this->doc[$j5Token] = $payplus_token;
-          }
+        // PayPlus charges a held J5 by the transaction uid alone (Transactions/ChargeByTransactionUID),
+        // so that is what goes up - not the card token, which would make a new charge instead
+        if ($j5Token && $payplus_transaction_uid) {
+          $this->doc[$j5Token] = $payplus_transaction_uid;
         }
 
 

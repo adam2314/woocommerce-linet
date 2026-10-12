@@ -3,7 +3,7 @@ Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 6.0
 Tested up to: 7.0
-Stable tag: 3.6.35
+Stable tag: 3.6.36
 License: GPLv2 or later
 Requires PHP: 7.4
 Donate link: http://www.linet.org.il
@@ -47,6 +47,10 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+
+= 2026.10.12 - version 3.6.36 =
+
+* Fix: the J5 fields of a PayPlus order carry the transaction uid and the PayPlus transaction number again, as they did before 3.6.30. PayPlus charges a held J5 by its transaction uid alone, so the card token that 3.6.30 put in the J5 token field, whenever the order had one, could not be charged against the hold
 
 = 2026.10.11 - version 3.6.35 =
 
