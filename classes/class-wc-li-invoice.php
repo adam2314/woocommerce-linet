@@ -179,6 +179,7 @@ class WC_LI_Invoice
 
     $j5Token = get_option('wc_linet_j5Token');
     $j5Number = get_option('wc_linet_j5Number');
+    $j5Method = get_option('wc_linet_j5Method');
 
     $custom_product_addons = LI_WC_Dependencies::check_custom_product_addons();
 
@@ -562,15 +563,24 @@ class WC_LI_Invoice
           $rcpt['paymentsNo']['value'] = $payplus_number_of_payments;
         }
 
-        $payplus_approval_num = $order->get_meta('payplus_number');
+        $payplus_response = json_decode((string) $order->get_meta('payplus_response'), true);
+        if (!is_array($payplus_response)) {
+          $payplus_response = array();
+        }
+
+        // payplus_number is PayPlus's own transaction number (e.g. RLul7X4qHm), not the
+        // card company's approval number - that one is only kept in the saved response
+        $payplus_approval_num = $payplus_response['approval_num'] ?? '';
 
 
         if ($payplus_approval_num) {
           $rcpt['auth_number']['value'] = $payplus_approval_num;
         }
 
-        if ($j5Number && $payplus_approval_num) {
-          $this->doc[$j5Number] = $payplus_approval_num;
+        $payplus_number = $order->get_meta('payplus_number');
+
+        if ($j5Number && $payplus_number) {
+          $this->doc[$j5Number] = $payplus_number;
         }
 
 
@@ -585,6 +595,46 @@ class WC_LI_Invoice
         // so that is what goes up - not the card token, which would make a new charge instead
         if ($j5Token && $payplus_transaction_uid) {
           $this->doc[$j5Token] = $payplus_transaction_uid;
+        }
+
+        $payplus_method = strtolower((string) $order->get_meta('payplus_alternative_method_name'));
+
+        // A wallet paid through the payment page comes back as method credit-card with no
+        // alternative_method_name - only the page request says it was Apple Pay / Google Pay
+        if ($payplus_method === '') {
+          $payplus_payload = $order->get_meta('payplus_payload');
+          if (is_string($payplus_payload)) {
+            $payplus_payload = json_decode($payplus_payload, true);
+          }
+          $payplus_charge_default = strtolower((string) ($payplus_payload['charge_default'] ?? ''));
+          if (!empty($payplus_payload['hide_other_charge_methods']) && in_array($payplus_charge_default, array('apple-pay', 'google-pay'), true)) {
+            $payplus_method = $payplus_charge_default;
+          }
+        }
+
+        if ($payplus_method === '') {
+          $payplus_method = strtolower((string) ($payplus_response['method'] ?? $payplus_response['data']['method'] ?? 'credit-card'));
+        }
+
+        if ($j5Method) {
+          $this->doc[$j5Method] = $payplus_method;
+        }
+
+        // An Apple Pay / Google Pay J5 can't be captured by transaction uid - Linet charges it
+        // with the card token (Transactions/Charge, use_token), which also needs the customer uid
+        if (in_array($payplus_method, array('apple-pay', 'google-pay'), true)) {
+          $payplus_token = $order->get_meta('payplus_token_uid') ?: ($payplus_response['token_uid'] ?? '');
+          $payplus_customer_uid = $payplus_response['customer_uid']
+            ?? $payplus_response['data']['customer_uid']
+            ?? $payplus_response['data']['customer']['customer_uid']
+            ?? '';
+
+          if ($j5Token && $payplus_token) {
+            $this->doc[$j5Token] = $payplus_token;
+          }
+          if ($j5Number && $payplus_customer_uid) {
+            $this->doc[$j5Number] = $payplus_customer_uid;
+          }
         }
 
 

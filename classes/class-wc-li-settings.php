@@ -234,6 +234,12 @@ class WC_LI_Settings
         'type' => 'text',
         'description' => __('J5 Reference Number field sync {eavX}', 'linet-erp-woocommerce-integration'),
       ),
+      'j5Method' => array(
+        'title' => __('J5 Payment Method EAV field', 'linet-erp-woocommerce-integration'),
+        'default' => '',
+        'type' => 'text',
+        'description' => __('J5 payment method field sync {eavX} (credit-card / apple-pay / google-pay)', 'linet-erp-woocommerce-integration'),
+      ),
 
       'genral_item' => array(
         'title' => __('General Item', 'linet-erp-woocommerce-integration'),

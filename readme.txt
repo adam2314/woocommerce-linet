@@ -3,7 +3,7 @@ Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 6.0
 Tested up to: 7.0
-Stable tag: 3.6.36
+Stable tag: 3.6.37
 License: GPLv2 or later
 Requires PHP: 7.4
 Donate link: http://www.linet.org.il
@@ -47,6 +47,12 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+
+= 2026.10.13 - version 3.6.37 =
+
+* New: an Apple Pay or Google Pay J5 from PayPlus goes up with its card token and PayPlus customer uid in the J5 token and number fields, so Linet's till can charge it with the token (Transactions/Charge) - a wallet authorization can't be captured by transaction uid. Card orders are sent as before
+* New: "J5 Payment Method EAV field" setting. Every PayPlus order sends its method there (credit-card, apple-pay, google-pay); pick the same field for the method in Linet's till settings. PayPlus reports a wallet paid through the payment page as credit-card, so the wallet is read from the page request (charge_default with the other methods hidden)
+* Fix: a PayPlus receipt's approval number is the card company's approval number (approval_num), not PayPlus's own transaction number (payplus_number, e.g. RLul7X4qHm)
 
 = 2026.10.12 - version 3.6.36 =
 
