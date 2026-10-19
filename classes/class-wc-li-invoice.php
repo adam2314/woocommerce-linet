@@ -179,7 +179,6 @@ class WC_LI_Invoice
 
     $j5Token = get_option('wc_linet_j5Token');
     $j5Number = get_option('wc_linet_j5Number');
-    $j5Method = get_option('wc_linet_j5Method');
 
     $custom_product_addons = LI_WC_Dependencies::check_custom_product_addons();
 
@@ -577,13 +576,6 @@ class WC_LI_Invoice
           $rcpt['auth_number']['value'] = $payplus_approval_num;
         }
 
-        $payplus_number = $order->get_meta('payplus_number');
-
-        if ($j5Number && $payplus_number) {
-          $this->doc[$j5Number] = $payplus_number;
-        }
-
-
         $payplus_transaction_uid = $order->get_meta('payplus_transaction_uid');
 
 
@@ -591,50 +583,14 @@ class WC_LI_Invoice
           $rcpt['card_no']['value'] = $payplus_transaction_uid;
         }
 
-        // PayPlus charges a held J5 by the transaction uid alone (Transactions/ChargeByTransactionUID),
-        // so that is what goes up - not the card token, which would make a new charge instead
+        // PayPlus charges a held J5 - card, Apple Pay or Google Pay - by its transaction uid alone
+        // (Transactions/ChargeByTransactionUID). Linet's till reads it from the J5 number field;
+        // the token field keeps it too, for tills from before that
         if ($j5Token && $payplus_transaction_uid) {
           $this->doc[$j5Token] = $payplus_transaction_uid;
         }
-
-        $payplus_method = strtolower((string) $order->get_meta('payplus_alternative_method_name'));
-
-        // A wallet paid through the payment page comes back as method credit-card with no
-        // alternative_method_name - only the page request says it was Apple Pay / Google Pay
-        if ($payplus_method === '') {
-          $payplus_payload = $order->get_meta('payplus_payload');
-          if (is_string($payplus_payload)) {
-            $payplus_payload = json_decode($payplus_payload, true);
-          }
-          $payplus_charge_default = strtolower((string) ($payplus_payload['charge_default'] ?? ''));
-          if (!empty($payplus_payload['hide_other_charge_methods']) && in_array($payplus_charge_default, array('apple-pay', 'google-pay'), true)) {
-            $payplus_method = $payplus_charge_default;
-          }
-        }
-
-        if ($payplus_method === '') {
-          $payplus_method = strtolower((string) ($payplus_response['method'] ?? $payplus_response['data']['method'] ?? 'credit-card'));
-        }
-
-        if ($j5Method) {
-          $this->doc[$j5Method] = $payplus_method;
-        }
-
-        // An Apple Pay / Google Pay J5 can't be captured by transaction uid - Linet charges it
-        // with the card token (Transactions/Charge, use_token), which also needs the customer uid
-        if (in_array($payplus_method, array('apple-pay', 'google-pay'), true)) {
-          $payplus_token = $order->get_meta('payplus_token_uid') ?: ($payplus_response['token_uid'] ?? '');
-          $payplus_customer_uid = $payplus_response['customer_uid']
-            ?? $payplus_response['data']['customer_uid']
-            ?? $payplus_response['data']['customer']['customer_uid']
-            ?? '';
-
-          if ($j5Token && $payplus_token) {
-            $this->doc[$j5Token] = $payplus_token;
-          }
-          if ($j5Number && $payplus_customer_uid) {
-            $this->doc[$j5Number] = $payplus_customer_uid;
-          }
+        if ($j5Number && $payplus_transaction_uid) {
+          $this->doc[$j5Number] = $payplus_transaction_uid;
         }
 
 
@@ -794,9 +750,10 @@ class WC_LI_Invoice
           // not answered out of the live products alone: a variation sold off
           // a matrix is an item with isProduct 0, an item retired after it was
           // sold is active 0, and a line of a document has to find either.
-          // Linet matches the sku with a LIKE, so a handful of rows are read
-          // and the one whose sku is the one asked for is the one taken.
+          // match exact keeps a longer sku that holds this one from being
+          // taken for it, which a LIKE on its own would answer with.
           $res = WC_LI_Settings::sendAPI('newsearch/item', array(
+            'match' => WC_LI_Inventory::SEARCH_MATCH_EXACT,
             'limit' => WC_LI_Inventory::SKU_SEARCH_LIMIT,
             'query' => array(
               'sku' => $sku,
@@ -835,10 +792,32 @@ class WC_LI_Invoice
 
   public function getAcc($email)
   {
-    $res = WC_LI_Settings::sendAPI('search/account', ['email' => $email, 'type' => 0]);
-    //var_dump($res);exit;
-    if (is_array($res->body)) {
-      return $res->body[0]->id;
+    // An account's email field can hold more than one address, kept as one
+    // string separated by ", ". match exact has Linet take an account that
+    // holds this address as one of its own, rather than a LIKE that also
+    // answers with an address that only contains it (xa@b.com for a@b.com),
+    // so the one row asked for is the account. The addresses are still
+    // checked here, so an answer wider than that cannot hand the order to
+    // somebody else.
+    $res = WC_LI_Settings::sendAPI('newsearch/account', array(
+      'match' => WC_LI_Inventory::SEARCH_MATCH_EXACT,
+      'limit' => 1,
+      'query' => array(
+        'email' => $email,
+        'type' => 0,
+      ),
+    ));
+
+    foreach (WC_LI_Settings::apiRows($res) as $row) {
+      if (!isset($row->id) || !isset($row->email)) {
+        continue;
+      }
+
+      foreach (explode(',', (string) $row->email) as $address) {
+        if (0 === strcasecmp(trim($address), trim((string) $email))) {
+          return $row->id;
+        }
+      }
     }
     return false;
   }

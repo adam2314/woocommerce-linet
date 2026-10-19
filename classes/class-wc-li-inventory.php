@@ -63,15 +63,22 @@ class WC_LI_Inventory
   const ITEM_ANY_ACTIVE = array(0, 1);
 
   /**
+   * What match says for a newsearch to compare its query fields whole.
+   *
+   * Left out, Linet matches a text field such as sku with a LIKE, so a sku
+   * that reads as part of a longer one is answered with that other item too,
+   * in no set order - and with more of them than the limit, the item that was
+   * asked for may not be in the answer at all.
+   */
+  const SEARCH_MATCH_EXACT = 'exact';
+
+  /**
    * Rows to ask for when looking an item up by its sku.
    *
-   * The sku is unique, so there is only ever one item to find - but Linet
-   * matches it with a LIKE, so a sku that reads as part of another one is
-   * answered with that other item as well, newest first. One row would be
-   * that other item and the sku that was asked for would never be seen, so a
-   * handful are read and the exact one is picked out of them.
+   * The sku is unique and the lookup matches it exactly, so there is only
+   * ever one item to find.
    */
-  const SKU_SEARCH_LIMIT = 20;
+  const SKU_SEARCH_LIMIT = 1;
 
   /** Term meta holding the Linet itemcategory id of a product_cat term */
   const CAT_META = '_linet_cat';
@@ -614,9 +621,21 @@ class WC_LI_Inventory
       }
     }
 
-    $linCat = WC_LI_Settings::sendAPI('search/itemcategory', array('name' => $term->name));
+    // match exact, or a LIKE on the name maps "Shoes" onto "Running Shoes".
+    $linCat = WC_LI_Settings::sendAPI('newsearch/itemcategory', array(
+      'match' => self::SEARCH_MATCH_EXACT,
+      'limit' => 1,
+      'query' => array('name' => $term->name),
+    ));
 
-    if ($linCat->errorCode == 1000) {
+    //no answer at all - don't create a duplicate or map the term to nothing
+    if (!self::apiMissing($linCat) && !isset(WC_LI_Settings::apiRows($linCat)[0]->id)) {
+      if ($logger)
+        $logger->write("WpSingleCatSync no answer for: $term->name");
+      return 0;
+    }
+
+    if (self::apiMissing($linCat)) {
       //create body pic?
       $linCat = WC_LI_Settings::sendAPI('create/itemcategory', $catBody);
       if ($linCat->errorCode == 0 && $linCat->status == 200) {
@@ -1480,8 +1499,10 @@ class WC_LI_Inventory
     // that table, and a newsearch that says nothing is answered only out of
     // the live items whose isProduct is not 0. Both are said out loud, so a
     // switched off item and a cell of a matrix are found by the one call
-    // rather than by a second one that only asked about them.
+    // rather than by a second one that only asked about them. match exact
+    // keeps a longer sku that holds this one from answering in its place.
     $query = array(
+      'match' => self::SEARCH_MATCH_EXACT,
       'limit' => self::SKU_SEARCH_LIMIT,
       'query' => array(
         'sku' => $itemSku,
@@ -2059,7 +2080,9 @@ class WC_LI_Inventory
       // below, so the criteria go under query and $body is left as it is.
       // One row is all this asks for, because all it wants to know is whether
       // the picture is there.
+      // match exact, so pic1.jpg is not answered with an xpic1.jpg already there.
       $fileExsits = WC_LI_Settings::sendAPI('newsearch/file', array(
+        'match' => self::SEARCH_MATCH_EXACT,
         'limit' => 1,
         'query' => $body,
       ));
@@ -3683,11 +3706,7 @@ class WC_LI_Inventory
       'start' => gmdate('Y-m-d'),
       'offset' => 0
     );
-    $login_id = get_option('wc_linet_consumer_id');
-    $hash = get_option('wc_linet_consumer_key');
-    $company = get_option('wc_linet_company');
-
-    if ($login_id == '' || $hash == '' || $company == '') {
+    if (!WC_LI_Settings::credentials()) {
       return false;
     }
     wp_cache_set('linet_fullSync_status', $status);

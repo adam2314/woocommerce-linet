@@ -3,7 +3,7 @@ Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 6.0
 Tested up to: 7.0
-Stable tag: 3.6.37
+Stable tag: 3.6.39
 License: GPLv2 or later
 Requires PHP: 7.4
 Donate link: http://www.linet.org.il
@@ -48,11 +48,21 @@ No answer to that question.
 
 == Changelog ==
 
+= 2026.10.19 - version 3.6.39 =
+
+* Updated: the API key can be entered as the single bearer token Linet now shows (user settings → Api Keys), pasted whole into the ID field with Key left empty. A key entered as login ID and hash, the way older keys were, still works
+* Fix: a category pushed from WooCommerce is matched to a Linet category by its exact name (newsearch/itemcategory, match exact), so "Shoes" is no longer mapped onto "Running Shoes". A lookup that Linet did not answer no longer maps the category to nothing
+* Fix: the check for whether a picture is already on a Linet item matches the file name exactly, so pic1.jpg is not taken for an xpic1.jpg already there
+
+= 2026.10.18 - version 3.6.38 =
+
+* Fix: a lookup by sku asks Linet for an exact match (match exact) and a single row. Linet matched the sku with a LIKE and in no set order, so with more items holding the sku than the rows read, the item actually asked for could be missing from the answer, and a sku that reads as part of a longer one could be answered with that other item. A document line matched by sku asks the same way
+* Updated: the customer of an order is looked up with newsearch/account rather than search/account, with an exact match and a single row, and is taken only when its email field holds the order's email as one of its addresses. Linet now keeps more than one address in an account's email field, separated by ", "
+
 = 2026.10.13 - version 3.6.37 =
 
-* New: an Apple Pay or Google Pay J5 from PayPlus goes up with its card token and PayPlus customer uid in the J5 token and number fields, so Linet's till can charge it with the token (Transactions/Charge) - a wallet authorization can't be captured by transaction uid. Card orders are sent as before
-* New: "J5 Payment Method EAV field" setting. Every PayPlus order sends its method there (credit-card, apple-pay, google-pay); pick the same field for the method in Linet's till settings. PayPlus reports a wallet paid through the payment page as credit-card, so the wallet is read from the page request (charge_default with the other methods hidden)
-* Fix: a PayPlus receipt's approval number is the card company's approval number (approval_num), not PayPlus's own transaction number (payplus_number, e.g. RLul7X4qHm)
+* Fix: the J5 number field of a PayPlus order carries the transaction uid, which is what Linet's till now captures the J5 by (Transactions/ChargeByTransactionUID) - card, Apple Pay and Google Pay alike. It carried PayPlus's own transaction number (payplus_number, e.g. RPiwCQNBIA), which PayPlus can't charge. The token field keeps the transaction uid as before
+* Fix: a PayPlus receipt's approval number is the card company's approval number (approval_num), not PayPlus's own transaction number
 
 = 2026.10.12 - version 3.6.36 =
 

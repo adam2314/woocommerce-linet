@@ -234,12 +234,6 @@ class WC_LI_Settings
         'type' => 'text',
         'description' => __('J5 Reference Number field sync {eavX}', 'linet-erp-woocommerce-integration'),
       ),
-      'j5Method' => array(
-        'title' => __('J5 Payment Method EAV field', 'linet-erp-woocommerce-integration'),
-        'default' => '',
-        'type' => 'text',
-        'description' => __('J5 payment method field sync {eavX} (credit-card / apple-pay / google-pay)', 'linet-erp-woocommerce-integration'),
-      ),
 
       'genral_item' => array(
         'title' => __('General Item', 'linet-erp-woocommerce-integration'),
@@ -1703,13 +1697,13 @@ class WC_LI_Settings
         'title' => __('ID', 'linet-erp-woocommerce-integration'),
         'default' => '',
         'type' => 'text',
-        'description' => __('Login ID  retrieved from <a href="http://app.linet.org.il" target="_blank">Linet</a>.', 'linet-erp-woocommerce-integration'),
+        'description' => __('Bearer token from <a href="https://app.linet.org.il" target="_blank">Linet</a> (user settings → Api Keys), or the Login ID of an older key.', 'linet-erp-woocommerce-integration'),
       ),
       'consumer_key' => array(
         'title' => __('Key', 'linet-erp-woocommerce-integration'),
         'default' => '',
         'type' => 'text',
-        'description' => __('Key retrieved from <a href="http://app.linet.org.il" target="_blank">Linet</a>.', 'linet-erp-woocommerce-integration'),
+        'description' => __('Login hash of an older key. Leave empty when ID holds the bearer token.', 'linet-erp-woocommerce-integration'),
       ),
       'company' => array(
         'title' => __('Company', 'linet-erp-woocommerce-integration'),
@@ -2090,12 +2084,7 @@ class WC_LI_Settings
 
     $autoSync = get_option('wc_linet_sync_items');
 
-    $login_id = get_option('wc_linet_consumer_id');
-    $hash = get_option('wc_linet_consumer_key');
-    $company = get_option('wc_linet_company');
-
-
-    if ($autoSync == 'on' && $login_id != '' && $hash != '' && $company != '') {
+    if ($autoSync == 'on' && self::credentials()) {
       if (!wp_next_scheduled('linetItemSync')) {
         wp_schedule_event(time(), 'hourly', 'linetItemSync');
       }
@@ -3467,6 +3456,34 @@ class WC_LI_Settings
     return $value;
   }
 
+  /**
+   * The API key and company the calls to Linet are made with.
+   *
+   * A key made in Linet now shows one bearer token, which is the login id and
+   * the login hash joined with a dot. It can be pasted whole into the ID
+   * field with Key left empty, or as the two halves the way older keys were
+   * set up. Either way it comes back here as the two halves, which is what
+   * the bearer header is built from and what the old headers still carry.
+   *
+   * @return array|false array($login_id, $hash, $company), false if any is missing
+   */
+  public static function credentials()
+  {
+    $login_id = trim((string) get_option('wc_linet_consumer_id'));
+    $hash = trim((string) get_option('wc_linet_consumer_key'));
+    $company = trim((string) get_option('wc_linet_company'));
+
+    if ($hash == '' && strpos($login_id, '.') !== false) {
+      list($login_id, $hash) = explode('.', $login_id, 2);
+    }
+
+    if ($login_id == '' || $hash == '' || $company == '') {
+      return false;
+    }
+
+    return array($login_id, $hash, $company);
+  }
+
   public static function sendAPI($req, $body = array())
   {
 
@@ -3478,17 +3495,13 @@ class WC_LI_Settings
 
     //var_dump($dev);exit;
 
-    $login_id = get_option('wc_linet_consumer_id');
-    $hash = get_option('wc_linet_consumer_key');
-    $company = get_option('wc_linet_company');
+    $credentials = self::credentials();
 
-    //$body['login_id'] = $login_id;
-    //$body['login_hash'] = $hash;
-    //$body['login_company'] = $company;
-
-    if ($login_id == '' || $hash == '' || $company == '') {
+    if (!$credentials) {
       return false;
     }
+
+    list($login_id, $hash, $company) = $credentials;
 
     $logger = new WC_LI_Logger(get_option('wc_linet_debug'));
 
@@ -3502,6 +3515,8 @@ class WC_LI_Settings
       'sslverify' => !$dev,
       'timeout' => (float) apply_filters('woocommerce_linet_api_timeout', self::API_TIMEOUT),
       'headers' => array(
+        'Authorization' => 'Bearer ' . $login_id . '.' . $hash,
+        // The old headers stay for Linet servers that don't read the token yet.
         'login-id'=> $login_id,
         'login-hash'=> $hash,
         'login-company'=> $company,
