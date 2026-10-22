@@ -3,7 +3,7 @@ Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 6.0
 Tested up to: 7.0
-Stable tag: 3.6.39
+Stable tag: 3.6.40
 License: GPLv2 or later
 Requires PHP: 7.4
 Donate link: http://www.linet.org.il
@@ -48,11 +48,17 @@ No answer to that question.
 
 == Changelog ==
 
+= 2026.10.22 - version 3.6.40 =
+
+* Fix: an order's coupon discount is sent as one line per VAT category, each taking the part of the discount that fell on that category's items. A coupon on VAT-exempt items no longer takes 18% VAT off VAT that was never charged. With "one item order" on, or a discount WooCommerce did not spread over the items, the single coupon line is sent as before
+* Fix: a fee that carried no VAT (a fee that is not taxable, or a discount fee on exempt items) is sent as an exempt line on the exempt income account, rather than always at 18%
+
 = 2026.10.19 - version 3.6.39 =
 
 * Updated: the API key can be entered as the single bearer token Linet now shows (user settings → Api Keys), pasted whole into the ID field with Key left empty. A key entered as login ID and hash, the way older keys were, still works
 * Fix: a category pushed from WooCommerce is matched to a Linet category by its exact name (newsearch/itemcategory, match exact), so "Shoes" is no longer mapped onto "Running Shoes". A lookup that Linet did not answer no longer maps the category to nothing
 * Fix: the check for whether a picture is already on a Linet item matches the file name exactly, so pic1.jpg is not taken for an xpic1.jpg already there
+* Updated: requests to Linet send only the bearer token and login-company. The older login-id and login-hash headers are no longer sent
 
 = 2026.10.18 - version 3.6.38 =
 

@@ -193,6 +193,8 @@ class WC_LI_Invoice
       $country_id = "IL";
     }
 
+    $discountByCat = array();
+
     foreach ($order->get_items() as $item) {
 
       $product = wc_get_product($item['product_id']);
@@ -259,6 +261,12 @@ class WC_LI_Invoice
       $one_item = $obj['detail']['iItem'];
       $this->doc['docDet'][] = $obj['detail'];
 
+      // coupon share of this line, VAT included, per the line's (possibly filtered) VAT category
+      $itemDiscount = ((double) $item['subtotal'] + (double) $item['subtotal_tax'])
+        - ((double) $item['total'] + (double) $item['total_tax']);
+      $cat = $obj['detail']['vat_cat_id'];
+      $discountByCat[$cat] = ($discountByCat[$cat] ?? 0) + $itemDiscount;
+
       $total += $one_item * $item['qty'];
     }
 
@@ -294,36 +302,51 @@ class WC_LI_Invoice
       }
 
       // lines are sent with VAT (iItemWithVat), so the discount must include VAT too
-      $discount_total = $order->get_total_discount(false);
+      $discount_total = abs($order->get_total_discount(false));
 
+      // one coupon line per VAT category, so an exempt item's discount carries no VAT
+      $discountByCat = array_filter(array_map(function ($sum) {
+        return round($sum, 2);
+      }, $discountByCat));
 
+      if ($one_item_order == 'on' || empty($discountByCat)) {
+        // whole order is one line, or the discount was not spread over items
+        $discountByCat = array((($country_id == "IL") ? 1 : 2) => $discount_total);
+      } else {
+        ksort($discountByCat);
+        // rounding: keep the coupon total equal to the order's discount
+        $largest = array_search(max($discountByCat), $discountByCat);
+        $discountByCat[$largest] = round($discountByCat[$largest] + $discount_total - array_sum($discountByCat), 2);
+      }
 
-      $detail = [
-        "item_id" => $genral_item,
-        "name" => "Coupon Codes: " . implode(", ", $names),
-        "description" => "",
-        "qty" => -1,
-        "currency_id" => $currency_id,
-        //"currency_rate" => "1",
-        "vat_cat_id" => ($country_id == "IL") ? 1 : 2,
-        "account_id" => ($country_id == "IL") ? $income_acc : $income_acc_novat,
-        "unit_id" => 0,
-        "iItem" => abs($discount_total),
-        "iItemWithVat" => 1
-      ];
+      foreach ($discountByCat as $cat => $amount) {
+        $detail = [
+          "item_id" => $genral_item,
+          "name" => "Coupon Codes: " . implode(", ", $names),
+          "description" => "",
+          "qty" => -1,
+          "currency_id" => $currency_id,
+          //"currency_rate" => "1",
+          "vat_cat_id" => $cat,
+          "account_id" => ($cat == 1) ? $income_acc : $income_acc_novat,
+          "unit_id" => 0,
+          "iItem" => $amount,
+          "iItemWithVat" => 1
+        ];
 
-      $obj = array(
-        'doc' => $this->doc,
-        'detail' => $detail,
-        'order' => $order
-      );
+        $obj = array(
+          'doc' => $this->doc,
+          'detail' => $detail,
+          'order' => $order
+        );
 
-      $obj = apply_filters('woocommerce_linet_set_order_discount', $obj);
+        $obj = apply_filters('woocommerce_linet_set_order_discount', $obj);
 
-      $this->doc = $obj['doc'];
-      $this->doc['docDet'][] = $obj['detail'];
+        $this->doc = $obj['doc'];
+        $this->doc['docDet'][] = $obj['detail'];
 
-      $total += $obj['detail']['iItem'] * $obj['detail']['qty'];
+        $total += $obj['detail']['iItem'] * $obj['detail']['qty'];
+      }
 
     }
 
@@ -370,6 +393,9 @@ class WC_LI_Invoice
       //foreach ( WC_Cart::get_fees() as $fee) {
       $fee_price = (double) $fee->get_total() + (double) $fee->get_total_tax();
 
+      // a fee that carried no VAT (not taxable, or a discount fee on exempt items) is sent exempt
+      $fee_cat = ($country_id == "IL" && (double) $fee->get_total_tax() != 0) ? 1 : 2;
+
       $detail = [
         "item_id" => $genral_item,
         "name" => html_entity_decode($fee->get_name()),
@@ -377,8 +403,8 @@ class WC_LI_Invoice
         "qty" => ($fee_price < 0) ? -1 : 1,
         "currency_id" => $currency_id,
         //"currency_rate" => "1",
-        "vat_cat_id" => ($country_id == "IL") ? 1 : 2,
-        "account_id" => ($country_id == "IL") ? $income_acc : $income_acc_novat,
+        "vat_cat_id" => $fee_cat,
+        "account_id" => ($fee_cat === 1) ? $income_acc : $income_acc_novat,
         "unit_id" => 0,
         "iItem" => abs($fee_price),
         "iItemWithVat" => 1

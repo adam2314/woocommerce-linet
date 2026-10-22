@@ -3516,11 +3516,7 @@ class WC_LI_Settings
       'timeout' => (float) apply_filters('woocommerce_linet_api_timeout', self::API_TIMEOUT),
       'headers' => array(
         'Authorization' => 'Bearer ' . $login_id . '.' . $hash,
-        // The old headers stay for Linet servers that don't read the token yet.
-        'login-id'=> $login_id,
-        'login-hash'=> $hash,
         'login-company'=> $company,
-
         'Content-Type' => 'application/json',
         'Wordpress-Site' => str_replace("http://", "", str_replace("https://", "", get_site_url())),
         'Wordpress-Plugin' => WC_Linet::VERSION,
