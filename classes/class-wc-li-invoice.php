@@ -194,6 +194,7 @@ class WC_LI_Invoice
     }
 
     $discountByCat = array();
+    $hasExemptLine = false;
 
     foreach ($order->get_items() as $item) {
 
@@ -266,8 +267,11 @@ class WC_LI_Invoice
         - ((double) $item['total'] + (double) $item['total_tax']);
       $cat = $obj['detail']['vat_cat_id'];
       $discountByCat[$cat] = ($discountByCat[$cat] ?? 0) + $itemDiscount;
+      if ($cat != 1) {
+        $hasExemptLine = true;
+      }
 
-      $total += $one_item * $item['qty'];
+      $total += $obj['detail']['iItem'] * $obj['detail']['qty'];
     }
 
 
@@ -393,35 +397,58 @@ class WC_LI_Invoice
       //foreach ( WC_Cart::get_fees() as $fee) {
       $fee_price = (double) $fee->get_total() + (double) $fee->get_total_tax();
 
+      $fee_tax = (double) $fee->get_total_tax();
+
       // a fee that carried no VAT (not taxable, or a discount fee on exempt items) is sent exempt
-      $fee_cat = ($country_id == "IL" && (double) $fee->get_total_tax() != 0) ? 1 : 2;
+      $fee_cat = ($country_id == "IL" && $fee_tax != 0) ? 1 : 2;
+      $feeByCat = array($fee_cat => $fee_price);
 
-      $detail = [
-        "item_id" => $genral_item,
-        "name" => html_entity_decode($fee->get_name()),
-        "description" => "",
-        "qty" => ($fee_price < 0) ? -1 : 1,
-        "currency_id" => $currency_id,
-        //"currency_rate" => "1",
-        "vat_cat_id" => $fee_cat,
-        "account_id" => ($fee_cat === 1) ? $income_acc : $income_acc_novat,
-        "unit_id" => 0,
-        "iItem" => abs($fee_price),
-        "iItemWithVat" => 1
-      ];
+      // a discount fee on a mixed order: WooCommerce taxed only the taxable items' share of it,
+      // so the share its VAT accounts for is sent taxable and the rest exempt
+      if ($fee_cat === 1 && $hasExemptLine && $one_item_order != 'on') {
+        $taxed = 0;
+        $fee_taxes = $fee->get_taxes();
+        foreach (($fee_taxes['total'] ?? array()) as $rate_id => $tax) {
+          $rate = WC_Tax::get_rate_percent_value($rate_id) / 100;
+          if ($rate > 0) {
+            $taxed += (double) $tax + (double) $tax / $rate;
+          }
+        }
+        $taxed = round($taxed, 2);
+        $exempt = round($fee_price - $taxed, 2);
+        if ($taxed != 0 && abs($exempt) >= 0.05) {
+          $feeByCat = array(1 => $taxed, 2 => $exempt);
+        }
+      }
 
-      $obj = array(
-        'doc' => $this->doc,
-        'detail' => $detail,
-        'order' => $order
-      );
+      foreach ($feeByCat as $cat => $amount) {
+        $detail = [
+          "item_id" => $genral_item,
+          "name" => html_entity_decode($fee->get_name()),
+          "description" => "",
+          "qty" => ($amount < 0) ? -1 : 1,
+          "currency_id" => $currency_id,
+          //"currency_rate" => "1",
+          "vat_cat_id" => $cat,
+          "account_id" => ($cat === 1) ? $income_acc : $income_acc_novat,
+          "unit_id" => 0,
+          "iItem" => abs($amount),
+          "iItemWithVat" => 1
+        ];
 
-      $obj = apply_filters('woocommerce_linet_set_order_fees', $obj);
+        $obj = array(
+          'doc' => $this->doc,
+          'detail' => $detail,
+          'order' => $order
+        );
 
-      $this->doc = $obj['doc'];
-      $this->doc['docDet'][] = $obj['detail'];
+        $obj = apply_filters('woocommerce_linet_set_order_fees', $obj);
 
-      $total += $obj['detail']['iItem'] * $obj['detail']['qty'];
+        $this->doc = $obj['doc'];
+        $this->doc['docDet'][] = $obj['detail'];
+
+        $total += $obj['detail']['iItem'] * $obj['detail']['qty'];
+      }
 
     }
 

@@ -3,7 +3,7 @@ Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 6.0
 Tested up to: 7.0
-Stable tag: 3.6.40
+Stable tag: 3.6.42
 License: GPLv2 or later
 Requires PHP: 7.4
 Donate link: http://www.linet.org.il
@@ -47,6 +47,14 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+
+= 2026.10.26 - version 3.6.42 =
+
+* Fix: the doc. total check (and the receipt sum) now adds up each line at the price and quantity actually sent to Linet. A filter that rewrites a line's quantity (for example selling by unit but sending in kg) made the total count the new price against the old quantity, so orders were flagged with a false "Doc. total does not match order total" note
+
+= 2026.10.25 - version 3.6.41 =
+
+* Fix: a discount fee on an order holding both taxable and VAT-exempt items is sent as two lines: the share its VAT was charged on as a taxable line, the rest as an exempt line on the exempt income account. WooCommerce taxes only the taxable items' share of such a fee, and the whole fee had been sent at 18%. A fee on an order without exempt items, or with "one item order" on, is sent as one line as before
 
 = 2026.10.22 - version 3.6.40 =
 
