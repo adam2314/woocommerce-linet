@@ -3,7 +3,7 @@ Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 6.0
 Tested up to: 7.0
-Stable tag: 3.6.42
+Stable tag: 3.6.43
 License: GPLv2 or later
 Requires PHP: 7.4
 Donate link: http://www.linet.org.il
@@ -47,6 +47,10 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+
+= 2026.10.28 - version 3.6.43 =
+
+* Fix: orders paid with Apple Pay through Z-Credit (zcredit_apple_pay), or Apple Pay / Google Pay through PayPlus (payplus-payment-gateway-applepay, payplus-payment-gateway-googlepay), now send their token, J5 fields, last 4 digits and installments to Linet like a regular card payment. These payment methods were missing from the receipt's payment switch, so their docs reached Linet with no token and the held J5 could not be charged
 
 = 2026.10.26 - version 3.6.42 =
 

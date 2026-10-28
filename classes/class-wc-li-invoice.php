@@ -544,6 +544,7 @@ class WC_LI_Invoice
 
 
       case 'zcredit_google_pay':
+      case 'zcredit_apple_pay':
       case 'zcredit_checkout':
       case 'zcredit_payment':
       case 'zcredit_checkout_payment':
@@ -595,6 +596,8 @@ class WC_LI_Invoice
         break;
 
       case 'payplus-payment-gateway':
+      case 'payplus-payment-gateway-applepay':
+      case 'payplus-payment-gateway-googlepay':
 
 
         $payplus_four_digits = $order->get_meta('payplus_four_digits');
