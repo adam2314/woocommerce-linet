@@ -185,15 +185,13 @@ class WC_LI_Invoice_Manager
       // Get the invoice
       $invoice = $this->get_invoice_by_order($order, $doctype);
 
-      // Check if the order total is 0 and if we need to send 0 total invoices to Linet
-      /*
-      if (0 == $invoice->get_total() && 'on' !== $this->settings->get_option('export_zero_amount')) {
-      //if ( 0 == $invoice->get_total() && 'on' !== $this->settings->get_option( 'export_zero_amount' ) ) {
-      $logger->write('INVOICE HAS TOTAL OF 0, NOT SENDING ORDER WITH ID ' . $order->get_id());
-      $order->add_order_note(__("LINET: Didn't create doc. because total is 0 and send order with zero total is set to off.", 'linet-erp-woocommerce-integration'));
-      return false;
+      // an order that comes to 0 (a coupon or gift card covering all of it) is refused by Linet,
+      // so it is only sent when the shop asked for it
+      if ((double) $order->get_total() <= 0 && 'on' !== get_option('wc_linet_zero_sum_order')) {
+        $logger->write('ORDER HAS TOTAL OF 0, NOT SENDING ORDER WITH ID ' . $order->get_id());
+        $order->add_order_note(__("LINET: Didn't create doc. because total is 0 and send order with zero total is set to off.", 'linet-erp-woocommerce-integration'));
+        return false;
       }
-      */
 
       // Invoice Request
       //$invoice_request = new WC_LI_Request_Invoice( $this->settings, $invoice );

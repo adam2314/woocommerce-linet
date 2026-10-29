@@ -3,7 +3,7 @@ Contributors: aribhour
 Tags: sync, business, ERP, accounting, woocommerce
 Requires at least: 6.0
 Tested up to: 7.0
-Stable tag: 3.6.43
+Stable tag: 3.6.45
 License: GPLv2 or later
 Requires PHP: 7.4
 Donate link: http://www.linet.org.il
@@ -47,6 +47,16 @@ No answer to that question.
 1. No screenshots attached
 
 == Changelog ==
+
+= 2026.10.29 - version 3.6.45 =
+
+* New: "Split VAT by Item" setting (off by default). The per VAT category coupon and fee lines of 3.6.40 - 3.6.41, the one item order split, and fees and shipping sent exempt when set not taxable, now only happen with it on. Off, the coupon, fees, shipping, gift cards and the one item order line are sent at the country's VAT (18% for IL) as before 3.6.40, while product lines still follow each product's tax status. Many shops do not keep tax data in WooCommerce, and the split was failing their orders
+
+= 2026.10.28 - version 3.6.44 =
+
+* Fix: fees, shipping and coupon lines carry VAT unless explicitly marked otherwise. A fee is sent exempt only when its tax status is "none", and shipping only when its shipping method's tax status is "None" (or the billing country is not IL). A fee had been sent exempt whenever WooCommerce charged no tax on it, which made every fee exempt on shops with WooCommerce tax turned off
+* Fix: with "one item order" on, the order line follows its items: an order holding both taxable and VAT-exempt items is sent as one line per VAT category. The coupon and discount fee lines are split by the items' VAT categories in this mode too
+* New: "Sync Zero Sum Orders" setting (off by default). An order whose total is 0, such as one fully covered by a coupon or gift card, is no longer sent to Linet, which refused it with "Total Must Be a Postive Number"; the order gets a note saying why instead. Turn it on to send such orders anyway
 
 = 2026.10.28 - version 3.6.43 =
 

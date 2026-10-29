@@ -193,6 +193,28 @@ class WC_LI_Settings
         'description' => __('Remove all items from linet doc and make one item only', 'linet-erp-woocommerce-integration'),
       ),
 
+      'vat_split' => array(
+        'title' => __('Split VAT by Item', 'linet-erp-woocommerce-integration'),
+        'default' => 'off',
+        'type' => 'select',
+        'options' => array(
+          'off' => __('Off', 'linet-erp-woocommerce-integration'),
+          'on' => __('On', 'linet-erp-woocommerce-integration'),
+        ),
+        'description' => __('Split coupons, fees and the one item order line by the VAT category of the items, and send fees and shipping set not taxable without VAT. Turn on only when the products\' tax status is kept up to date', 'linet-erp-woocommerce-integration'),
+      ),
+
+      'zero_sum_order' => array(
+        'title' => __('Sync Zero Sum Orders', 'linet-erp-woocommerce-integration'),
+        'default' => 'off',
+        'type' => 'select',
+        'options' => array(
+          'off' => __('Off', 'linet-erp-woocommerce-integration'),
+          'on' => __('On', 'linet-erp-woocommerce-integration'),
+        ),
+        'description' => __('Send orders with a total of 0 (fully covered by a coupon or gift card) to Linet', 'linet-erp-woocommerce-integration'),
+      ),
+
 
       'autosend' => array(
         'title' => __('Mail Document', 'linet-erp-woocommerce-integration'),

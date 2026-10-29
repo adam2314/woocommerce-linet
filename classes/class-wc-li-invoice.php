@@ -177,6 +177,9 @@ class WC_LI_Invoice
 
     $one_item_order = get_option('wc_linet_one_item_order');
 
+    // off: only product lines follow the product's tax status, everything else takes the country's VAT
+    $vat_split = get_option('wc_linet_vat_split') === 'on';
+
     $j5Token = get_option('wc_linet_j5Token');
     $j5Number = get_option('wc_linet_j5Number');
 
@@ -194,6 +197,7 @@ class WC_LI_Invoice
     }
 
     $discountByCat = array();
+    $totalByCat = array();
     $hasExemptLine = false;
 
     foreach ($order->get_items() as $item) {
@@ -271,27 +275,36 @@ class WC_LI_Invoice
         $hasExemptLine = true;
       }
 
+      $totalByCat[$cat] = ($totalByCat[$cat] ?? 0) + $obj['detail']['iItem'] * $obj['detail']['qty'];
+
       $total += $obj['detail']['iItem'] * $obj['detail']['qty'];
     }
 
 
     //*
     if ($one_item_order == 'on') {
-      $this->doc['docDet'] = [
-        [
+      // the order line follows its items: one line per VAT category they were sent in
+      if (!$vat_split || empty($totalByCat)) {
+        $totalByCat = array((($country_id == "IL") ? 1 : 2) => $total);
+      }
+      ksort($totalByCat);
+
+      $this->doc['docDet'] = [];
+      foreach ($totalByCat as $cat => $amount) {
+        $this->doc['docDet'][] = [
           "item_id" => $genral_item,
           "name" => __('Online Order', 'linet-erp-woocommerce-integration') . " #" . $order->get_id(),
           "description" => "",
           "qty" => 1,
           "currency_id" => $currency_id,
           //"currency_rate" => "1",
-          "vat_cat_id" => ($country_id == "IL") ? 1 : 2,
-          "account_id" => ($country_id == "IL") ? $income_acc : $income_acc_novat,
+          "vat_cat_id" => $cat,
+          "account_id" => ($cat == 1) ? $income_acc : $income_acc_novat,
           "unit_id" => 0,
-          "iItem" => $total,
+          "iItem" => round($amount, 2),
           "iItemWithVat" => 1
-        ]
-      ];
+        ];
+      }
     } //*/
 
 
@@ -313,8 +326,8 @@ class WC_LI_Invoice
         return round($sum, 2);
       }, $discountByCat));
 
-      if ($one_item_order == 'on' || empty($discountByCat)) {
-        // whole order is one line, or the discount was not spread over items
+      if (!$vat_split || empty($discountByCat)) {
+        // one coupon line, or the discount was not spread over items
         $discountByCat = array((($country_id == "IL") ? 1 : 2) => $discount_total);
       } else {
         ksort($discountByCat);
@@ -362,6 +375,9 @@ class WC_LI_Invoice
       $shiping_price = (double) $method->get_total() + (double) $method->get_total_tax();
       $qty = ($shiping_price < 0) ? -1 : 1;
 
+      // shipping carries VAT unless its method is explicitly set not taxable
+      $ship_cat = ($country_id == "IL" && (!$vat_split
+        || !(method_exists($method, 'get_tax_status') && $method->get_tax_status() === 'none'))) ? 1 : 2;
 
       $detail = [
         "item_id" => $genral_item,
@@ -370,8 +386,8 @@ class WC_LI_Invoice
         "qty" => $qty,
         "currency_id" => $currency_id,
         //"currency_rate" => "1",
-        "vat_cat_id" => ($country_id == "IL") ? 1 : 2,
-        "account_id" => ($country_id == "IL") ? $income_acc : $income_acc_novat,
+        "vat_cat_id" => $ship_cat,
+        "account_id" => ($ship_cat === 1) ? $income_acc : $income_acc_novat,
         "unit_id" => 0,
         "iItem" => abs($shiping_price),
         "iItemWithVat" => 1
@@ -397,15 +413,13 @@ class WC_LI_Invoice
       //foreach ( WC_Cart::get_fees() as $fee) {
       $fee_price = (double) $fee->get_total() + (double) $fee->get_total_tax();
 
-      $fee_tax = (double) $fee->get_total_tax();
-
-      // a fee that carried no VAT (not taxable, or a discount fee on exempt items) is sent exempt
-      $fee_cat = ($country_id == "IL" && $fee_tax != 0) ? 1 : 2;
+      // a fee carries VAT unless it is explicitly marked not taxable
+      $fee_cat = ($country_id == "IL" && (!$vat_split || $fee->get_tax_status() !== 'none')) ? 1 : 2;
       $feeByCat = array($fee_cat => $fee_price);
 
       // a discount fee on a mixed order: WooCommerce taxed only the taxable items' share of it,
       // so the share its VAT accounts for is sent taxable and the rest exempt
-      if ($fee_cat === 1 && $hasExemptLine && $one_item_order != 'on') {
+      if ($vat_split && $fee_cat === 1 && $hasExemptLine) {
         $taxed = 0;
         $fee_taxes = $fee->get_taxes();
         foreach (($fee_taxes['total'] ?? array()) as $rate_id => $tax) {
